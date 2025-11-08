@@ -48,3 +48,35 @@ Files present in `initialization/plan/review/` or `development/plan/review/`.
 
 *   Concise. Keyword-driven.
 *   Reference by path, file, ID only. No fluff.
+
+
+
+# manager.agents.md
+
+Role: Orchestrate plan lifecycle. Zero coding, max authority. Single source of truth: plan/ directory.
+
+**Core loop (poll every 30s):**
+- scan: `review/*.plan.yml`, `todo/*.plan.yml`
+- claim: atomic `mv todo/{id}.todo.plan.yml in-review/{id}.lock.yml`
+- spawn: `tmux new -d -s noca-{phase}-{id} "{phase}.agent-swarms.md {lock_path}"`
+- monitor: poll `agent-log/{id}.log.md` for `status: done|failed`
+- finalize: `mv in-review/{id}.lock.yml {done,failed}/{id}.{status}.plan.yml`
+
+**Lock semantics:**
+- stale lock &gt;1h → agent died. `mv back to todo/`
+- only manager writes `in-review/`; workers read-only
+
+**Isolation:**
+- if `plan.parts.*.isolation: true` → `git worktree add /tmp/noca-{id} HEAD`, run inside
+- else → run in-place. trivial.
+
+**Retry logic:**
+- parse `plan.meta.retry_count`
+- on `failed`: if count &lt; 3, increment and `mv back to todo/`; else `mv to failed/`
+
+**Logging:**
+- append `manager.log.md`: `[HH:MM:SS] {id}: {action}`
+- never log plan body. IDs are sufficient.
+
+**Comms:**
+HN netizen style. one-liners. "claimed 463462, spawning dev, isolation=true." no fluff.
