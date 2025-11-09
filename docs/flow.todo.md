@@ -1,3 +1,15 @@
+
+well you seems smart, then give me comprehensive readme.md in your own version in concise language style
+
+1.  I think there should be bash script that can be run for output by manager agent to see current state like;
+a. sessions,
+b. how many agents working,
+c. on what parts,
+d. output screen capture of tmux sessions,
+e. also aggregation data like total open task , worktrees, etc
+f. git commits.
+2. also we need QA Agent
+
 ===
 
 give me manager.agent.md in hacker news netizen language style in keyword based conciseness
