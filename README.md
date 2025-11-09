@@ -1,4 +1,4 @@
-# Noca-Flow: Filesystem-as-State for Phased LLM Swarms
+# NocaFlow: Filesystem-as-State for Phased LLM Swarms
 
 ## Core Problem
 
@@ -6,15 +6,28 @@ Context windows are volatile, expensive memory. Passing full history to parallel
 
 ## The Fix: Phased, Durable State Machine on Disk
 
-Noca-Flow treats the filesystem as the single source of truth. State changes are atomic file operations. Agents are stateless workers executing tasks defined in YAML. The system progresses through distinct phases (`initialization`, `development`), each with its own rules and plan queue. This is a job tracker built on `mv`, `flock`, and `git`.
+nocaflow treats the filesystem as the single source of truth. State changes are atomic file operations. Agents are stateless workers executing tasks defined in YAML. The system progresses through distinct phases (`initialization`, `development`), each with its own rules and plan queue. This is a job tracker built on `mv`, `flock`, and `git`.
 
 ## Installation
 
 This is an NPM package. Install the CLI globally.
 
 ```bash
-npm install -g noca-flow
+npm install -g nocaflow
 ```
+
+## Getting Started
+
+Initialize nocaflow in your existing project directory.
+
+```bash
+nocaflow init
+```
+
+This command:
+1.  Checks for `git` and `tmux`. Fails if they are not installed.
+2.  Runs `git init` if the directory is not already a Git repository.
+3.  Scaffolds the phase directories: `initialization/` and `development/`, including all necessary subdirectories (`plans/todo`, `agent-log`, etc.) and placeholder agent/rule files.
 
 ## Phases
 
@@ -42,7 +55,7 @@ The project lifecycle is broken into isolated stages. A phase is a self-containe
 ## Directory & Naming Conventions
 
 ```
-noca-flow/
+nocaflow/
 ├── initialization/                 # PHASE 1: Scaffolding
 │   ├── plans/
 │   │   ├── todo/
@@ -95,7 +108,7 @@ A non-intrusive CLI for monitoring system health.
 ```bash
 $ nocaflow state
 
-== Noca-Flow State [2023-10-27 11:30:00] ==
+== nocaflow State [2023-10-27 11:30:00] ==
 Current Phase: initialization
 
 == Phase Progress ==
@@ -120,6 +133,17 @@ c3b1a0d (wt-dev-995104) fix: handle nested .gitignore files correctly
 8e7f6d5 (main) chore: update dependencies
 ... (7 more)
 ```
+
+## FAQ
+
+**Q: Which LLM coding agent does this support?**
+A: Any agent that can execute shell commands. nocaflow is an orchestration layer, not an agent. The `*.agent.md` files are prompt templates for your chosen agent. The only requirement is that the agent can read/write files and execute commands like `mv` to signal state changes. It is framework-agnostic.
+
+**Q: Why not a database for state?**
+A: A filesystem is transparent, universally accessible, and versionable. Debugging is `ls` and `cat`. Rollback is `git reset`. A database adds complexity, dependencies, and an opaque layer. This system prioritizes simplicity and inspectability.
+
+**Q: Does it work on Windows?**
+A: No. It relies on `tmux` and POSIX filesystem atomicity for core operations. Use WSL2.
 
 ## Tradeoffs
 
