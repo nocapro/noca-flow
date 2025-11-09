@@ -1,3 +1,11 @@
+bundle this as npm package so user can easily plug and play, also to install noca flow state global cli program, even we dont need state.sh because agent can just run nocaflow state , 
+
+===
+
+need super granular stats on state
+sh output like how many and where on review, on in review, failed, open etc
+
+==== 
 
 well you seems smart, then give me comprehensive readme.md in your own version in concise language style
 
