@@ -1,4 +1,9 @@
-bundle this as npm package so user can easily plug and play, also to install noca flow state global cli program, even we dont need state.sh because agent can just run nocaflow state , 
+
+at initialization, it ask user which coding agent wether claude code or droid, because they have diff commmand to spawn
+
+===
+
+lets assume that this project is bundled as npm package so user can easily plug and play, also to install noca flow state global cli program, even we dont need state.sh because agent can just run nocaflow state , ... now update readme
 
 ===
 
