@@ -17,10 +17,10 @@ The project lifecycle is broken into isolated stages. A phase is a self-containe
 
 ## Actors
 
-*   **`manager.agent`**: The orchestrator. Monitors phase directories, spawns/terminates workers (`tmux`), and promotes plans. The system's brain.
-*   **`plan.agent`**: The scheduler. Generates `plan.yml` files into the *current phase's* `plans/todo/` directory.
+*   **`manager.agent`**: The orchestrator. Monitors state & phase directories, spawns/terminates workers (`tmux`), and promotes plans. The system's brain.
+*   **`plan.agent`**: The scheduler. Scan for user.prompt.md, then Generates `plan.yml` files into the *current phase's* `plans/todo/` directory.
 *   **`worker.agent`**: Ephemeral agent spawned by the manager. Executes a single plan part, updates its status in the YAML, and logs verbosely.
-*   **`qa.agent`**: Specialized worker. Verifies completed work against tests and phase rules before a plan is marked `done`.
+*   **`qa.agent`**: Specialized worker. Verifies completed work against specs, tests, lint and phase rules before a plan is marked `done`.
 
 ## Workflow
 
@@ -34,13 +34,12 @@ The project lifecycle is broken into isolated stages. A phase is a self-containe
 
 Strict conventions prevent ambiguity.
 
-*   **Plan Files**: `{phase}/plans/{status}/{uuid}.plan.yml`. `uuid` is an 8-char short UUID.
-    *   Example: `initialization/plans/doing/c8a2b1f0.plan.yml`.
+*   **Plan Files**: `{phase}/plans/{status}/{6digit-id}.plan.yml`.
+    *   Example: `initialization/plans/doing/c8a2b1.plan.yml`.
 *   **Agent Logs**: `{phase}/agent-log/{agent_id}.log.md`. `agent_id` is a 6-digit random number.
     *   Example: `development/agent-log/823523.log.md`.
 *   **Agent IDs**: 6-digit number, assigned by manager at spawn time. Human-readable.
-*   **Worktree Branches**: `wt-{phase_short}-{agent_id}`. `init` for initialization, `dev` for development.
-    *   Example: `wt-dev-995104`.
+*   **Worktree Branches**: `wt-{init/dev}-{agent_id}`. ex`wt-dev-995104`.
 
 ## Directory Structure
 
@@ -63,7 +62,7 @@ noca-flow/
 │   ├── dev.agent-swarm.md
 │   └── dev.phase.rule.md
 ├── plan.agent.md                   # Global plan generator
-├── plan.prompt.md                   # Global plan generator
+├── plan.prompt.md                  # Global plan generator
 ├── manager.agent.md                # Global orchestrator
 ├── user.prompt.md
 ```
