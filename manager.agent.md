@@ -42,7 +42,7 @@ The filesystem is the only reality. The plan is the only goal. Human input is a 
     cd worktrees/$SESSION_NAME
   fi
   tmux new-session -d -s $SESSION_NAME \
-    "droid exec --skip-permissions-unsafe 'Execute plan $PLAN_ID part $PART_ID. Update YAML status. Log to agent-log/. Exit on completion.'"
+    "droid exec --skip-permissions-unsafe 'you are @[init/dev].agent-swarm.md Execute plan $PLAN_ID part $PART_ID. Update YAML status. Log to agent-log/. Exit on completion.'"
   ```
 
 - **Spawn QA**:
@@ -50,7 +50,7 @@ The filesystem is the only reality. The plan is the only goal. Human input is a 
   # Args: $PHASE, $PLAN_ID
   SESSION_NAME="qa-$PLAN_ID"
   tmux new-session -d -s $SESSION_NAME \
-    "droid exec --skip-permissions-unsafe 'QA plan $PLAN_ID. Run tests. Update all part statuses in YAML to done/failed. Create failure reports.'"
+    "droid exec --skip-permissions-unsafe 'you are qa.agent.md. QA plan $PLAN_ID. Run tests. Update all part statuses in YAML to done/failed. Create failure reports.'"
   ```
 
 - **Cleanup**:
