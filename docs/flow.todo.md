@@ -1,9 +1,76 @@
+===
+
+qa in dev phase should also align implementation with spec
+qa in init phase should do the same
+
+===
 
 at initialization, it ask user which coding agent wether claude code or droid, because they have diff commmand to spawn.
 also ask concurrency limit
 
-====
+====≠=======
 
+Give me scaffolder.agent.md, init.agent-swarm.md and init.phase.rule.md 
+
+And this is the most interesting part of init phase than dev phase is iterative codebase building simulating text diffusion. 
+
+So the task for manager is iteratively spawn worker.agent with task of iterative coding from Todo to complete production ready for the next phase . And worker.agent works blindly only finish the Todo instructions without care about else
+
+Below is my legacy user prompt I use
+
+
+===== Prompt for scaffolding
+
+understand everything in docs, then initialize the project by prepare detailed boilerplate across structure. each files should contain only concise // TODO: comments, type signatures, and detailed import statements to serve as a "cheatsheet" for the next AI developer.
+
+again. to save your token cost , do not write complete code per todo, only cheatsheet like method name, params, return type.
+
+all should HOF no OOP
+
+=== Another followup usage . Sorted by newest
+
+=== DONE
+
+before asking next AI developer to finish the todo blueprint ,
+
+need blueprint for ;
+
+proper openroute cheatsheet based on npm readme
+dedicated retry mechanism
+now do the blueprint for those. again. blueprint concept is to save your token cost , do not write complete code per todo, only cheatsheet with // TODO: comments , method name, params, return type. all for the next AI developer to implement.
+=== DONE
+
+before asking next AI developer to finish the todo blueprint ,
+
+need blueprint for ;
+
+dedicated multi-level logging.
+comprehensive test cases.
+now do the blueprint for those. again. blueprint concept is to save your token cost , do not write complete code per todo, only cheatsheet with // TODO: comments , method name, params, return type. all for the next AI developer to implement.
+=== DONE
+
+before asking next AI developer to finish the todo blueprint , lets once again make sure the todo blueprint producing radical DRYness codebase
+
+again. blueprint concept is to save your token cost , do not write complete code per todo, only cheatsheet with // TODO: comments, method name, params, return type. all for the next AI developer to implement.
+
+=== DONE
+
+before asking next AI developer to finish the todo blueprint , lets once again understand everything in docs , then make sure the current todo blueprint is enough for producing plan that met expectations in docs, not by hardcoding complete working code, but by "cheatsheet-ing" .
+
+again. blueprint concept is to save your token cost , do not write complete code per todo, only cheatsheet with method name, params, return type. all for the next AI developer to implement
+
+________
+
+codebase compliance rules;
+
+1. No OOP, only HOFs
+2. Use bun.sh and e2e type safe TypeScript
+3. No unknown or any type
+4. [e2e|integration|unit]/[domain].test.ts files & dirs
+5. Bun tests, isolated tests with minimal mocking. External network services (e.g., LLM APIs) should be mocked to ensure tests are fast, deterministic, and independent of network or API key issues.
+6. DRY
+
+===========
 
 
 Give me concise manager.agent.md in keyword based hackernews language style
