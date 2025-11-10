@@ -2,6 +2,21 @@
 
 nocaflow state | nocaflow agent.plan
 
+
+===
+
+let's put current manager.agent.md to development/ dir as dev-manager.agent.md because now we need init-manager.agent.md in initialization/
+
+init phase cycle
+
+- scaffolder agent output is whole codebase blueprint analysed from a all parts of plan.yml 
+- manager.agent spawn worker.agent swarms to execute blindly all blueprint todos across codebase
+- worker.agent swarms only execute the todo instructions steps with unit tests cases until greens no lint problems
+- qa.agent review for worker.agent work 
+- manager.agent spawn another worker.agent for unpass qa.agent work
+
+when there is no blueprint todo in codebase, and qa says advance, then phase development starts
+
 ===
 
 please create plan.agent.md in keyword based hacker news netizen language style,,, 
