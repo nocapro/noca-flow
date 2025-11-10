@@ -1,4 +1,4 @@
-# NocaFlow: Filesystem-as-State for Phased LLM Swarms
+# NocaFlow: Filesystem-as-State for Phased LLM Swarms.
 
 ## Core Problem
 
