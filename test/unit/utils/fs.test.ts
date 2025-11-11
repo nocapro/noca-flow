@@ -51,6 +51,16 @@ describe('unit/utils/fs', () => {
       // 4. Assert that the stats for `initialization` show `todo: 1` and `doing: 0`, `done: 0`, etc., without throwing an error.
     });
 
+    it('should handle a missing phase directory gracefully', async () => {
+      // TODO: part-unit-fs-stats-missing-phase-dir - Test with a whole phase directory missing.
+      // INSTRUCTIONS:
+      // 1. Create a structure for `.nocaflow/initialization` with some plans.
+      // 2. Do NOT create the `.nocaflow/development` directory at all.
+      // 3. Call `getPhaseStats()`.
+      // 4. Assert that the stats for `initialization` are correct.
+      // 5. Assert that the stats for `development` are all zero and no error was thrown.
+    });
+
     it('should ignore non-YAML files', async () => {
       // TODO: part-unit-fs-stats-ignore-files - Test that non-plan files are not counted.
       // INSTRUCTIONS:
@@ -67,8 +77,7 @@ describe('unit/utils/fs', () => {
       // INSTRUCTIONS:
       // 1. Create the failed report directory structure.
       // 2. Create two report files: one recent, one old.
-      // 3. Use `fs.utimes` to modify the `mtime` of the old file to be outside the lookback window.
-      //    Note: `birthtime` cannot be easily changed, so tests must rely on `mtime` or `ctime`.
+      // 3. Use `fs.utimes` or a similar method to modify the `mtime` of the old file to be outside the lookback window.
       // 4. Call `getFailedReports(24)` (for 24 hours).
       // 5. Assert that the result array contains only the recent report.
     });
@@ -96,6 +105,15 @@ describe('unit/utils/fs', () => {
       // 1. Create a report file named `malformed.report.md` (missing partId).
       // 2. Call `getFailedReports(1)`.
       // 3. Assert that the returned object has sensible defaults (e.g., `planId: 'malformed'`, `partId: undefined`).
+    });
+
+    it('should ignore non-markdown report files', async () => {
+      // TODO: part-unit-fs-reports-ignore-files - Test that non-report files are ignored.
+      // INSTRUCTIONS:
+      // 1. Create a failed report directory.
+      // 2. Create `plan1.partA.report.md` and `notes.txt`.
+      // 3. Call `getFailedReports(1)`.
+      // 4. Assert that the result array has a length of 1, containing only the report.
     });
   });
 

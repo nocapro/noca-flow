@@ -1,0 +1,1294 @@
+uuid: f4398e85-6188-4660-844c-0c15eb170c1d
+projectId: noca-flow
+createdAt: '2025-11-11T22:40:11.893Z'
+gitCommitMsg: >-
+  feat(testing): Blueprint comprehensive test cases
+
+  Expands and refines the test suite by adding blueprints for new test cases and
+  clarifying instructions for existing ones. This enhances coverage for CLI
+  commands, filesystem utilities, and helper functions.
+
+  - Adds more robust E2E tests for the CLI, including a build step and unknown
+  command handling. - Introduces new unit tests for edge cases in `fs` and
+  `logs` utilities (e.g., missing directories, varied log content). - Renames
+  the git test file to `integration` to accurately reflect its nature and adds a
+  test for repositories with no commits. - Enhances `test.util.ts` with a new
+  helper for creating failed reports. - Updates `fs.ts` implementation notes to
+  favor testable file metadata (`mtime` over `birthtime`).
+promptSummary: >-
+  Enhance and blueprint test cases across unit, integration, and e2e tests to
+  improve coverage and clarity, following strict no-mock and isolation
+  principles.
+reasoning:
+  - >-
+    Excellent. As an expert AI programmer, I will now blueprint the necessary
+    changes to enhance test coverage and clarify the testing strategy. My focus
+    is on creating concise, actionable `TODO` blocks, type signatures, and
+    imports to guide the next AI developer, following your "cheatsheet"
+    directive.
+  - '### Step 1: Update Filesystem Utility Instructions'
+  - >-
+    To make testing `getFailedReports` deterministic, I'll modify its
+    instructions in `src/utils/fs.ts` to use `mtime` (modification time) instead
+    of the hard-to-modify `birthtime`.
+  - '### Step 2: Enhance Test Utilities'
+  - >-
+    I will add a new helper function to `test/test.util.ts` for creating dummy
+    failed reports and refine the instructions for existing helpers.
+  - '### Step 3: Expand E2E CLI Tests'
+  - >-
+    I'll add a build step, a test for unknown commands, and make existing test
+    instructions more specific in `test/e2e/cli.test.ts`.
+  - '### Step 4: Refine Integration Tests'
+  - I'll clarify instructions in the `init` command's integration tests.
+  - '### Step 5: Expand Filesystem Unit Tests'
+  - >-
+    I'll add new test cases to `test/unit/utils/fs.test.ts` for more robust
+    coverage of edge cases.
+  - '### Step 6: Correct and Expand Git Tests'
+  - >-
+    The git test file is fundamentally an integration test. I will rename it and
+    add a test case for a repository with no commits.
+  - '### Step 7: Expand Log Utility Tests'
+  - >-
+    Finally, I'll add tests to `test/unit/utils/logs.test.ts` to better validate
+    parsing and file filtering.
+  - >-
+    This completes the blueprinting. The test suite is now more comprehensive
+    and the instructions are clearer for the next phase of development.
+operations:
+  - type: write
+    path: src/utils/fs.ts
+    content: >+
+      --- src/utils/fs.ts
+
+      +++ src/utils/fs.ts
+
+      @@ -75,8 +75,8 @@
+         // INSTRUCTIONS:
+         // 1. Define phase directories to scan.
+         // 2. Use `fs.readdir` to get all report files (ending in .md).
+      -  // 3. For each file, get its stats using `fs.stat` to find the creation
+      time (`birthtime`).
+
+      -  // 4. Use `dayjs` to check if `birthtime` is within the last `hours`.
+
+      +  // 3. For each file, get its stats using `fs.stat` to find its
+      modification time (`mtime`). Using `mtime` is more reliable and testable
+      than `birthtime`.
+
+      +  // 4. Use `dayjs` to check if `mtime` is within the last `hours`.
+         // 5. If it is recent, read the file content.
+         // 6. Parse the markdown content to extract the summary/reason. A simple regex or string search for a "Summary" section is sufficient.
+         // 7. The filename typically follows the pattern `{planId}.{partId}.report.md`. Parse this to get IDs.
+      @@ -93,7 +93,7 @@
+         //       if (!file.endsWith('.report.md')) continue;
+         //       const filePath = path.join(reportDir, file);
+         //       const stats = await fs.stat(filePath);
+      -  //       if (dayjs(stats.birthtime).isAfter(since)) {
+
+      +  //       if (dayjs(stats.mtime).isAfter(since)) {
+         //         // const content = await fs.readFile(filePath, 'utf-8');
+         //         // const summaryMatch = content.match(/## Summary\s*\n\s*(.*)/);
+         //         // const reason = summaryMatch ? summaryMatch[1].trim() : 'Could not parse summary.';
+
+    patchStrategy: standard-diff
+  - type: write
+    path: test/test.util.ts
+    content: >+
+      --- test/test.util.ts
+
+      +++ test/test.util.ts
+
+      @@ -6,11 +6,11 @@
+       
+       const promisedExec = promisify(execCallback);
+       
+      -// TODO: part-test-util-run-cli - Implement a promisified exec for
+      running the CLI.
+
+      +// TODO: part-test-util-run-cli - Implement a utility to run the compiled
+      CLI.
+       // INSTRUCTIONS:
+       // 1. Create a function `runCli(args: string)` that returns a promise.
+       // 2. It should execute the compiled CLI from the `dist` folder.
+      -// 3. The command should be `node <path-to-project-root>/dist/cli.js
+      ${args}`.
+
+      +// 3. The command should be `node ${path.join(__dirname, '..', 'dist',
+      'cli.js')} ${args}`.
+       // 4. It should return an object `{ stdout: string, stderr: string, code: number }`.
+       // 5. Handle non-zero exit codes gracefully by catching the error from `exec` and extracting details from it.
+       export const runCli = async (
+      @@ -19,7 +19,7 @@
+         throw new Error('Not implemented');
+       };
+       
+      -// TODO: part-test-util-setup-dir - Implement a test setup utility.
+
+      +// TODO: part-test-util-setup-dir - Implement a utility to create an
+      isolated test directory.
+       // INSTRUCTIONS:
+       // 1. Create a function `setupTestDirectory()` that returns a promise resolving to an object.
+       // 2. The function should create a unique temporary directory using `fs.mkdtemp` in `os.tmpdir()`.
+      @@ -35,7 +35,7 @@
+         throw new Error('Not implemented');
+       };
+       
+      -// TODO: part-test-util-git-init - Implement a utility to initialize a
+      git repository.
+
+      +// TODO: part-test-util-git-init - Implement a utility to initialize a
+      git repository for testing.
+       // INSTRUCTIONS:
+       // 1. Create an async function `initGitRepo()`.
+       // 2. It should execute the necessary `git` commands using `promisedExec`.
+      @@ -47,7 +47,7 @@
+         throw new Error('Not implemented');
+       };
+       
+      -// TODO: part-test-util-create-plan - Implement a utility to create a
+      dummy plan file.
+
+      +// TODO: part-test-util-create-plan - Implement a utility to create a
+      dummy plan file for testing stats.
+       // INSTRUCTIONS:
+       // 1. Create an async function `createDummyPlanFile(phase: 'initialization' | 'development', status: 'todo' | 'doing' | 'done' | 'review' | 'failed', fileName: string)`.
+       // 2. The function should create the necessary directory structure inside the current test directory.
+      @@ -60,3 +60,20 @@
+       ): Promise<void> => {
+         throw new Error('Not implemented');
+       };
+      +
+
+      +// TODO: part-test-util-create-report - Implement a utility to create a
+      dummy failed report file.
+
+      +// INSTRUCTIONS:
+
+      +// 1. Create an async function `createDummyFailedReport(phase:
+      'initialization' | 'development', planId: string, partId: string, summary:
+      string)`.
+
+      +// 2. It should create the report directory:
+      `.nocaflow/${phase}/plans/failed/report/`.
+
+      +// 3. It should create a markdown file named
+      `${planId}.${partId}.report.md`.
+
+      +// 4. The file content should be `## Summary\n\n${summary}`.
+
+      +// 5. The function should return the full path to the created file.
+
+      +export const createDummyFailedReport = async (
+
+      +  phase: 'initialization' | 'development',
+
+      +  planId: string,
+
+      +  partId: string,
+
+      +  summary: string,
+
+      +): Promise<string> => {
+
+      +  throw new Error('Not implemented');
+
+      +};
+
+    patchStrategy: standard-diff
+  - type: write
+    path: test/e2e/cli.test.ts
+    content: >+
+      --- test/e2e/cli.test.ts
+
+      +++ test/e2e/cli.test.ts
+
+      @@ -1,5 +1,6 @@
+       import { runCli, setupTestDirectory } from '../test.util';
+       import fs from 'fs/promises';
+      +import { exec as execCallback } from 'child_process';
+       import path from 'path';
+       
+       describe('e2e/cli', () => {
+      @@ -18,12 +19,13 @@
+           await cleanup();
+         });
+       
+      -  // TODO: part-e2e-build-step - Add a `beforeAll` hook to build the
+      project.
+
+      +  // TODO: part-e2e-build-step - Add a `beforeAll` hook to build the
+      project before tests run.
+         // INSTRUCTIONS:
+         // 1. Add a `beforeAll` block.
+      -  // 2. Inside, execute `npm run build` from the project root to ensure
+      `dist/cli.js` is up-to-date.
+
+      -  // 3. Use a long timeout for this hook (e.g., 30000 ms) as `tsc` can be
+      slow.
+
+      -
+
+      +  // 2. Inside, execute `npm run build` using `child_process.exec` to
+      ensure `dist/cli.js` is up-to-date.
+
+      +  // 3. Use a long timeout for this hook (e.g., `jest.setTimeout(30000)`)
+      as `tsc` can be slow.
+
+      +  // 4. Wrap the execution in a promise to handle async behavior
+      correctly.
+
+      +  
+         describe('init command', () => {
+           it('should initialize a new project structure', async () => {
+             // TODO: part-e2e-init-success - Test the `init` command in a clean directory.
+      @@ -32,7 +34,7 @@
+             // 2. Assert that the command's stdout contains a success message.
+             // 3. Assert that the command's exit code is 0.
+             // 4. Use `fs.access` to verify that key directories and `.gitkeep` files have been created.
+      -      //    - e.g., `.nocaflow/initialization/plans/todo/.gitkeep`
+
+      +      //    - e.g., check for
+      `.nocaflow/initialization/plans/todo/.gitkeep`
+           });
+       
+           it('should show a warning if the project is already initialized', async () => {
+      @@ -40,8 +42,8 @@
+             // INSTRUCTIONS:
+             // 1. Manually create a `.nocaflow` directory.
+             // 2. Run `runCli('init')`.
+      -      // 3. Assert that the command's `stderr` contains a warning
+      message.
+
+      -      // 4. Assert that the command exits with a non-zero exit code.
+
+      +      // 3. Assert that the command's `stdout` contains a warning message
+      (e.g., "already exists").
+
+      +      // 4. Assert that the command exits gracefully with code 0, as it's
+      a warning, not an error.
+           });
+         });
+       
+      @@ -52,29 +54,29 @@
+             // 1. First, run `runCli('init')`.
+             // 2. Create some dummy plan files (e.g., in `.nocaflow/initialization/plans/todo/`).
+             // 3. Run `runCli('state')`.
+      -      // 4. Assert that the stdout contains key headers like "== nocaflow
+      State ==" and "Current Phase:".
+
+      +      // 4. Assert that the stdout contains key headers like "== nocaflow
+      State", "Phase Progress", and "Current Phase: initialization".
+             // 5. Assert that the command exits with code 0.
+           });
+       
+           it('should display a complex state with active agents and failed reports', async () => {
+             // TODO: part-e2e-state-complex - Test the `state` command with a rich project state.
+             // INSTRUCTIONS:
+      -      // 1. Run `init` and set up a git repo.
+
+      -      // 2. Create multiple dummy plan files in various states (todo,
+      doing, done).
+
+      -      // 3. Create a dummy failed report file.
+
+      -      // 4. (Challenge) If possible, mock `exec` to simulate `tmux`
+      output for active agents. This is an exception to the "no mock" rule for
+      `tmux`.
+
+      +      // 1. Run `init` and set up a git repo using test utils.
+
+      +      // 2. Create multiple dummy plan files in various states (`todo`,
+      `doing`, `done`) using `createDummyPlanFile`.
+
+      +      // 3. Create a dummy failed report file using
+      `createDummyFailedReport`.
+
+      +      // 4. To test active agents, `getActiveAgents` is mocked for unit
+      tests. For E2E, we can accept that this section may be empty unless `tmux`
+      is actually running, but we should verify the header is present.
+             // 5. Run `runCli('state')`.
+      -      // 6. Assert that the output contains sections for "Active Agents"
+      and "Stalled / Failed" with the dummy data.
+
+      +      // 6. Assert that the output contains sections for "Active Agents",
+      "Stalled / Failed", and "Recent Git Commits" and that the dummy data
+      appears correctly.
+           });
+       
+           it('should show an error when run in a non-initialized directory', async () => {
+             // TODO: part-e2e-state-fail - Test the `state` command in a non-initialized directory.
+             // INSTRUCTIONS:
+             // 1. Run `runCli('state')` without running `init` first.
+      -      // 2. Assert that the command's `stderr` contains an error message
+      about `.nocaflow` not being found.
+
+      +      // 2. Assert that the command's `stderr` contains an error message
+      about `.nocaflow` not being found or an inability to read stats.
+             // 3. Assert that the command exits with a non-zero code.
+           });
+         });
+      @@ -84,15 +86,22 @@
+             // TODO: part-e2e-no-command - Test running the CLI with no arguments.
+             // INSTRUCTIONS:
+             // 1. Run `runCli('')`.
+      -      // 2. Assert that `stdout` contains the help message (e.g.,
+      "Commands:", "Options:").
+
+      +      // 2. Assert that `stdout` contains the help message (e.g.,
+      "Commands:", "init", "state").
+           });
+       
+           it('should display help when --help flag is used', async () => {
+             // TODO: part-e2e-help-flag - Test running the CLI with --help.
+             // INSTRUCTIONS:
+             // 1. Run `runCli('--help')`.
+      -      // 2. Assert that `stdout` contains the help message.
+
+      +      // 2. Assert that `stdout` contains the general help message.
+             // 3. Run `runCli('state --help')`.
+      -      // 4. Assert that `stdout` contains help information specific to
+      the `state` command.
+
+      +      // 4. Assert that `stdout` contains help information specific to
+      the `state` command (e.g., its description).
+
+      +    });
+
+      +
+
+      +    it('should show an error for an unknown command', async () => {
+
+      +      // TODO: part-e2e-unknown-command - Test running the CLI with an
+      invalid command.
+
+      +      // INSTRUCTIONS:
+
+      +      // 1. Run `runCli('nonexistent-command')`.
+
+      +      // 2. Assert that `stderr` shows an "Unknown argument" or similar
+      error from yargs.
+           });
+         });
+       });
+
+    patchStrategy: standard-diff
+  - type: write
+    path: test/integration/commands/init.test.ts
+    content: >+
+      --- test/integration/commands/init.test.ts
+
+      +++ test/integration/commands/init.test.ts
+
+      @@ -21,18 +21,18 @@
+           // TODO: part-int-init-success - Test the successful creation of the directory structure.
+           // INSTRUCTIONS:
+           // 1. Call `handleInitCommand({})` directly.
+      -    // 2. Use `fs.access` to verify that several key directories exist.
+
+      +    // 2. Use `fs.access` to verify that a representative set of key
+      directories exist.
+           //    - e.g., '.nocaflow/initialization/plans/todo'
+           //    - e.g., '.nocaflow/development/plans/failed/report'
+      -    // 3. Use `fs.access` to verify that several key `.gitkeep` files
+      exist.
+
+      -    //    - e.g., '.nocaflow/initialization/agent-log/.gitkeep'
+
+      +    // 3. Use `fs.access` to verify that a representative set of key
+      `.gitkeep` files exist.
+
+      +    //    - e.g., check '.nocaflow/initialization/agent-log/.gitkeep'
+         });
+       
+         it('should create the correct number of directories and .gitkeep files', async () => {
+           // TODO: part-int-init-counts - Test the exact count of created items.
+           // INSTRUCTIONS:
+           // 1. Call `handleInitCommand({})`.
+      -    // 2. Recursively read all created directory and file paths.
+
+      -    // 3. Assert that the number of created directories matches the
+      expected count (e.g., 2 phases * 5 plan subdirs + other dirs).
+
+      +    // 2. Recursively read all created directory and file paths starting
+      from `.nocaflow`.
+
+      +    // 3. Assert that the number of created directories matches the
+      expected count (e.g., 2 phases * 5 plan subdirs + other root dirs).
+           // 4. Assert that the number of `.gitkeep` files matches the expected count for empty directories.
+         });
+       
+
+    patchStrategy: standard-diff
+  - type: write
+    path: test/unit/utils/fs.test.ts
+    content: >+
+      --- test/unit/utils/fs.test.ts
+
+      +++ test/unit/utils/fs.test.ts
+
+      @@ -37,6 +37,16 @@
+             // 4. Assert that the stats for `initialization` show `todo: 1` and `doing: 0`, `done: 0`, etc., without throwing an error.
+           });
+       
+      +    it('should handle a missing phase directory gracefully', async () =>
+      {
+
+      +      // TODO: part-unit-fs-stats-missing-phase-dir - Test with a whole
+      phase directory missing.
+
+      +      // INSTRUCTIONS:
+
+      +      // 1. Create a structure for `.nocaflow/initialization` with some
+      plans.
+
+      +      // 2. Do NOT create the `.nocaflow/development` directory at all.
+
+      +      // 3. Call `getPhaseStats()`.
+
+      +      // 4. Assert that the stats for `initialization` are correct.
+
+      +      // 5. Assert that the stats for `development` are all zero and no
+      error was thrown.
+
+      +    });
+
+      +
+           it('should ignore non-YAML files', async () => {
+             // TODO: part-unit-fs-stats-ignore-files - Test that non-plan files are not counted.
+             // INSTRUCTIONS:
+      @@ -52,9 +62,8 @@
+             // INSTRUCTIONS:
+             // 1. Create the failed report directory structure.
+             // 2. Create two report files: one recent, one old.
+      -      // 3. Use `fs.utimes` to modify the `mtime` of the old file to be
+      outside the lookback window.
+
+      -      //    Note: `birthtime` cannot be easily changed, so tests must
+      rely on `mtime` or `ctime`.
+
+      +      // 3. Use `fs.utimes` or a similar method to modify the `mtime` of
+      the old file to be outside the lookback window.
+             // 4. Call `getFailedReports(24)` (for 24 hours).
+             // 5. Assert that the result array contains only the recent report.
+           });
+      @@ -87,6 +96,16 @@
+             // 2. Call `getFailedReports(1)`.
+             // 3. Assert that the returned object has sensible defaults (e.g., `planId: 'malformed'`, `partId: undefined`).
+           });
+      +
+
+      +    it('should ignore non-markdown report files', async () => {
+
+      +      // TODO: part-unit-fs-reports-ignore-files - Test that non-report
+      files are ignored.
+
+      +      // INSTRUCTIONS:
+
+      +      // 1. Create a failed report directory.
+
+      +      // 2. Create `plan1.partA.report.md` and `notes.txt`.
+
+      +      // 3. Call `getFailedReports(1)`.
+
+      +      // 4. Assert that the result array has a length of 1, containing
+      only the report.
+
+      +    });
+         });
+       
+         describe('readPlan', () => {
+
+    patchStrategy: standard-diff
+  - type: rename
+    from: test/unit/utils/git.test.ts
+    to: test/integration/utils/git.test.ts
+  - type: write
+    path: test/integration/utils/git.test.ts
+    content: >+
+      --- test/unit/utils/git.test.ts
+
+      +++ test/integration/utils/git.test.ts
+
+      @@ -48,6 +48,14 @@
+           // 3. Assert that the length of the returned array is exactly 3.
+         });
+       
+      +  it('should return an empty array for a repository with no commits',
+      async () => {
+
+      +    // TODO: part-int-git-no-commits - Test behavior with a fresh repo.
+
+      +    // INSTRUCTIONS:
+
+      +    // 1. Use a separate setup that only calls `git init` but does not
+      create an initial commit.
+
+      +    // 2. Call `getGitLog(5)`.
+
+      +    // 3. Assert that the result is an empty array.
+
+      +  });
+
+      +
+         it('should handle commit messages with special characters', async () => {
+           // TODO: part-int-git-special-chars - Test parsing of complex commit messages.
+           // INSTRUCTIONS:
+
+    patchStrategy: standard-diff
+  - type: write
+    path: test/unit/utils/logs.test.ts
+    content: >+
+      --- test/unit/utils/logs.test.ts
+
+      +++ test/unit/utils/logs.test.ts
+
+      @@ -37,6 +37,17 @@
+           // 3. Assert that the result only contains entries corresponding to the valid lines.
+         });
+       
+      +  it('should correctly parse log lines with varied content', async () =>
+      {
+
+      +    // TODO: part-unit-logs-parse-varied - Test the regex against varied
+      but valid content.
+
+      +    // INSTRUCTIONS:
+
+      +    // 1. Create a log file with entries having:
+
+      +    //    - agentId with dashes or special characters (e.g.,
+      `scaffolder-123`).
+
+      +    //    - planId with dots or dashes.
+
+      +    //    - message content with special characters.
+
+      +    // 2. Call `getRecentLogs(10)`.
+
+      +    // 3. Assert that all entries are parsed correctly with their full,
+      un-truncated content.
+
+      +  });
+
+      +
+         it('should handle empty log files gracefully', async () => {
+           // TODO: part-unit-logs-empty-file - Test behavior with empty log files.
+           // INSTRUCTIONS:
+      @@ -52,4 +63,14 @@
+           // 2. Call `getRecentLogs(5)`.
+           // 3. Assert that the result is an empty array.
+         });
+      +
+
+      +  it('should ignore files that do not end with .log', async () => {
+
+      +    // TODO: part-unit-logs-ignore-files - Test that non-log files are
+      not read.
+
+      +    // INSTRUCTIONS:
+
+      +    // 1. Create a log directory.
+
+      +    // 2. Create `agent.log` with one entry and `agent.log.bak` with
+      another entry.
+
+      +    // 3. Call `getRecentLogs(5)`.
+
+      +    // 4. Assert that the result contains only one entry (from
+      `agent.log`).
+
+      +  });
+       });
+
+    patchStrategy: standard-diff
+snapshot:
+  test/integration/utils/git.test.ts: null
+  src/utils/fs.ts: >-
+    import path from 'path';
+
+    import fs from 'fs/promises';
+
+    import yaml from 'js-yaml';
+
+    import dayjs from 'dayjs';
+
+    import { Plan } from '../models/plan';
+
+
+    export interface PhaseStats {
+      [phaseName: string]: {
+        todo: number;
+        doing: number;
+        review: number;
+        failed: number;
+        done: number;
+        total: number;
+      };
+    }
+
+
+    export interface FailedReport {
+      planId: string;
+      partId: string;
+      reason: string;
+      reportPath: string;
+    }
+
+
+    /**
+     * @description Reads all plan files from all phases and aggregates stats.
+     * @returns An object containing plan counts for each status in each phase.
+     */
+    export const getPhaseStats = async (): Promise<PhaseStats> => {
+      // TODO: part-fs-get-phase-stats - Walk through .nocaflow/{phase}/plans/* directories and count plans.
+      // INSTRUCTIONS:
+      // 1. Define phases: ['initialization', 'development'].
+      // 2. Define statuses: ['todo', 'doing', 'review', 'failed', 'done'].
+      // 3. Use `fs.readdir` to count the number of files in each subdirectory. Handle errors for non-existent directories (count should be 0).
+      // 4. Aggregate the counts into a `PhaseStats` object.
+      // 5. Calculate the `total` for each phase.
+      // 6. Example structure for one phase:
+      //    'initialization': { todo: 1, doing: 2, review: 1, failed: 0, done: 6, total: 10 }
+      // 7. Return the final `PhaseStats` object.
+
+      // const phases = ['initialization', 'development'];
+      // const statuses = ['todo', 'doing', 'review', 'failed', 'done'];
+      // const stats: PhaseStats = {};
+
+      // for (const phase of phases) {
+      //   stats[phase] = { todo: 0, doing: 0, review: 0, failed: 0, done: 0, total: 0 };
+      //   for (const status of statuses) {
+      //     const dirPath = path.join('.nocaflow', phase, 'plans', status);
+      //     try {
+      //       const files = await fs.readdir(dirPath);
+      //       const count = files.filter(f => f.endsWith('.yml')).length;
+      //       stats[phase][status as keyof typeof stats.phase] = count;
+      //       stats[phase].total += count;
+      //     } catch (error) {
+      //       // Directory likely doesn't exist, count is 0.
+      //     }
+      //   }
+      // }
+      // return stats;
+
+      throw new Error('Not implemented');
+    };
+
+
+    /**
+     * @description Scans the failed reports directory for recent failures.
+     * @param hours - The lookback period in hours.
+     * @returns A list of failed report details.
+     */
+    export const getFailedReports = async (hours: number):
+    Promise<FailedReport[]> => {
+      // TODO: part-fs-get-failed-reports - Scan failed report directories for recent failures.
+      // INSTRUCTIONS:
+      // 1. Define phase directories to scan.
+      // 2. Use `fs.readdir` to get all report files (ending in .md).
+      // 3. For each file, get its stats using `fs.stat` to find the creation time (`birthtime`).
+      // 4. Use `dayjs` to check if `birthtime` is within the last `hours`.
+      // 5. If it is recent, read the file content.
+      // 6. Parse the markdown content to extract the summary/reason. A simple regex or string search for a "Summary" section is sufficient.
+      // 7. The filename typically follows the pattern `{planId}.{partId}.report.md`. Parse this to get IDs.
+      // 8. Construct a `FailedReport` object and add it to a results array.
+      // 9. Return the array of recent failed reports.
+
+      // const phases = ['initialization', 'development'];
+      // const reports: FailedReport[] = [];
+      // const since = dayjs().subtract(hours, 'hour');
+
+      // for (const phase of phases) {
+      //   const reportDir = path.join('.nocaflow', phase, 'plans', 'failed', 'report');
+      //   try {
+      //     const files = await fs.readdir(reportDir);
+      //     for (const file of files) {
+      //       if (!file.endsWith('.report.md')) continue;
+      //       const filePath = path.join(reportDir, file);
+      //       const stats = await fs.stat(filePath);
+      //       if (dayjs(stats.birthtime).isAfter(since)) {
+      //         // const content = await fs.readFile(filePath, 'utf-8');
+      //         // const summaryMatch = content.match(/## Summary\s*\n\s*(.*)/);
+      //         // const reason = summaryMatch ? summaryMatch[1].trim() : 'Could not parse summary.';
+      //         // const [planId, partId] = file.split('.').slice(0, 2);
+      //         // reports.push({ planId, partId, reason, reportPath: filePath });
+      //       }
+      //     }
+      //   } catch (error) { /* dir may not exist */ }
+      // }
+      // return reports;
+      throw new Error('Not implemented');
+    };
+
+
+    /**
+     * @description Reads and parses a YAML plan file.
+     * @param filePath - The path to the plan.yml file.
+     * @returns The parsed Plan object.
+     */
+    export const readPlan = async (filePath: string): Promise<Plan> => {
+        // TODO: part-fs-read-plan - Read file content and parse using js-yaml.
+        // INSTRUCTIONS:
+        // 1. Use `fs.readFile` to read the content of `filePath` as 'utf-8'.
+        // 2. Use `yaml.load()` from the 'js-yaml' library to parse the string content.
+        // 3. Cast the result to the `Plan` type and return it.
+        // 4. Include error handling for file-not-found and YAML parsing errors.
+
+        // try {
+        //   const fileContent = await fs.readFile(filePath, 'utf-8');
+        //   const plan = yaml.load(fileContent) as Plan;
+        //   return plan;
+        // } catch (error) {
+        //   // if (error.code === 'ENOENT') { ... }
+        //   // else if (error instanceof YAMLException) { ... }
+        //   // else { ... }
+        //   throw error;
+        // }
+        throw new Error('Not implemented');
+    };
+  test/test.util.ts: >-
+    import { exec as execCallback, ExecException } from 'child_process';
+
+    import { promisify } from 'util';
+
+    import fs from 'fs/promises';
+
+    import path from 'path';
+
+    import os from 'os';
+
+
+    const promisedExec = promisify(execCallback);
+
+
+    // TODO: part-test-util-run-cli - Implement a promisified exec for running
+    the CLI.
+
+    // INSTRUCTIONS:
+
+    // 1. Create a function `runCli(args: string)` that returns a promise.
+
+    // 2. It should execute the compiled CLI from the `dist` folder.
+
+    // 3. The command should be `node <path-to-project-root>/dist/cli.js
+    ${args}`.
+
+    // 4. It should return an object `{ stdout: string, stderr: string, code:
+    number }`.
+
+    // 5. Handle non-zero exit codes gracefully by catching the error from
+    `exec` and extracting details from it.
+
+    export const runCli = async (
+      args: string,
+    ): Promise<{ stdout: string; stderr: string; code: number }> => {
+      throw new Error('Not implemented');
+    };
+
+
+    // TODO: part-test-util-setup-dir - Implement a test setup utility.
+
+    // INSTRUCTIONS:
+
+    // 1. Create a function `setupTestDirectory()` that returns a promise
+    resolving to an object.
+
+    // 2. The function should create a unique temporary directory using
+    `fs.mkdtemp` in `os.tmpdir()`.
+
+    // 3. It should store the original `process.cwd()` and then
+    `process.chdir()` into the new temp directory.
+
+    // 4. The returned object should contain `testDir: string` (the path to the
+    temp dir) and `cleanup: () => Promise<void>`.
+
+    // 5. The `cleanup` function should `process.chdir()` back to the original
+    directory and remove the temp directory recursively.
+
+    export const setupTestDirectory = async (): Promise<{
+      testDir: string;
+      cleanup: () => Promise<void>;
+    }> => {
+      throw new Error('Not implemented');
+    };
+
+
+    // TODO: part-test-util-git-init - Implement a utility to initialize a git
+    repository.
+
+    // INSTRUCTIONS:
+
+    // 1. Create an async function `initGitRepo()`.
+
+    // 2. It should execute the necessary `git` commands using `promisedExec`.
+
+    // 3. Commands to run:
+
+    //    - `git init`
+
+    //    - `git config user.email "test@example.com"`
+
+    //    - `git config user.name "Test User"`
+
+    //    - `git commit --allow-empty -m "Initial commit"`
+
+    export const initGitRepo = async (): Promise<void> => {
+      throw new Error('Not implemented');
+    };
+
+
+    // TODO: part-test-util-create-plan - Implement a utility to create a dummy
+    plan file.
+
+    // INSTRUCTIONS:
+
+    // 1. Create an async function `createDummyPlanFile(phase: 'initialization'
+    | 'development', status: 'todo' | 'doing' | 'done' | 'review' | 'failed',
+    fileName: string)`.
+
+    // 2. The function should create the necessary directory structure inside
+    the current test directory.
+
+    //    - e.g., `.nocaflow/${phase}/plans/${status}/`
+
+    // 3. It should write a minimal, empty YAML file to that path.
+
+    //    - e.g., `fs.writeFile(path.join(..., fileName), '# dummy plan')`.
+
+    export const createDummyPlanFile = async (
+      phase: 'initialization' | 'development',
+      status: 'todo' | 'doing' | 'done' | 'review' | 'failed',
+      fileName: string,
+    ): Promise<void> => {
+      throw new Error('Not implemented');
+    };
+  test/e2e/cli.test.ts: |-
+    import { runCli, setupTestDirectory } from '../test.util';
+    import fs from 'fs/promises';
+    import path from 'path';
+
+    describe('e2e/cli', () => {
+      let cleanup: () => Promise<void>;
+
+      beforeEach(async () => {
+        // TODO: part-e2e-setup - Use the test utility to create a clean, isolated directory for each test.
+        // INSTRUCTIONS:
+        // 1. Call `setupTestDirectory()` to get the cleanup function.
+        // 2. Store it in the `cleanup` variable.
+        const { cleanup: c } = await setupTestDirectory();
+        cleanup = c;
+      });
+
+      afterEach(async () => {
+        // TODO: part-e2e-cleanup - Use the cleanup function from the test utility.
+        // INSTRUCTIONS:
+        // 1. Call the `cleanup()` function to restore the CWD and remove the temporary directory.
+        await cleanup();
+      });
+
+      // TODO: part-e2e-build-step - Add a `beforeAll` hook to build the project.
+      // INSTRUCTIONS:
+      // 1. Add a `beforeAll` block.
+      // 2. Inside, execute `npm run build` from the project root to ensure `dist/cli.js` is up-to-date.
+      // 3. Use a long timeout for this hook (e.g., 30000 ms) as `tsc` can be slow.
+
+      describe('init command', () => {
+        it('should initialize a new project structure', async () => {
+          // TODO: part-e2e-init-success - Test the `init` command in a clean directory.
+          // INSTRUCTIONS:
+          // 1. Run the CLI with the `init` command using `runCli('init')`.
+          // 2. Assert that the command's stdout contains a success message.
+          // 3. Assert that the command's exit code is 0.
+          // 4. Use `fs.access` to verify that key directories and `.gitkeep` files have been created.
+          //    - e.g., `.nocaflow/initialization/plans/todo/.gitkeep`
+        });
+
+        it('should show a warning if the project is already initialized', async () => {
+          // TODO: part-e2e-init-exists - Test the `init` command in an already initialized directory.
+          // INSTRUCTIONS:
+          // 1. Manually create a `.nocaflow` directory.
+          // 2. Run `runCli('init')`.
+          // 3. Assert that the command's `stderr` contains a warning message.
+          // 4. Assert that the command exits with a non-zero exit code.
+        });
+      });
+
+      describe('state command', () => {
+        it('should display the project state in an initialized directory', async () => {
+          // TODO: part-e2e-state-success - Test the `state` command in a valid project.
+          // INSTRUCTIONS:
+          // 1. First, run `runCli('init')`.
+          // 2. Create some dummy plan files (e.g., in `.nocaflow/initialization/plans/todo/`).
+          // 3. Run `runCli('state')`.
+          // 4. Assert that the stdout contains key headers like "== nocaflow State ==" and "Current Phase:".
+          // 5. Assert that the command exits with code 0.
+        });
+
+        it('should display a complex state with active agents and failed reports', async () => {
+          // TODO: part-e2e-state-complex - Test the `state` command with a rich project state.
+          // INSTRUCTIONS:
+          // 1. Run `init` and set up a git repo.
+          // 2. Create multiple dummy plan files in various states (todo, doing, done).
+          // 3. Create a dummy failed report file.
+          // 4. (Challenge) If possible, mock `exec` to simulate `tmux` output for active agents. This is an exception to the "no mock" rule for `tmux`.
+          // 5. Run `runCli('state')`.
+          // 6. Assert that the output contains sections for "Active Agents" and "Stalled / Failed" with the dummy data.
+        });
+
+        it('should show an error when run in a non-initialized directory', async () => {
+          // TODO: part-e2e-state-fail - Test the `state` command in a non-initialized directory.
+          // INSTRUCTIONS:
+          // 1. Run `runCli('state')` without running `init` first.
+          // 2. Assert that the command's `stderr` contains an error message about `.nocaflow` not being found.
+          // 3. Assert that the command exits with a non-zero code.
+        });
+      });
+
+      describe('no command', () => {
+        it('should display help when no command is provided', async () => {
+          // TODO: part-e2e-no-command - Test running the CLI with no arguments.
+          // INSTRUCTIONS:
+          // 1. Run `runCli('')`.
+          // 2. Assert that `stdout` contains the help message (e.g., "Commands:", "Options:").
+        });
+
+        it('should display help when --help flag is used', async () => {
+          // TODO: part-e2e-help-flag - Test running the CLI with --help.
+          // INSTRUCTIONS:
+          // 1. Run `runCli('--help')`.
+          // 2. Assert that `stdout` contains the help message.
+          // 3. Run `runCli('state --help')`.
+          // 4. Assert that `stdout` contains help information specific to the `state` command.
+        });
+      });
+    });
+  test/integration/commands/init.test.ts: |-
+    import { handleInitCommand } from '../../../src/commands/init';
+    import { setupTestDirectory } from '../../test.util';
+    import fs from 'fs/promises';
+
+    describe('integration/commands/init', () => {
+      let cleanup: () => Promise<void>;
+
+      beforeEach(async () => {
+        // TODO: part-int-init-setup - Use the test utility to create a clean, isolated directory.
+        // INSTRUCTIONS:
+        // 1. Call `setupTestDirectory()` to get the cleanup function.
+        const { cleanup: c } = await setupTestDirectory();
+        cleanup = c;
+      });
+
+      afterEach(async () => {
+        // TODO: part-int-init-cleanup - Use the cleanup function from the test utility.
+        // INSTRUCTIONS:
+        // 1. Call the `cleanup()` function to restore the CWD and remove the temporary directory.
+        await cleanup();
+      });
+
+      it('should create the full .nocaflow directory structure on a fresh run', async () => {
+        // TODO: part-int-init-success - Test the successful creation of the directory structure.
+        // INSTRUCTIONS:
+        // 1. Call `handleInitCommand({})` directly.
+        // 2. Use `fs.access` to verify that several key directories exist.
+        //    - e.g., '.nocaflow/initialization/plans/todo'
+        //    - e.g., '.nocaflow/development/plans/failed/report'
+        // 3. Use `fs.access` to verify that several key `.gitkeep` files exist.
+        //    - e.g., '.nocaflow/initialization/agent-log/.gitkeep'
+      });
+
+      it('should create the correct number of directories and .gitkeep files', async () => {
+        // TODO: part-int-init-counts - Test the exact count of created items.
+        // INSTRUCTIONS:
+        // 1. Call `handleInitCommand({})`.
+        // 2. Recursively read all created directory and file paths.
+        // 3. Assert that the number of created directories matches the expected count (e.g., 2 phases * 5 plan subdirs + other dirs).
+        // 4. Assert that the number of `.gitkeep` files matches the expected count for empty directories.
+      });
+
+      // Note: The case for an existing .nocaflow directory is tested in e2e/cli.test.ts,
+      // as it involves checking process exit codes, which is not suitable for an integration test
+      // without mocking `process.exit`.
+    });
+  test/unit/utils/fs.test.ts: >-
+    import { getPhaseStats, getFailedReports, readPlan } from
+    '../../../src/utils/fs';
+
+    import { setupTestDirectory } from '../../test.util';
+
+    import fs from 'fs/promises';
+
+    import path from 'path';
+
+
+    describe('unit/utils/fs', () => {
+      let cleanup: () => Promise<void>;
+
+      beforeEach(async () => {
+        // TODO: part-unit-fs-setup - Use the test utility to create a clean, isolated directory.
+        // INSTRUCTIONS:
+        // 1. Call `setupTestDirectory()` to get the cleanup function.
+        const { cleanup: c } = await setupTestDirectory();
+        cleanup = c;
+      });
+
+      afterEach(async () => {
+        // TODO: part-unit-fs-cleanup - Use the cleanup function from the test utility.
+        // INSTRUCTIONS:
+        // 1. Call the `cleanup()` function to restore the CWD and remove the temporary directory.
+        await cleanup();
+      });
+
+      describe('getPhaseStats', () => {
+        it('should correctly count plans across different statuses and phases', async () => {
+          // TODO: part-unit-fs-stats-count - Test plan counting with a populated directory structure.
+          // INSTRUCTIONS:
+          // 1. Create a `.nocaflow` directory structure.
+          //    - e.g., `fs.mkdir('.nocaflow/initialization/plans/todo', { recursive: true })`
+          // 2. Create dummy plan files in various status directories.
+          //    - e.g., `fs.writeFile('.nocaflow/initialization/plans/todo/a.yml', '')`
+          //    - e.g., `fs.writeFile('.nocaflow/development/plans/done/b.yml', '')`
+          // 3. Call `getPhaseStats()`.
+          // 4. Assert that the returned stats object accurately reflects the file counts.
+        });
+
+        it('should return all zeros for an empty directory structure', async () => {
+          // TODO: part-unit-fs-stats-empty - Test plan counting with an empty structure.
+          // INSTRUCTIONS:
+          // 1. Create the top-level `.nocaflow` directory and phase directories, but leave plan folders empty.
+          // 2. Call `getPhaseStats()`.
+          // 3. Assert that all counts in the returned stats object are 0.
+        });
+
+        it('should handle missing status subdirectories gracefully', async () => {
+          // TODO: part-unit-fs-stats-missing-subdir - Test plan counting with some status dirs missing.
+          // INSTRUCTIONS:
+          // 1. Create a structure like `.nocaflow/initialization/plans/` but only create a `todo` subdirectory, not `doing`, `done`, etc.
+          // 2. Create a plan file in the `todo` directory.
+          // 3. Call `getPhaseStats()`.
+          // 4. Assert that the stats for `initialization` show `todo: 1` and `doing: 0`, `done: 0`, etc., without throwing an error.
+        });
+
+        it('should ignore non-YAML files', async () => {
+          // TODO: part-unit-fs-stats-ignore-files - Test that non-plan files are not counted.
+          // INSTRUCTIONS:
+          // 1. Create a `.nocaflow/development/plans/todo` directory.
+          // 2. Create `plan1.yml` and `notes.txt` in that directory.
+          // 3. Call `getPhaseStats()`.
+          // 4. Assert that the `todo` count for `development` is 1, not 2.
+        });
+      });
+
+      describe('getFailedReports', () => {
+        it('should only return reports within the lookback period', async () => {
+          // TODO: part-unit-fs-reports-time - Test that only recent reports are returned.
+          // INSTRUCTIONS:
+          // 1. Create the failed report directory structure.
+          // 2. Create two report files: one recent, one old.
+          // 3. Use `fs.utimes` to modify the `mtime` of the old file to be outside the lookback window.
+          //    Note: `birthtime` cannot be easily changed, so tests must rely on `mtime` or `ctime`.
+          // 4. Call `getFailedReports(24)` (for 24 hours).
+          // 5. Assert that the result array contains only the recent report.
+        });
+
+        it('should correctly parse report details from filename and content', async () => {
+          // TODO: part-unit-fs-reports-parse - Test parsing of report details.
+          // INSTRUCTIONS:
+          // 1. Create a report file named `plan1.partA.report.md`.
+          // 2. Write markdown content to it, including a "## Summary" section.
+          // 3. Call `getFailedReports(1)`.
+          // 4. Assert that the returned `FailedReport` object has `planId: 'plan1'`, `partId: 'partA'`, and the correct `reason` text.
+        });
+
+        it('should return an empty array if the report directory does not exist', async () => {
+          // TODO: part-unit-fs-reports-no-dir - Test behavior with no report directory.
+          // INSTRUCTIONS:
+          // 1. Do not create any failed report directories.
+          // 2. Call `getFailedReports(24)`.
+          // 3. Assert that the result is an empty array.
+        });
+
+        it('should gracefully handle malformed report filenames', async () => {
+          // TODO: part-unit-fs-reports-bad-name - Test parsing of malformed report names.
+          // INSTRUCTIONS:
+          // 1. Create a report file named `malformed.report.md` (missing partId).
+          // 2. Call `getFailedReports(1)`.
+          // 3. Assert that the returned object has sensible defaults (e.g., `planId: 'malformed'`, `partId: undefined`).
+        });
+      });
+
+      describe('readPlan', () => {
+        it('should parse a valid plan file', async () => {
+          // TODO: part-unit-fs-plan-read-success - Test reading a valid YAML plan.
+          // INSTRUCTIONS:
+          // 1. Define a valid plan object and serialize it to a YAML string.
+          // 2. Write this string to a file, e.g., `plan.yml`.
+          // 3. Call `readPlan('plan.yml')`.
+          // 4. Assert that the returned object deeply equals the original plan object.
+        });
+
+        it('should throw an error for a non-existent file', async () => {
+          // TODO: part-unit-fs-plan-read-no-file - Test behavior when file is missing.
+          // INSTRUCTIONS:
+          // 1. Call `readPlan('non-existent-plan.yml')`.
+          // 2. Assert that the call rejects with an error (e.g., using `expect(...).rejects.toThrow()`).
+        });
+
+        it('should throw an error for invalid YAML', async () => {
+          // TODO: part-unit-fs-plan-read-bad-yaml - Test behavior with a malformed YAML file.
+          // INSTRUCTIONS:
+          // 1. Write a string with invalid YAML syntax to a file.
+          // 2. Call `readPlan()` with the path to that file.
+          // 3. Assert that the call rejects with a YAML-specific parsing error.
+        });
+      });
+    });
+  test/unit/utils/git.test.ts: |-
+    import { getGitLog } from '../../../src/utils/git';
+    import { setupTestDirectory, initGitRepo } from '../../test.util';
+    import { exec } from 'child_process';
+    import { promisify } from 'util';
+    import fs from 'fs/promises';
+    import path from 'path';
+
+    const promisedExec = promisify(exec);
+
+    describe('integration/utils/git', () => {
+      let cleanup: () => Promise<void>;
+
+      beforeEach(async () => {
+        // TODO: part-int-git-setup - Set up a clean directory and initialize a git repo.
+        // INSTRUCTIONS:
+        // 1. Use `setupTestDirectory()` to create a temporary, isolated directory.
+        // 2. Use `initGitRepo()` to initialize a git repository inside it.
+        const { cleanup: c } = await setupTestDirectory();
+        cleanup = c;
+        await initGitRepo();
+      });
+
+      afterEach(async () => {
+        // TODO: part-int-git-cleanup - Clean up the temporary directory.
+        // INSTRUCTIONS:
+        // 1. Call the `cleanup()` function.
+        await cleanup();
+      });
+
+      it('should parse commits with worktree information', async () => {
+        // TODO: part-int-git-worktree - Test parsing of commits from a git worktree.
+        // INSTRUCTIONS:
+        // 1. Create a new worktree using `git worktree add ../my-feature-wt`.
+        // 2. In the new worktree directory, create a file and commit it with a specific message.
+        // 3. Call `getGitLog(5)`.
+        // 4. Find the commit from the worktree in the results.
+        // 5. Assert that its `worktree` property is `my-feature-wt` (or similar).
+      });
+
+      it('should handle commits not associated with a worktree', async () => {
+        // TODO: part-int-git-mainline - Test parsing of commits not in a worktree.
+        // INSTRUCTIONS:
+        // 1. In the main worktree, create a file and commit it.
+        // 2. Call `getGitLog(5)`.
+        // 3. Find the new commit in the results.
+        // 4. Assert that its `worktree` property is `null`.
+      });
+
+      it('should respect the commit limit', async () => {
+        // TODO: part-int-git-limit - Test that the `limit` parameter is respected.
+        // INSTRUCTIONS:
+        // 1. Create more commits than the limit (e.g., 5 commits).
+        // 2. Call `getGitLog(3)`.
+        // 3. Assert that the length of the returned array is exactly 3.
+      });
+
+      it('should handle commit messages with special characters', async () => {
+        // TODO: part-int-git-special-chars - Test parsing of complex commit messages.
+        // INSTRUCTIONS:
+        // 1. Create a commit with a message containing characters like `|`, `'`, `"`, and newlines.
+        // 2. Call `getGitLog(1)`.
+        // 3. Assert that the `message` property of the returned commit object is the full, unmodified commit message.
+      });
+
+      it('should return an empty array if not in a git repository', async () => {
+        // TODO: part-int-git-no-repo - Test behavior when run outside a git repository.
+        // INSTRUCTIONS:
+        // 1. This test needs a separate setup. Use `setupTestDirectory` but DO NOT call `initGitRepo`.
+        // 2. Call `getGitLog(5)`.
+        // 3. Assert that the result is an empty array.
+        // 4. Remember to call the cleanup function.
+      });
+    });
+  test/unit/utils/logs.test.ts: |-
+    import { getRecentLogs } from '../../../src/utils/logs';
+    import { setupTestDirectory } from '../../test.util';
+    import fs from 'fs/promises';
+    import path from 'path';
+
+    describe('unit/utils/logs', () => {
+      let cleanup: () => Promise<void>;
+
+      beforeEach(async () => {
+        // TODO: part-unit-logs-setup - Set up a clean directory for each test.
+        // INSTRUCTIONS:
+        // 1. Use `setupTestDirectory()` to create a temporary, isolated directory.
+        const { cleanup: c } = await setupTestDirectory();
+        cleanup = c;
+      });
+
+      afterEach(async () => {
+        // TODO: part-unit-logs-cleanup - Clean up the temporary directory.
+        // INSTRUCTIONS:
+        // 1. Call the `cleanup()` function.
+        await cleanup();
+      });
+
+      it('should aggregate logs from all phase directories', async () => {
+        // TODO: part-unit-logs-aggregate - Test reading from both initialization and development log dirs.
+        // INSTRUCTIONS:
+        // 1. Create log directories for both phases, e.g., `.nocaflow/initialization/agent-log`.
+        // 2. Create a log file in each directory with valid log entries.
+        // 3. Call `getRecentLogs(10)`.
+        // 4. Assert that the result contains log entries from both files.
+      });
+
+      it('should return the correct number of recent, sorted log entries', async () => {
+        // TODO: part-unit-logs-limit-sort - Test the limit and sorting logic.
+        // INSTRUCTIONS:
+        // 1. Create a single log file.
+        // 2. Write several (e.g., 10) valid log entries with timestamps that are *out of order*.
+        // 3. Call `getRecentLogs(5)`.
+        // 4. Assert that the result array has a length of 5.
+        // 5. Assert that the entries in the array are sorted by timestamp in descending order.
+      });
+
+      it('should correctly parse valid log lines and skip invalid ones', async () => {
+        // TODO: part-unit-logs-parse - Test the parsing logic for valid and invalid lines.
+        // INSTRUCTIONS:
+        // 1. Create a log file containing a mix of correctly formatted and malformed log lines.
+        // 2. Call `getRecentLogs(10)`.
+        // 3. Assert that the result only contains entries corresponding to the valid lines.
+      });
+
+      it('should handle empty log files gracefully', async () => {
+        // TODO: part-unit-logs-empty-file - Test behavior with empty log files.
+        // INSTRUCTIONS:
+        // 1. Create a log directory and an empty `agent.log` file inside it.
+        // 2. Call `getRecentLogs(5)`.
+        // 3. Assert that the result is an empty array and no error was thrown.
+      });
+
+      it('should return an empty array if log directories are missing', async () => {
+        // TODO: part-unit-logs-no-dir - Test behavior when log directories do not exist.
+        // INSTRUCTIONS:
+        // 1. Do not create any `.nocaflow` directories.
+        // 2. Call `getRecentLogs(5)`.
+        // 3. Assert that the result is an empty array.
+      });
+    });
+approved: true
+linesAdded: null
+linesRemoved: null
+linesDifference: null
+gitCommittedAt: null
+status: committed
+id: 16

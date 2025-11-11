@@ -24,19 +24,19 @@ describe('integration/commands/init', () => {
     // TODO: part-int-init-success - Test the successful creation of the directory structure.
     // INSTRUCTIONS:
     // 1. Call `handleInitCommand({})` directly.
-    // 2. Use `fs.access` to verify that several key directories exist.
+    // 2. Use `fs.access` to verify that a representative set of key directories exist.
     //    - e.g., '.nocaflow/initialization/plans/todo'
     //    - e.g., '.nocaflow/development/plans/failed/report'
-    // 3. Use `fs.access` to verify that several key `.gitkeep` files exist.
-    //    - e.g., '.nocaflow/initialization/agent-log/.gitkeep'
+    // 3. Use `fs.access` to verify that a representative set of key `.gitkeep` files exist.
+    //    - e.g., check '.nocaflow/initialization/agent-log/.gitkeep'
   });
 
   it('should create the correct number of directories and .gitkeep files', async () => {
     // TODO: part-int-init-counts - Test the exact count of created items.
     // INSTRUCTIONS:
     // 1. Call `handleInitCommand({})`.
-    // 2. Recursively read all created directory and file paths.
-    // 3. Assert that the number of created directories matches the expected count (e.g., 2 phases * 5 plan subdirs + other dirs).
+    // 2. Recursively read all created directory and file paths starting from `.nocaflow`.
+    // 3. Assert that the number of created directories matches the expected count (e.g., 2 phases * 5 plan subdirs + other root dirs).
     // 4. Assert that the number of `.gitkeep` files matches the expected count for empty directories.
   });
 

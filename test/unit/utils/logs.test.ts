@@ -48,6 +48,17 @@ describe('unit/utils/logs', () => {
     // 3. Assert that the result only contains entries corresponding to the valid lines.
   });
 
+  it('should correctly parse log lines with varied content', async () => {
+    // TODO: part-unit-logs-parse-varied - Test the regex against varied but valid content.
+    // INSTRUCTIONS:
+    // 1. Create a log file with entries having:
+    //    - agentId with dashes or special characters (e.g., `scaffolder-123`).
+    //    - planId with dots or dashes.
+    //    - message content with special characters.
+    // 2. Call `getRecentLogs(10)`.
+    // 3. Assert that all entries are parsed correctly with their full, un-truncated content.
+  });
+
   it('should handle empty log files gracefully', async () => {
     // TODO: part-unit-logs-empty-file - Test behavior with empty log files.
     // INSTRUCTIONS:
@@ -62,5 +73,14 @@ describe('unit/utils/logs', () => {
     // 1. Do not create any `.nocaflow` directories.
     // 2. Call `getRecentLogs(5)`.
     // 3. Assert that the result is an empty array.
+  });
+
+  it('should ignore files that do not end with .log', async () => {
+    // TODO: part-unit-logs-ignore-files - Test that non-log files are not read.
+    // INSTRUCTIONS:
+    // 1. Create a log directory.
+    // 2. Create `agent.log` with one entry and `agent.log.bak` with another entry.
+    // 3. Call `getRecentLogs(5)`.
+    // 4. Assert that the result contains only one entry (from `agent.log`).
   });
 });

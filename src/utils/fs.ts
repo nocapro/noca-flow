@@ -71,8 +71,8 @@ export const getFailedReports = async (hours: number): Promise<FailedReport[]> =
   // INSTRUCTIONS:
   // 1. Define phase directories to scan.
   // 2. Use `fs.readdir` to get all report files (ending in .md).
-  // 3. For each file, get its stats using `fs.stat` to find the creation time (`birthtime`).
-  // 4. Use `dayjs` to check if `birthtime` is within the last `hours`.
+  // 3. For each file, get its stats using `fs.stat` to find its modification time (`mtime`). Using `mtime` is more reliable and testable than `birthtime`.
+  // 4. Use `dayjs` to check if `mtime` is within the last `hours`.
   // 5. If it is recent, read the file content.
   // 6. Parse the markdown content to extract the summary/reason. A simple regex or string search for a "Summary" section is sufficient.
   // 7. The filename typically follows the pattern `{planId}.{partId}.report.md`. Parse this to get IDs.
@@ -91,7 +91,7 @@ export const getFailedReports = async (hours: number): Promise<FailedReport[]> =
   //       if (!file.endsWith('.report.md')) continue;
   //       const filePath = path.join(reportDir, file);
   //       const stats = await fs.stat(filePath);
-  //       if (dayjs(stats.birthtime).isAfter(since)) {
+  //       if (dayjs(stats.mtime).isAfter(since)) {
   //         // const content = await fs.readFile(filePath, 'utf-8');
   //         // const summaryMatch = content.match(/## Summary\s*\n\s*(.*)/);
   //         // const reason = summaryMatch ? summaryMatch[1].trim() : 'Could not parse summary.';
