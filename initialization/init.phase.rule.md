@@ -8,6 +8,6 @@
 ## 2. State & Blueprint
 - **Work Unit**: The spec is the multi-line `INSTRUCTIONS` inside the `/** TODO: ... */` block.
 - **Completion**: Task is complete *only when* the source `TODO` block is deleted and tests pass.
-- **Logging**: `agent-log/{plan_id}.{part_id}.log`.
+- **Logging**: `.nocaflow/initialization/agent-log/{plan_id}.{part_id}.log`.
 
 

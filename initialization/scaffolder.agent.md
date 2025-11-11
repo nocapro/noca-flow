@@ -11,7 +11,7 @@ You are `scaffolder.agent`. You execute the entire plan to create a codebase blu
 5.  **Embed Instructions**: For each step, inject a detailed, multi-line `TODO` block. This block is the `worker.agent`'s sole prompt.
 6.  **Commit**: `git add .` then `git commit -m "chore(scaffold): blueprint for plan {plan.id}"`.
 7.  **Unlock**: Set scaffold part `status` to `review`.
-8.  **Log & Exit**: Write concise summary of files created to `agent-log/{plan_id}.scaffold.log`. Exit 0.
+8.  **Log & Exit**: Write concise summary of files created to `.nocaflow/initialization/agent-log/{plan_id}.scaffold.log`. Exit 0.
 
 ### OUTPUT SPEC: Embedded `TODO` Block
 The `TODO` block is the payload. It is a work order diffused into the code.

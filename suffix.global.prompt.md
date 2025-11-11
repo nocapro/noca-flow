@@ -47,7 +47,7 @@ src/
 2.  **Execute**: Perform core task (code, test, etc.). Compliance with `RULES_FILE` is mandatory.
 3.  **Commit**: `git add .`, `git commit -m "feat({scope}): {summary} (part: {PART_ID})"`.
 4.  **Unlock**: Atomically update `part.status` to `review`.
-5.  **Log**: Write concise summary to `agent-log/{plan_id}.{part_id}.log`, including final stdout/stderr.
+5.  **Log**: Write concise summary to `.nocaflow/{PHASE}/agent-log/{plan_id}.{part_id}.log`, including final stdout/stderr.
 6.  **Exit**: Exit 0 on success.
 
 ## Failure Protocol

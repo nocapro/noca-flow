@@ -1,6 +1,11 @@
+
 ===
 
-last agents activites in nocaflow state bash output
+should give path .nocaflow/ when mentioning files/dirs because .nocaflow will inside the user project root
+
+===
+
+add last agents activites in nocaflow state bash output
 
 === DONE
 
