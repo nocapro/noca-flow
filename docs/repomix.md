@@ -109,445 +109,6 @@ user.prompt.md
 
 # Files
 
-## File: test/e2e/cli.test.ts
-````typescript
-import { exec } from 'child_process';
-import util from 'util';
-import fs from 'fs/promises';
-import path from 'path';
-
-const execPromise = util.promisify(exec);
-
-// TODO: Define path to the compiled CLI entry point.
-const cliCommand = 'node ../../dist/cli.js'; // Relative to the test CWD
-const testDir = path.join(__dirname, 'temp-e2e');
-
-describe('e2e/cli', () => {
-  // TODO: Set up a temporary test directory and run `npm run build` before all tests.
-  // 1. Delete the temp-e2e directory if it exists.
-  // 2. Create a fresh temp-e2e directory.
-  // 3. Run `npm run build` from the project root to ensure dist/ is up-to-date.
-  beforeAll(async () => {}, 30000); // Increase timeout for build step
-
-  // TODO: Clean up the temporary directory after all tests.
-  // 1. Remove the temp-e2e directory.
-  afterAll(async () => {});
-
-  // TODO: Set up a temporary CWD for each test.
-  // 1. Create a unique subdirectory inside 'temp-e2e' for the test.
-  // 2. Change the current working directory to this new subdirectory.
-  beforeEach(async () => {});
-  
-  // TODO: Clean up CWD after each test.
-  // 1. Change CWD back to the project root.
-  // 2. The main temp-e2e directory will be cleaned up in afterAll.
-  afterEach(async () => {});
-
-  describe('init command', () => {
-    // TODO: Test `nocaflow init`.
-    // It should execute successfully and create the .nocaflow directory.
-    // Verify directory structure exists after command runs.
-    // 1. Run `nocaflow init`.
-    // 2. Check for the existence of `.nocaflow/initialization/plans/todo/.gitkeep`.
-    // 3. Check for the existence of `.nocaflow/development/plans/todo/.gitkeep`.
-    // 4. Assert that the command's stdout contains a success message.
-    it('should initialize a new project structure', async () => {});
-  });
-
-  describe('state command', () => {
-    // TODO: Test `nocaflow state` in an initialized directory.
-    // First, run `init`. Then, run `state`.
-    // The command should execute successfully and output a formatted state report.
-    // The test should check for key headers in the stdout.
-    // 1. Run `nocaflow init`.
-    // 2. Run `nocaflow state`.
-    // 3. Assert that stdout includes "== nocaflow State ==".
-    // 4. Assert that stdout includes "Current Phase: initialization".
-    // 5. Assert that stdout includes "== Phase Progress ==".
-    it('should display the project state in an initialized directory', async () => {});
-
-    // TODO: Test `nocaflow state` in a directory that has not been initialized.
-    // 1. Run `nocaflow state`.
-    // 2. The command should exit with a non-zero status code.
-    // 3. Assert that stderr contains an error message about `.nocaflow` not being found.
-    it('should show an error when run in a non-initialized directory', async () => {});
-  });
-
-  describe('no command', () => {
-    // TODO: Test running `nocaflow` with no command.
-    // It should display the help message.
-    // 1. Run `nocaflow` with no arguments.
-    // 2. Assert that stdout includes the help text (e.g., "Commands:", "Options:").
-    it('should display help when no command is provided', async () => {});
-  });
-});
-````
-
-## File: test/integration/commands/init.test.ts
-````typescript
-import { handleInitCommand } from '../../../src/commands/init';
-import fs from 'fs/promises';
-import path from 'path';
-
-describe('integration/commands/init', () => {
-  // TODO: Set up a temporary test directory before each test.
-  // Use fs.mkdtemp to create a unique directory in the OS's temp folder.
-  // Change the current working directory to the temp directory.
-  // 1. Store the original CWD.
-  // 2. Create a temp directory using `fs.mkdtemp`.
-  // 3. Change CWD to the temp directory.
-  beforeEach(async () => {});
-
-  // TODO: Clean up the temporary directory after each test.
-  // Change back to the original working directory.
-  // Use fs.rm with { recursive: true, force: true }.
-  // 1. Change CWD back to the original CWD.
-  // 2. Remove the temp directory.
-  afterEach(async () => {});
-
-  // TODO: Test case for a fresh initialization.
-  // It should create the full .nocaflow directory structure and all .gitkeep files.
-  // 1. Call `handleInitCommand({})`.
-  // 2. Use `fs.access` to verify that several key directories exist.
-  //    - e.g., '.nocaflow/initialization/plans/todo'
-  //    - e.g., '.nocaflow/development/plans/failed/report'
-  // 3. Use `fs.access` to verify that several key `.gitkeep` files exist.
-  //    - e.g., '.nocaflow/initialization/agent-log/.gitkeep'
-  it('should create the full .nocaflow directory structure on first run', async () => {});
-
-  // TODO: Test case where .nocaflow already exists.
-  // The command should log a warning and exit without modifying anything.
-  // This requires mocking console.warn and process.exit.
-  // 1. Mock `console.warn` and `process.exit` with `jest.spyOn`.
-  // 2. Create the `.nocaflow` directory manually.
-  // 3. Call `handleInitCommand({})`.
-  // 4. Assert that `console.warn` was called with a specific message.
-  // 5. Assert that `process.exit` was called.
-  it('should exit with a warning if .nocaflow directory already exists', async () => {});
-});
-````
-
-## File: test/unit/commands/state.test.ts
-````typescript
-import { renderProgressBar } from '../../../src/commands/state';
-
-describe('state command helpers', () => {
-  describe('renderProgressBar', () => {
-    // TODO: Test case for 0% progress.
-    // It should render an empty bar with correct labels.
-    // 1. Call `renderProgressBar(0, 10, 10)`.
-    // 2. Assert the output is `[----------] (0/10 plans done)`.
-    it('should render an empty bar for 0 progress', () => {});
-
-    // TODO: Test case for 50% progress.
-    // It should render a half-filled bar.
-    // 1. Call `renderProgressBar(5, 10, 10)`.
-    // 2. Assert the output is `[▇▇▇▇▇-----] (5/10 plans done)`.
-    it('should render a half-filled bar for 50% progress', () => {});
-
-    // TODO: Test case for 100% progress.
-    // It should render a full bar.
-    // 1. Call `renderProgressBar(10, 10, 10)`.
-    // 2. Assert the output is `[▇▇▇▇▇▇▇▇▇▇] (10/10 plans done)`.
-    it('should render a full bar for 100% progress', () => {});
-
-    // TODO: Test case with a different bar length.
-    // It should respect the length parameter.
-    // 1. Call `renderProgressBar(1, 2, 20)`.
-    // 2. Assert the filled part has 10 '▇' characters.
-    it('should handle different bar lengths', () => {});
-
-    // TODO: Test case for progress that isn't a clean fraction.
-    // It should round to the nearest whole character.
-    // 1. Call `renderProgressBar(1, 3, 10)`.
-    // 2. 33% should round to 3 filled characters.
-    // 3. Assert the output is `[▇▇▇-------] (1/3 plans done)`.
-    it('should round to the nearest character for fractional progress', () => {});
-
-    // TODO: Test case for a total of 0.
-    // It should not throw an error and should render an empty bar.
-    // 1. Call `renderProgressBar(0, 0, 10)`.
-    // 2. Assert it does not throw a "division by zero" error.
-    // 3. Assert the output is `[----------] (0/0 plans done)`.
-    it('should handle a total of 0 gracefully', () => {});
-  });
-});
-````
-
-## File: test/unit/utils/fs.test.ts
-````typescript
-import { getPhaseStats, getFailedReports, readPlan } from '../../../src/utils/fs';
-import fs from 'fs/promises';
-import yaml from 'js-yaml';
-import dayjs from 'dayjs';
-
-// TODO: Mock the 'fs/promises' module to control filesystem operations.
-jest.mock('fs/promises');
-const mockedFs = fs as jest.Mocked<typeof fs>;
-
-describe('utils/fs', () => {
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  describe('getPhaseStats', () => {
-    // TODO: Test case where .nocaflow directory exists with plans.
-    // It should correctly count plans in todo, doing, done, etc., for each phase.
-    // 1. Mock `fs.readdir` to return different arrays of filenames for different paths.
-    //    - e.g., `.../initialization/plans/todo` -> `['a.yml', 'b.yml']` (count: 2)
-    //    - e.g., `.../development/plans/done` -> `['c.yml']` (count: 1)
-    // 2. Call `getPhaseStats()`.
-    // 3. Assert `stats.initialization.todo` is 2 and `stats.development.done` is 1.
-    // 4. Assert `total` is calculated correctly for each phase.
-    it('should correctly count plans across different statuses and phases', async () => {});
-
-    // TODO: Test case where a phase directory is missing.
-    // It should handle the error gracefully and count as 0.
-    // 1. Mock `fs.readdir` to throw an ENOENT error for any path under `.../development/...`.
-    // 2. Call `getPhaseStats()`.
-    // 3. Assert all counts for `development` are 0.
-    it('should return 0 for a missing phase directory', async () => {});
-
-    // TODO: Test case where a status directory is missing (e.g., no 'review' plans).
-    // It should count that status as 0.
-    // 1. Mock `fs.readdir` to throw an ENOENT error for `.../initialization/plans/review`.
-    // 2. Call `getPhaseStats()`.
-    // 3. Assert `stats.initialization.review` is 0.
-    it('should return 0 for a missing status directory', async () => {});
-
-    // TODO: Test case with an empty .nocaflow directory.
-    // All counts should be 0.
-    // 1. Mock `fs.readdir` to return `[]` for all status directories.
-    // 2. Call `getPhaseStats()`.
-    // 3. Assert all counts for all phases are 0.
-    it('should return all zeros for an empty directory structure', async () => {});
-  });
-
-  describe('getFailedReports', () => {
-    // TODO: Test case with recent and old failure reports.
-    // It should only return reports within the specified `hours` lookback period.
-    // 1. Mock `fs.readdir` to return two report files.
-    // 2. Mock `fs.stat` to return a recent `birthtime` for one and an old `birthtime` for the other.
-    // 3. Mock `fs.readFile` for the recent file.
-    // 4. Call `getFailedReports(24)`.
-    // 5. Assert the result contains only the recent report.
-    it('should only return reports within the lookback period', async () => {});
-
-    // TODO: Test case where report files have correctly formatted names and content.
-    // It should correctly parse planId, partId, and summary from the filename and content.
-    // 1. Mock `fs.readdir` to return `['plan1.partA.report.md']`.
-    // 2. Mock `fs.stat` to return a recent `birthtime`.
-    // 3. Mock `fs.readFile` to return markdown with `## Summary\nThis is the reason.`.
-    // 4. Call `getFailedReports(24)`.
-    // 5. Assert `result[0].planId` is 'plan1', `partId` is 'partA', and `reason` is 'This is the reason.'.
-    it('should correctly parse report details', async () => {});
-
-    // TODO: Test case with no report files.
-    // It should return an empty array.
-    // 1. Mock `fs.readdir` to return `[]`.
-    // 2. Call `getFailedReports(24)`.
-    // 3. Assert the result is an empty array.
-    it('should return an empty array when no reports are found', async () => {});
-
-    // TODO: Test case where a report file is malformed (e.g., no "## Summary" section).
-    // It should handle the parsing error gracefully.
-    // 1. Mock `fs.readdir` and `fs.stat` for a recent report.
-    // 2. Mock `fs.readFile` to return content *without* a `## Summary` section.
-    // 3. Call `getFailedReports(24)`.
-    // 4. Assert the `reason` field has a sensible fallback, like 'Could not parse summary.'.
-    it('should handle malformed report content', async () => {});
-  });
-
-  describe('readPlan', () => {
-    // TODO: Test case with a valid YAML plan file.
-    // It should correctly parse the YAML into a Plan object.
-    // 1. Mock `fs.readFile` to return a valid YAML string.
-    // 2. Call `readPlan('path/to/plan.yml')`.
-    // 3. Assert that the returned object matches the parsed structure of the YAML.
-    it('should parse a valid plan file', async () => {});
-
-    // TODO: Test case with a non-existent file path.
-    // It should throw a file-not-found error.
-    // 1. Mock `fs.readFile` to throw an error with `code: 'ENOENT'`.
-    // 2. Call `readPlan` and assert that it throws an error.
-    it('should throw an error for a non-existent file', async () => {});
-
-    // TODO: Test case with an invalid YAML file.
-    // It should throw a YAML parsing error.
-    // 1. Mock `fs.readFile` to return a string with invalid YAML syntax (e.g., `key: - invalid:`).
-    // 2. Call `readPlan` and assert that it throws a YAMLException.
-    it('should throw an error for invalid YAML', async () => {});
-  });
-});
-````
-
-## File: test/unit/utils/git.test.ts
-````typescript
-import { getGitLog } from '../../../src/utils/git';
-import { exec } from 'child_process';
-
-jest.mock('child_process');
-const mockedExec = exec as jest.Mock;
-
-describe('utils/git', () => {
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  describe('getGitLog', () => {
-    // TODO: Test case with git log output containing worktree information.
-    // It should correctly parse the commit hash, message, and worktree name.
-    // 1. Mock `exec` to return porcelain worktree list output for `git worktree list`.
-    // 2. Mock `exec` to return formatted log output for `git log`, where one entry has a ref like `HEAD -> worktrees/my-feature`.
-    // 3. Call `getGitLog(5)`.
-    // 4. Find the corresponding commit in the result and assert its `worktree` property is `my-feature`.
-    it('should parse commits with worktree information', async () => {});
-
-    // TODO: Test case with git log output for commits not in a worktree (e.g., on main).
-    // The 'worktree' property should be null.
-    // 1. Mock `exec` for worktrees and logs.
-    // 2. Ensure one log entry has refs like `HEAD -> main, origin/main`.
-    // 3. Call `getGitLog(5)`.
-    // 4. Find that commit and assert its `worktree` property is `null`.
-    it('should handle commits not associated with a worktree', async () => {});
-
-    // TODO: Test case where `git worktree list` command fails.
-    // It should gracefully handle the error and continue, possibly with null worktrees.
-    // 1. Mock `exec` to throw an error when the command is `git worktree list --porcelain`.
-    // 2. Mock `exec` to return valid log output for `git log`.
-    // 3. Call `getGitLog(5)`.
-    // 4. Assert that the function does not throw.
-    // 5. Assert that all returned commits have `worktree: null`.
-    it('should handle git worktree command failure', async () => {});
-
-    // TODO: Test case where `git log` command fails.
-    // It should return an empty array or throw an error.
-    // 1. Mock `exec` to return valid worktree info.
-    // 2. Mock `exec` to throw an error when the command is `git log ...`.
-    // 3. Call `getGitLog(5)`.
-    // 4. Assert that the result is an empty array.
-    it('should return an empty array if git log fails', async () => {});
-
-    // TODO: Test case with an empty git log output.
-    // It should return an empty array.
-    // 1. Mock `exec` for worktrees.
-    // 2. Mock `exec` for `git log` to return an empty string in stdout.
-    // 3. Call `getGitLog(5)`.
-    // 4. Assert the result is an empty array.
-    it('should return an empty array for an empty git log', async () => {});
-  });
-});
-````
-
-## File: test/unit/utils/logs.test.ts
-````typescript
-import { getRecentLogs } from '../../../src/utils/logs';
-import fs from 'fs/promises';
-
-jest.mock('fs/promises');
-const mockedFs = fs as jest.Mocked<typeof fs>;
-
-describe('utils/logs', () => {
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  describe('getRecentLogs', () => {
-    // TODO: Test case with multiple log files across different phases.
-    // It should read from all relevant directories.
-    // 1. Mock `fs.readdir` to return `['a.log']` for the init dir and `['b.log']` for the dev dir.
-    // 2. Mock `fs.readFile` to return different log content for `a.log` and `b.log`.
-    // 3. Call `getRecentLogs(10)`.
-    // 4. Assert that the result contains parsed entries from both files.
-    it('should aggregate logs from all phase directories', async () => {});
-
-    // TODO: Test case with a log file containing valid and malformed lines.
-    // It should parse valid lines and skip malformed ones.
-    // 1. Mock `fs.readdir` to return one log file.
-    // 2. Mock `fs.readFile` to return a string with one valid log line and one invalid line.
-    // 3. Call `getRecentLogs(10)`.
-    // 4. Assert that the result contains exactly one entry, corresponding to the valid line.
-    it('should correctly parse valid log lines and skip invalid ones', async () => {});
-
-    // TODO: Test case with more log entries than the specified limit.
-    // It should return only the most recent 'limit' number of entries, sorted descending by timestamp.
-    // 1. Mock `fs.readdir` and `fs.readFile` to produce 10 log entries with out-of-order timestamps.
-    // 2. Call `getRecentLogs(5)`.
-    // 3. Assert the result has a length of 5.
-    // 4. Assert the timestamps in the result are in descending order.
-    it('should return the correct number of recent, sorted log entries', async () => {});
-
-    // TODO: Test case where log directories do not exist.
-    // It should handle the error and return an empty array.
-    // 1. Mock `fs.readdir` to throw an ENOENT error for all log directories.
-    // 2. Call `getRecentLogs(5)`.
-    // 3. Assert the result is an empty array.
-    it('should return an empty array if log directories are missing', async () => {});
-
-    // TODO: Test case with empty log files.
-    // It should return an empty array.
-    // 1. Mock `fs.readdir` to return log file names.
-    // 2. Mock `fs.readFile` to return an empty string for all files.
-    // 3. Call `getRecentLogs(5)`.
-    // 4. Assert the result is an empty array.
-    it('should return an empty array for empty log files', async () => {});
-  });
-});
-````
-
-## File: test/unit/utils/shell.test.ts
-````typescript
-import { getActiveAgents } from '../../../src/utils/shell';
-import { exec } from 'child_process';
-import dayjs from 'dayjs';
-
-jest.mock('child_process');
-const mockedExec = exec as jest.Mock;
-
-describe('utils/shell', () => {
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  describe('getActiveAgents', () => {
-    // TODO: Test case with `tmux ls` output for various agent types.
-    // It should correctly parse init, dev, scaffold, and qa agents.
-    // 1. Mock `exec` to return a multi-line string with session names like:
-    //    - `init-part1 123 1672531200`
-    //    - `dev-part2 456 1672531200`
-    //    - `init-scaffold-plan1 789 1672531200`
-    //    - `qa-plan2 101 1672531200`
-    //    - `non-agent-session 112 1672531200`
-    // 2. Call `getActiveAgents()`.
-    // 3. Assert the result contains 4 agents.
-    // 4. Assert each agent has the correct phase, planId, partId, etc.
-    it('should parse all types of agent sessions and ignore non-agent sessions', async () => {});
-
-    // TODO: Test case with `tmux ls` output that is empty.
-    // It should return an empty array.
-    // 1. Mock `exec` to return stdout as an empty string.
-    // 2. Call `getActiveAgents()`.
-    // 3. Assert the result is an empty array.
-    it('should return an empty array when there are no tmux sessions', async () => {});
-
-    // TODO: Test case where `tmux ls` command fails.
-    // It should catch the error and return an empty array.
-    // 1. Mock `exec` to throw an error.
-    // 2. Call `getActiveAgents()`.
-    // 3. Assert the result is an empty array.
-    it('should return an empty array if tmux is not running', async () => {});
-
-    // TODO: Test case to verify runtime calculation.
-    // Mocks the current time and session activity timestamp to check the relative time string.
-    // 1. Mock `Date.now` or use a time-mocking library to control "now".
-    // 2. Mock `exec` to return a session with a specific activity timestamp.
-    // 3. Call `getActiveAgents()`.
-    // 4. Assert the `runtime` string is the expected relative time (e.g., "5 minutes").
-    it('should correctly calculate agent runtime', async () => {});
-  });
-});
-````
-
 ## File: .nocaflow/development/plans/todo/dev-plan-01.yml
 ````yaml
 # Empty plan file to match count for `nocaflow state`
@@ -983,15 +544,6 @@ module.exports = {
 };
 ````
 
-## File: jest.config.js
-````javascript
-module.exports = {
-  preset: 'ts-jest',
-  testEnvironment: 'node',
-  testMatch: ['<rootDir>/test/**/*.test.ts'],
-};
-````
-
 ## File: tsconfig.json
 ````json
 {
@@ -1276,6 +828,482 @@ yargs(hideBin(process.argv))
   .argv;
 ````
 
+## File: test/e2e/cli.test.ts
+````typescript
+import { exec } from 'child_process';
+import util from 'util';
+import fs from 'fs/promises';
+import path from 'path';
+
+const execPromise = util.promisify(exec);
+
+// TODO: Define path to the compiled CLI entry point.
+const cliCommand = 'node ../../dist/cli.js'; // Relative to the test CWD
+const testDir = path.join(__dirname, 'temp-e2e');
+// TODO: Define a variable to hold the original CWD.
+// let originalCwd: string;
+
+describe('e2e/cli', () => {
+  // TODO: Set up a temporary test directory and run `npm run build` before all tests.
+  // 1. Store the original CWD.
+  // 2. Delete the temp-e2e directory if it exists using `fs.rm`.
+  // 3. Create a fresh temp-e2e directory using `fs.mkdir`.
+  // 4. Run `npm run build` from the project root to ensure dist/ is up-to-date. Use a long timeout.
+  beforeAll(async () => {}, 30000); // Increase timeout for build step
+
+  // TODO: Clean up the temporary directory after all tests.
+  // 1. Change CWD back to the original CWD.
+  // 2. Remove the temp-e2e directory using `fs.rm`.
+  afterAll(async () => {});
+
+  // TODO: Set up a temporary CWD for each test.
+  // 1. Create a unique subdirectory inside 'temp-e2e' for the test.
+  // 2. Change the current working directory to this new subdirectory using `process.chdir`.
+  beforeEach(async () => {});
+  
+  // TODO: Clean up CWD after each test.
+  // 1. Change CWD back to the project root path.
+  // 2. The main temp-e2e directory will be cleaned up in afterAll.
+  afterEach(async () => {});
+
+  describe('init command', () => {
+    // TODO: Test `nocaflow init`.
+    // It should execute successfully and create the .nocaflow directory.
+    // Verify directory structure exists after command runs.
+    // 1. Run `cliCommand + ' init'` using `execPromise`.
+    // 2. Use `fs.access` to check for `.nocaflow/initialization/plans/todo/.gitkeep`.
+    // 3. Use `fs.access` to check for `.nocaflow/development/plans/todo/.gitkeep`.
+    // 4. Assert that the command's stdout contains a success message like "initialized successfully".
+    it('should initialize a new project structure', async () => {});
+  });
+
+  describe('state command', () => {
+    // TODO: Test `nocaflow state` in an initialized directory.
+    // First, run `init`. Then, run `state`.
+    // The command should execute successfully and output a formatted state report.
+    // The test should check for key headers in the stdout.
+    // 1. Run `cliCommand + ' init'`.
+    // 2. Create some dummy plan files to ensure the state command has data to report.
+    //    e.g., `fs.writeFile('.nocaflow/initialization/plans/todo/plan1.yml', '')`
+    // 3. Run `cliCommand + ' state'`.
+    // 4. Assert that stdout includes "== nocaflow State ==".
+    // 5. Assert that stdout includes "Current Phase: initialization".
+    // 6. Assert that stdout includes "== Phase Progress ==".
+    it('should display the project state in an initialized directory', async () => {});
+
+    // TODO: Test `nocaflow state` in a directory that has not been initialized.
+    // 1. Run `cliCommand + ' state'` and expect it to fail.
+    // 2. Use a try/catch block around `execPromise` or use `expect(...).rejects.toThrow()`.
+    // 3. In the catch block, assert that the error's `stderr` contains a message about `.nocaflow` not being found.
+    it('should show an error when run in a non-initialized directory', async () => {});
+  });
+
+  describe('no command', () => {
+    // TODO: Test running `nocaflow` with no command.
+    // It should display the help message.
+    // 1. Run `cliCommand` with no arguments.
+    // 2. Assert that stdout includes the help text (e.g., "Commands:", "Options:").
+    it('should display help when no command is provided', async () => {});
+  });
+});
+````
+
+## File: test/integration/commands/init.test.ts
+````typescript
+import { handleInitCommand } from '../../../src/commands/init';
+import fs from 'fs/promises';
+import path from 'path';
+import os from 'os';
+
+describe('integration/commands/init', () => {
+  // TODO: Define variables to hold the temp directory path and original CWD.
+  // let tempDir: string;
+  // let originalCwd: string;
+
+  // TODO: Set up a temporary test directory before each test.
+  // Use fs.mkdtemp to create a unique directory in the OS's temp folder.
+  // Change the current working directory to the temp directory.
+  // 1. Store `process.cwd()` in `originalCwd`.
+  // 2. Create a temp directory using `fs.mkdtemp` with a prefix.
+  // 3. Change CWD to the temp directory using `process.chdir`.
+  beforeEach(async () => {});
+
+  // TODO: Clean up the temporary directory after each test.
+  // Change back to the original working directory.
+  // Use fs.rm with { recursive: true, force: true }.
+  // 1. Change CWD back to `originalCwd`.
+  // 2. Remove the `tempDir` using `fs.rm`.
+  afterEach(async () => {});
+
+  // TODO: Test case for a fresh initialization.
+  // It should create the full .nocaflow directory structure and all .gitkeep files.
+  // 1. Call `handleInitCommand({})`.
+  // 2. Use `fs.access` to verify that several key directories exist.
+  //    - e.g., '.nocaflow/initialization/plans/todo'
+  //    - e.g., '.nocaflow/development/plans/failed/report'
+  // 3. Use `fs.access` to verify that several key `.gitkeep` files exist.
+  //    - e.g., '.nocaflow/initialization/agent-log/.gitkeep'
+  //    - e.g., '.nocaflow/development/plans/todo/.gitkeep'
+  it('should create the full .nocaflow directory structure on first run', async () => {});
+
+  // TODO: Test case where .nocaflow already exists.
+  // The command should log a warning and exit without modifying anything.
+  // This requires mocking console.warn and process.exit.
+  // 1. Mock `console.warn` using `jest.spyOn(console, 'warn').mockImplementation(() => {})`.
+  // 2. Mock `process.exit` using `jest.spyOn(process, 'exit').mockImplementation((() => {}) as (code?: number) => never)`.
+  // 3. Create the `.nocaflow` directory manually using `fs.mkdir`.
+  // 4. Call `handleInitCommand({})`.
+  // 5. Assert that `console.warn` was called with a specific message about the directory existing.
+  // 6. Assert that `process.exit` was called with code 1.
+  // 7. Restore mocks using `mockRestore()`.
+  it('should exit with a warning if .nocaflow directory already exists', async () => {});
+});
+````
+
+## File: test/unit/commands/state.test.ts
+````typescript
+import { renderProgressBar } from '../../../src/commands/state';
+
+describe('state command helpers', () => {
+  describe('renderProgressBar', () => {
+    // TODO: Test case for 0% progress.
+    // It should render an empty bar with correct labels.
+    // 1. Call `renderProgressBar(0, 10, 10)`.
+    // 2. Assert the output is `[----------] (0/10 plans done)`.
+    it('should render an empty bar for 0 progress', () => {});
+
+    // TODO: Test case for 50% progress.
+    // It should render a half-filled bar.
+    // 1. Call `renderProgressBar(5, 10, 10)`.
+    // 2. Assert the output is `[▇▇▇▇▇-----] (5/10 plans done)`.
+    it('should render a half-filled bar for 50% progress', () => {});
+
+    // TODO: Test case for 100% progress.
+    // It should render a full bar.
+    // 1. Call `renderProgressBar(10, 10, 10)`.
+    // 2. Assert the output is `[▇▇▇▇▇▇▇▇▇▇] (10/10 plans done)`.
+    it('should render a full bar for 100% progress', () => {});
+
+    // TODO: Test case with a different bar length.
+    // It should respect the length parameter.
+    // 1. Call `renderProgressBar(1, 2, 20)`.
+    // 2. Assert the filled part has 10 '▇' characters.
+    // 3. Assert the output is `[▇▇▇▇▇▇▇▇▇▇----------] (1/2 plans done)`.
+    it('should handle different bar lengths', () => {});
+
+    // TODO: Test case for progress that isn't a clean fraction.
+    // It should round to the nearest whole character.
+    // 1. Call `renderProgressBar(1, 3, 10)`.
+    // 2. 33% should round to 3 filled characters.
+    // 3. Assert the output is `[▇▇▇-------] (1/3 plans done)`.
+    it('should round to the nearest character for fractional progress', () => {});
+
+    // TODO: Test case for a total of 0.
+    // It should not throw an error and should render an empty bar.
+    // 1. Call `renderProgressBar(0, 0, 10)`.
+    // 2. Assert it does not throw a "division by zero" error.
+    // 3. Assert the output is `[----------] (0/0 plans done)`.
+    it('should handle a total of 0 gracefully', () => {});
+  });
+});
+````
+
+## File: test/unit/utils/fs.test.ts
+````typescript
+import { getPhaseStats, getFailedReports, readPlan } from '../../../src/utils/fs';
+import fs from 'fs/promises';
+import yaml from 'js-yaml';
+import dayjs from 'dayjs';
+import { Plan } from '../../../src/models/plan';
+
+// TODO: Mock the 'fs/promises' module to control filesystem operations.
+jest.mock('fs/promises');
+const mockedFs = fs as jest.Mocked<typeof fs>;
+
+describe('utils/fs', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('getPhaseStats', () => {
+    // TODO: Test case where .nocaflow directory exists with plans.
+    // It should correctly count plans in todo, doing, done, etc., for each phase.
+    // 1. Mock `mockedFs.readdir` to resolve with different arrays of filenames for different paths.
+    //    - e.g., for path `.../initialization/plans/todo`, resolve `['a.yml', 'b.yml']`.
+    //    - e.g., for path `.../development/plans/done`, resolve `['c.yml']`.
+    //    - Use `mockResolvedValue` for simple cases or `mockImplementation` for path-dependent logic.
+    // 2. Call `getPhaseStats()`.
+    // 3. Assert `stats.initialization.todo` is 2 and `stats.development.done` is 1.
+    // 4. Assert `total` is calculated correctly for each phase.
+    it('should correctly count plans across different statuses and phases', async () => {});
+
+    // TODO: Test case where a phase directory is missing.
+    // It should handle the error gracefully and count as 0.
+    // 1. Mock `mockedFs.readdir` to throw an ENOENT error for any path under `.../development/...`.
+    //    - `const error: NodeJS.ErrnoException = new Error('...'); error.code = 'ENOENT';`
+    //    - `mockImplementation(path => path.includes('development') ? Promise.reject(error) : Promise.resolve([]))`
+    // 2. Call `getPhaseStats()`.
+    // 3. Assert all counts for `development` are 0.
+    it('should return 0 for a missing phase directory', async () => {});
+
+    // TODO: Test case where a status directory is missing (e.g., no 'review' plans).
+    // It should count that status as 0.
+    // 1. Mock `mockedFs.readdir` to throw an ENOENT error for a specific path like `.../initialization/plans/review`.
+    // 2. Call `getPhaseStats()`.
+    // 3. Assert `stats.initialization.review` is 0.
+    it('should return 0 for a missing status directory', async () => {});
+
+    // TODO: Test case with an empty .nocaflow directory.
+    // All counts should be 0.
+    // 1. Mock `mockedFs.readdir` to resolve `[]` for all status directories.
+    // 2. Call `getPhaseStats()`.
+    // 3. Assert all counts for all phases are 0.
+    it('should return all zeros for an empty directory structure', async () => {});
+  });
+
+  describe('getFailedReports', () => {
+    // TODO: Test case with recent and old failure reports.
+    // It should only return reports within the specified `hours` lookback period.
+    // 1. Mock `mockedFs.readdir` to resolve `['recent.report.md', 'old.report.md']`.
+    // 2. Mock `mockedFs.stat` to return a recent `birthtime` for one and an old `birthtime` for the other.
+    //    - `mockedFs.stat.mockResolvedValueOnce({ birthtime: dayjs().subtract(1, 'hour').toDate() } as fs.Stats)`
+    //    - `mockedFs.stat.mockResolvedValueOnce({ birthtime: dayjs().subtract(48, 'hour').toDate() } as fs.Stats)`
+    // 3. Mock `mockedFs.readFile` to resolve with content for the recent file.
+    // 4. Call `getFailedReports(24)`.
+    // 5. Assert the result contains only the recent report and has a length of 1.
+    it('should only return reports within the lookback period', async () => {});
+
+    // TODO: Test case where report files have correctly formatted names and content.
+    // It should correctly parse planId, partId, and summary from the filename and content.
+    // 1. Mock `mockedFs.readdir` to resolve `['plan1.partA.report.md']`.
+    // 2. Mock `mockedFs.stat` to resolve a recent `birthtime`.
+    // 3. Mock `mockedFs.readFile` to resolve markdown `## Summary\nThis is the reason.`.
+    // 4. Call `getFailedReports(24)`.
+    // 5. Assert `result[0].planId` is 'plan1', `partId` is 'partA', and `reason` is 'This is the reason.'.
+    it('should correctly parse report details', async () => {});
+
+    // TODO: Test case with no report files.
+    // It should return an empty array.
+    // 1. Mock `mockedFs.readdir` to resolve `[]`.
+    // 2. Call `getFailedReports(24)`.
+    // 3. Assert the result is an empty array.
+    it('should return an empty array when no reports are found', async () => {});
+
+    // TODO: Test case where a report file is malformed (e.g., no "## Summary" section).
+    // It should handle the parsing error gracefully.
+    // 1. Mock `mockedFs.readdir` and `mockedFs.stat` for a recent report.
+    // 2. Mock `mockedFs.readFile` to return content *without* a `## Summary` section.
+    // 3. Call `getFailedReports(24)`.
+    // 4. Assert the `reason` field has a sensible fallback, like 'Could not parse summary.'.
+    it('should handle malformed report content', async () => {});
+  });
+
+  describe('readPlan', () => {
+    // TODO: Test case with a valid YAML plan file.
+    // It should correctly parse the YAML into a Plan object.
+    // 1. Define a valid YAML string.
+    // 2. Mock `mockedFs.readFile` to resolve with the YAML string.
+    // 3. Call `readPlan('path/to/plan.yml')`.
+    // 4. Assert that the returned object matches the parsed structure of the YAML.
+    it('should parse a valid plan file', async () => {});
+
+    // TODO: Test case with a non-existent file path.
+    // It should throw a file-not-found error.
+    // 1. Mock `mockedFs.readFile` to reject with an ENOENT error.
+    // 2. Call `readPlan` and assert that it throws, e.g., `await expect(readPlan(...)).rejects.toThrow()`.
+    it('should throw an error for a non-existent file', async () => {});
+
+    // TODO: Test case with an invalid YAML file.
+    // It should throw a YAML parsing error.
+    // 1. Mock `mockedFs.readFile` to resolve with a string of invalid YAML syntax (e.g., `key: - invalid:`).
+    // 2. Call `readPlan` and assert that it throws an error that can be identified as a YAMLException.
+    it('should throw an error for invalid YAML', async () => {});
+  });
+});
+````
+
+## File: test/unit/utils/git.test.ts
+````typescript
+import { getGitLog } from '../../../src/utils/git';
+import { exec } from 'child_process';
+
+jest.mock('child_process');
+const mockedExec = exec as jest.Mock;
+
+describe('utils/git', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('getGitLog', () => {
+    // TODO: Test case with git log output containing worktree information.
+    // It should correctly parse the commit hash, message, and worktree name.
+    // 1. Mock `mockedExec` to handle two calls: `git worktree list` and `git log`.
+    //    - For `worktree list`, return porcelain output: `worktree /path/to/worktrees/my-feature\nHEAD ...\n`
+    //    - For `git log`, return formatted output where one entry's refs include `HEAD -> worktrees/my-feature`.
+    //      e.g., `hash1|message1|HEAD -> worktrees/my-feature`
+    // 2. Call `getGitLog(5)`.
+    // 3. Find the corresponding commit in the result and assert its `worktree` property is `my-feature`.
+    it('should parse commits with worktree information', async () => {});
+
+    // TODO: Test case with git log output for commits not in a worktree (e.g., on main).
+    // The 'worktree' property should be null.
+    // 1. Mock `mockedExec` for worktrees and logs.
+    // 2. Ensure one log entry has refs like `HEAD -> main, origin/main`.
+    // 3. Call `getGitLog(5)`.
+    // 4. Find that commit and assert its `worktree` property is `null`.
+    it('should handle commits not associated with a worktree', async () => {});
+
+    // TODO: Test case where `git worktree list` command fails.
+    // It should gracefully handle the error and continue, possibly with null worktrees.
+    // 1. Mock `mockedExec` to throw an error when the command includes `git worktree list`.
+    // 2. Mock `mockedExec` to return valid log output for the `git log` command.
+    // 3. Call `getGitLog(5)`.
+    // 4. Assert that the function does not throw.
+    // 5. Assert that all returned commits have `worktree: null`.
+    it('should handle git worktree command failure', async () => {});
+
+    // TODO: Test case where `git log` command fails.
+    // It should return an empty array.
+    // 1. Mock `mockedExec` to return valid worktree info.
+    // 2. Mock `mockedExec` to throw an error when the command includes `git log`.
+    // 3. Call `getGitLog(5)`.
+    // 4. Assert that the result is an empty array.
+    it('should return an empty array if git log fails', async () => {});
+
+    // TODO: Test case with an empty git log output.
+    // It should return an empty array.
+    // 1. Mock `mockedExec` for worktrees.
+    // 2. Mock `mockedExec` for `git log` to return an empty string for stdout.
+    // 3. Call `getGitLog(5)`.
+    // 4. Assert the result is an empty array.
+    it('should return an empty array for an empty git log', async () => {});
+  });
+});
+````
+
+## File: test/unit/utils/logs.test.ts
+````typescript
+import { getRecentLogs } from '../../../src/utils/logs';
+import fs from 'fs/promises';
+
+jest.mock('fs/promises');
+const mockedFs = fs as jest.Mocked<typeof fs>;
+
+describe('utils/logs', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('getRecentLogs', () => {
+    // TODO: Test case with multiple log files across different phases.
+    // It should read from all relevant directories.
+    // 1. Mock `mockedFs.readdir` to return `['a.log']` for the init dir and `['b.log']` for the dev dir.
+    // 2. Mock `mockedFs.readFile` to return different log content for `a.log` and `b.log`.
+    // 3. Call `getRecentLogs(10)`.
+    // 4. Assert that the result contains parsed entries from both files (e.g., `result.length === 2`).
+    it('should aggregate logs from all phase directories', async () => {});
+
+    // TODO: Test case with a log file containing valid and malformed lines.
+    // It should parse valid lines and skip malformed ones.
+    // 1. Mock `mockedFs.readdir` to return one log file.
+    // 2. Mock `mockedFs.readFile` to return a string with one valid log line and one invalid line.
+    //    - e.g., `valid line\ninvalid line`
+    // 3. Call `getRecentLogs(10)`.
+    // 4. Assert that the result contains exactly one entry, corresponding to the valid line.
+    it('should correctly parse valid log lines and skip invalid ones', async () => {});
+
+    // TODO: Test case with more log entries than the specified limit.
+    // It should return only the most recent 'limit' number of entries, sorted descending by timestamp.
+    // 1. Mock `mockedFs.readdir` and `mockedFs.readFile` to produce multiple log entries with out-of-order timestamps.
+    // 2. Call `getRecentLogs(5)`.
+    // 3. Assert the result has a length of 5.
+    // 4. Assert the timestamps in the result are in descending order by comparing `result[i].timestamp >= result[i+1].timestamp`.
+    it('should return the correct number of recent, sorted log entries', async () => {});
+
+    // TODO: Test case where log directories do not exist.
+    // It should handle the error and return an empty array.
+    // 1. Mock `mockedFs.readdir` to throw an ENOENT error for all log directories.
+    // 2. Call `getRecentLogs(5)`.
+    // 3. Assert the result is an empty array.
+    it('should return an empty array if log directories are missing', async () => {});
+
+    // TODO: Test case with empty log files.
+    // It should return an empty array.
+    // 1. Mock `mockedFs.readdir` to return log file names.
+    // 2. Mock `mockedFs.readFile` to resolve with an empty string for all files.
+    // 3. Call `getRecentLogs(5)`.
+    // 4. Assert the result is an empty array.
+    it('should return an empty array for empty log files', async () => {});
+  });
+});
+````
+
+## File: test/unit/utils/shell.test.ts
+````typescript
+import { getActiveAgents } from '../../../src/utils/shell';
+import { exec } from 'child_process';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+
+jest.mock('child_process');
+const mockedExec = exec as jest.Mock;
+dayjs.extend(relativeTime);
+
+describe('utils/shell', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('getActiveAgents', () => {
+    // TODO: Test case with `tmux ls` output for various agent types.
+    // It should correctly parse init, dev, scaffold, and qa agents.
+    // 1. Mock `mockedExec` to return a multi-line string with session names like:
+    //    - `init-part1 123 1672531200`
+    //    - `dev-part2 456 1672531200`
+    //    - `init-scaffold-plan1 789 1672531200`
+    //    - `qa-plan2 101 1672531200`
+    //    - `non-agent-session 112 1672531200`
+    // 2. Call `getActiveAgents()`.
+    // 3. Assert the result contains 4 agents.
+    // 4. Assert each agent has the correct phase, planId, partId, etc.
+    it('should parse all types of agent sessions and ignore non-agent sessions', async () => {});
+
+    // TODO: Test case with `tmux ls` output that is empty.
+    // It should return an empty array.
+    // 1. Mock `mockedExec` to have a callback that provides an empty string for stdout.
+    // 2. Call `getActiveAgents()`.
+    // 3. Assert the result is an empty array.
+    it('should return an empty array when there are no tmux sessions', async () => {});
+
+    // TODO: Test case where `tmux ls` command fails.
+    // It should catch the error and return an empty array.
+    // 1. Mock `mockedExec` to have a callback that passes an error as the first argument.
+    // 2. Call `getActiveAgents()`.
+    // 3. Assert the result is an empty array.
+    it('should return an empty array if tmux is not running', async () => {});
+
+    // TODO: Test case to verify runtime calculation.
+    // Mocks the current time and session activity timestamp to check the relative time string.
+    // 1. Use `jest.spyOn(Date, 'now').mockReturnValue(...)` to freeze the current time.
+    // 2. Mock `mockedExec` to return a session with a specific activity timestamp that is, e.g., 5 minutes before the mocked "now".
+    // 3. Call `getActiveAgents()`.
+    // 4. Assert the `runtime` string is the expected relative time (e.g., "5 minutes").
+    // 5. Restore the mock for `Date.now`.
+    it('should correctly calculate agent runtime', async () => {});
+  });
+});
+````
+
+## File: jest.config.js
+````javascript
+module.exports = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  testMatch: ['<rootDir>/test/**/*.test.ts'],
+};
+````
+
 ## File: package.json
 ````json
 {
@@ -1399,113 +1427,6 @@ export const createToken = (user: User): string => {
   throw new Error('Not implemented');
 };
 ```
-````
-
-## File: src/commands/state.ts
-````typescript
-import chalk from 'chalk';
-import { getPhaseStats, PhaseStats, getFailedReports, FailedReport } from '../utils/fs';
-import { getActiveAgents, AgentInfo } from '../utils/shell';
-import dayjs from 'dayjs';
-import { getRecentLogs, LogEntry } from '../utils/logs';
-import { getGitLog, GitCommit } from '../utils/git';
-
-/**
- * @description Renders a progress bar.
- * @param current - The current progress value.
- * @param total - The total value for 100%.
- * @param length - The character length of the bar.
- * @returns A string representing the progress bar.
- */
-export const renderProgressBar = (current: number, total: number, length: number = 20): string => {
-  // TODO: part-state-render-progress - Implement progress bar rendering logic.
-  // INSTRUCTIONS:
-  // 1. Calculate the percentage of `current` to `total`.
-  // 2. Determine how many `length` characters should be filled (e.g., '▇').
-  // 3. Determine how many `length` characters should be empty (e.g., '-').
-  // 4. Return a string like `[▇▇▇▇----] (current/total plans done)`.
-  // 5. If total is 0, return a string representing an empty bar `[----------] (0/0 plans done)`.
-
-  // const percent = total > 0 ? current / total : 0;
-  // const filledLength = Math.round(length * percent);
-  // const emptyLength = length - filledLength;
-  // const filledBar = '▇'.repeat(filledLength);
-  // const emptyBar = '-'.repeat(emptyLength);
-  // const bar = `[${filledBar}${emptyBar}]`;
-  // const text = `(${current}/${total} plans done)`;
-
-  // return `${bar} ${text}`;
-
-  throw new Error('Not implemented');
-};
-
-/**
- * @description Displays the full state report to the console.
- */
-export const handleStateCommand = async (argv: {}): Promise<void> => {
-  // TODO: part-state-fetch-data - Fetch all necessary data using utility functions.
-  // INSTRUCTIONS:
-  // 2. Call `getPhaseStats()` to get statistics for all phases.
-  // 3. Call `getActiveAgents()` to get a list of running agents.
-  // 4. Call `getRecentLogs(5)` to get the last 5 log entries.
-  // 5. Call `getFailedReports(24)` to get failures in the last 24 hours.
-  // 6. Call `getGitLog(10)` to get the 10 most recent git commits.
-
-  // const phaseStats: PhaseStats = await getPhaseStats();
-  // const activeAgents: AgentInfo[] = await getActiveAgents();
-  // const recentLogs: LogEntry[] = await getRecentLogs(5);
-  // const failedReports: FailedReport[] = await getFailedReports(24);
-  // const gitCommits: GitCommit[] = await getGitLog(10);
-  // const currentPhase = phaseStats.development?.total > 0 ? 'development' : 'initialization';
-
-  // TODO: part-state-render-output - Format and print the state report.
-  // INSTRUCTIONS:
-  // 1. Use `chalk` for all coloring to match the style in the project's README.md.
-  // 2. Print a header with the current time.
-  // 3. Print the current phase.
-  // 4. Print phase progress using `renderProgressBar` for each phase found in `phaseStats`.
-  // 5. Print detailed plan counts for each phase.
-  // 6. Print a list of active agents, including their phase, IDs, and runtime.
-  // 7. Print recent agent activity from `recentLogs`, color-coding by status (DONE, FAIL).
-  // 8. Print any stalled or failed reports from `failedReports`.
-  // 9. Print recent git commits, including hash, worktree (if any), and message.
-
-  /*
-  // Header
-  console.log(chalk.bold(`== nocaflow State [${dayjs().format('YYYY-MM-DD HH:mm:ss')}] ==`));
-  console.log(`Current Phase: ${chalk.cyan(currentPhase)}`);
-  
-  // Phase Progress
-  console.log(chalk.bold('\n== Phase Progress =='));
-  // for (const phaseName in phaseStats) { ... renderProgressBar(...) ... }
-
-  // Phase Stats
-  console.log(chalk.bold('\n== Phase Stats (Plans) =='));
-  // for (const phaseName in phaseStats) { ... console.log(...) ... }
-
-  // Active Agents
-  console.log(chalk.bold('\n== Active Agents (tmux) =='));
-  // if (activeAgents.length === 0) { console.log('No active agents.'); }
-  // for (const agent of activeAgents) { ... console.log(...) ... }
-
-  // Recent Agent Activity
-  console.log(chalk.bold('\n== Recent Agent Activity (last 5) =='));
-  // if (recentLogs.length === 0) { console.log('No recent activity.'); }
-  // for (const log of recentLogs) { ... console.log with color based on log.status ... }
-
-  // Stalled / Failed
-  console.log(chalk.bold('\n== Stalled / Failed (last 24h) =='));
-  // if (failedReports.length === 0) { console.log('No failed reports in the last 24 hours.'); }
-  // for (const report of failedReports) { ... console.log(...) ... }
-
-  // Recent Git Commits
-  console.log(chalk.bold('\n== Recent Git Commits (all worktrees) =='));
-  // if (gitCommits.length === 0) { console.log('No recent commits.'); }
-  // for (const commit of gitCommits) { ... console.log(...) ... }
-  */
-
-  throw new Error('Not implemented');
-};
 ````
 
 ## File: src/utils/logs.ts
@@ -1704,6 +1625,113 @@ You are a `dev.agent-swarm.md`. You execute a single task part. Precise.
 - **Work Unit**: The spec is the multi-line `INSTRUCTIONS` inside the `/** TODO: ... */` block.
 - **Completion**: Task is complete *only when* the source `TODO` block is deleted and tests pass.
 - **Logging**: `.nocaflow/initialization/agent-log/{plan_id}.{part_id}.log`.
+````
+
+## File: src/commands/state.ts
+````typescript
+import chalk from 'chalk';
+import { getPhaseStats, PhaseStats, getFailedReports, FailedReport } from '../utils/fs';
+import { getActiveAgents, AgentInfo } from '../utils/shell';
+import dayjs from 'dayjs';
+import { getRecentLogs, LogEntry } from '../utils/logs';
+import { getGitLog, GitCommit } from '../utils/git';
+
+/**
+ * @description Renders a progress bar.
+ * @param current - The current progress value.
+ * @param total - The total value for 100%.
+ * @param length - The character length of the bar.
+ * @returns A string representing the progress bar.
+ */
+export const renderProgressBar = (current: number, total: number, length: number = 20): string => {
+  // TODO: part-state-render-progress - Implement progress bar rendering logic.
+  // INSTRUCTIONS:
+  // 1. Calculate the percentage of `current` to `total`.
+  // 2. Determine how many `length` characters should be filled (e.g., '▇').
+  // 3. Determine how many `length` characters should be empty (e.g., '-').
+  // 4. Return a string like `[▇▇▇▇----] (current/total plans done)`.
+  // 5. If total is 0, return a string representing an empty bar `[----------] (0/0 plans done)`.
+
+  // const percent = total > 0 ? current / total : 0;
+  // const filledLength = Math.round(length * percent);
+  // const emptyLength = length - filledLength;
+  // const filledBar = '▇'.repeat(filledLength);
+  // const emptyBar = '-'.repeat(emptyLength);
+  // const bar = `[${filledBar}${emptyBar}]`;
+  // const text = `(${current}/${total} plans done)`;
+
+  // return `${bar} ${text}`;
+
+  throw new Error('Not implemented');
+};
+
+/**
+ * @description Displays the full state report to the console.
+ */
+export const handleStateCommand = async (argv: {}): Promise<void> => {
+  // TODO: part-state-fetch-data - Fetch all necessary data using utility functions.
+  // INSTRUCTIONS:
+  // 2. Call `getPhaseStats()` to get statistics for all phases.
+  // 3. Call `getActiveAgents()` to get a list of running agents.
+  // 4. Call `getRecentLogs(5)` to get the last 5 log entries.
+  // 5. Call `getFailedReports(24)` to get failures in the last 24 hours.
+  // 6. Call `getGitLog(10)` to get the 10 most recent git commits.
+
+  // const phaseStats: PhaseStats = await getPhaseStats();
+  // const activeAgents: AgentInfo[] = await getActiveAgents();
+  // const recentLogs: LogEntry[] = await getRecentLogs(5);
+  // const failedReports: FailedReport[] = await getFailedReports(24);
+  // const gitCommits: GitCommit[] = await getGitLog(10);
+  // const currentPhase = phaseStats.development?.total > 0 ? 'development' : 'initialization';
+
+  // TODO: part-state-render-output - Format and print the state report.
+  // INSTRUCTIONS:
+  // 1. Use `chalk` for all coloring to match the style in the project's README.md.
+  // 2. Print a header with the current time.
+  // 3. Print the current phase.
+  // 4. Print phase progress using `renderProgressBar` for each phase found in `phaseStats`.
+  // 5. Print detailed plan counts for each phase.
+  // 6. Print a list of active agents, including their phase, IDs, and runtime.
+  // 7. Print recent agent activity from `recentLogs`, color-coding by status (DONE, FAIL).
+  // 8. Print any stalled or failed reports from `failedReports`.
+  // 9. Print recent git commits, including hash, worktree (if any), and message.
+
+  /*
+  // Header
+  console.log(chalk.bold(`== nocaflow State [${dayjs().format('YYYY-MM-DD HH:mm:ss')}] ==`));
+  console.log(`Current Phase: ${chalk.cyan(currentPhase)}`);
+  
+  // Phase Progress
+  console.log(chalk.bold('\n== Phase Progress =='));
+  // for (const phaseName in phaseStats) { ... renderProgressBar(...) ... }
+
+  // Phase Stats
+  console.log(chalk.bold('\n== Phase Stats (Plans) =='));
+  // for (const phaseName in phaseStats) { ... console.log(...) ... }
+
+  // Active Agents
+  console.log(chalk.bold('\n== Active Agents (tmux) =='));
+  // if (activeAgents.length === 0) { console.log('No active agents.'); }
+  // for (const agent of activeAgents) { ... console.log(...) ... }
+
+  // Recent Agent Activity
+  console.log(chalk.bold('\n== Recent Agent Activity (last 5) =='));
+  // if (recentLogs.length === 0) { console.log('No recent activity.'); }
+  // for (const log of recentLogs) { ... console.log with color based on log.status ... }
+
+  // Stalled / Failed
+  console.log(chalk.bold('\n== Stalled / Failed (last 24h) =='));
+  // if (failedReports.length === 0) { console.log('No failed reports in the last 24 hours.'); }
+  // for (const report of failedReports) { ... console.log(...) ... }
+
+  // Recent Git Commits
+  console.log(chalk.bold('\n== Recent Git Commits (all worktrees) =='));
+  // if (gitCommits.length === 0) { console.log('No recent commits.'); }
+  // for (const commit of gitCommits) { ... console.log(...) ... }
+  */
+
+  throw new Error('Not implemented');
+};
 ````
 
 ## File: src/utils/shell.ts

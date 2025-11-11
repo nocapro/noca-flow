@@ -1,8 +1,5 @@
 
-===
-
-
-
+=== DONE
 
 you are on the goal of finishing the nocaflow of readme.md project, lets blueprinting test cases should be;
 ```

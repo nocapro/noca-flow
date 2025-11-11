@@ -1,0 +1,166 @@
+uuid: d89d71c1-40be-4a57-b4d6-3e4b7b25754b
+projectId: noca-flow
+createdAt: '2025-11-11T13:08:23.175Z'
+gitCommitMsg: >-
+  feat(testing): Blueprint full test suite with no-mock philosophy
+
+  Introduces a new `test/test.util.ts` to provide helpers for creating isolated
+  test environments (temporary directories), running the real CLI, and
+  initializing git repositories.
+
+  Refactors all existing test files (`e2e`, `integration`, and `unit`) to use
+  these utilities. This aligns the entire test suite with the project's testing
+  principles: - No mocking of internal logic or filesystem operations. - Tests
+  are isolated and idempotent via temporary directories. - E2E tests execute the
+  real compiled CLI binary. - Integration tests operate on real git repositories
+  and file structures.
+
+  The only exception is `test/unit/utils/shell.test.ts`, which continues to mock
+  the external `tmux` command, as it's an unreliable system dependency in a CI
+  environment.
+
+  All test files are now structured as high-level "cheatsheets" with clear `//
+  TODO:` comments to guide implementation.
+promptSummary: >-
+  Blueprint the test suite for the nocaflow project with a "no mock" philosophy,
+  creating isolated and idempotent tests that use real file systems and commands
+  where possible.
+reasoning:
+  - >-
+    As an expert AI programmer, I will now blueprint the test suite for your
+    `nocaflow` project. My approach adheres to your specified testing
+    philosophy: prioritizing real implementations over mocks, ensuring tests are
+    isolated and idempotent, and running actual commands where appropriate. This
+    blueprint will create a new `test.util.ts` file to facilitate this strategy
+    and refactor all existing test files to use it, leaving them as concise
+    "cheatsheets" with clear `TODO` instructions for the next AI developer.
+  - '### Step 1: Create a Test Utility File'
+  - >-
+    First, I'll create a new utility file at `test/test.util.ts`. This will
+    centralize the logic for setting up isolated test environments (temporary
+    directories), running the compiled CLI, and initializing temporary Git
+    repositories. This is the cornerstone of writing tests that are both
+    realistic and idempotent.
+  - '### Step 2: Blueprint End-to-End Tests'
+  - >-
+    Now, I'll refactor the E2E tests to be lean and use the new test utility,
+    focusing on running the real CLI and asserting outcomes.
+  - '### Step 3: Blueprint Integration Tests'
+  - >-
+    I will update the integration tests. These tests will call the functions
+    directly but will operate on a real, temporary file system, aligning with
+    the "no mock" philosophy for file operations.
+  - '### Step 4: Blueprint Unit Tests'
+  - >-
+    Finally, I'll update the unit tests. For pure functions like
+    `renderProgressBar`, the approach is straightforward. For utilities
+    interacting with the file system (`fs`, `logs`), I will remove the mocks and
+    use the `setupTestDirectory` utility to operate on real temporary files. For
+    `shell`, I will keep the mock for the external `tmux` command, as it's the
+    only pragmatic solution for a CI environment.
+  - >-
+    This comprehensive blueprint establishes a robust, realistic, and
+    maintainable testing foundation for the `nocaflow` project, fully aligned
+    with your directives.
+operations:
+  - type: write
+    path: test/test.util.ts
+    content: >-
+      import { exec as execCallback, ExecException } from 'child_process';
+
+      import { promisify } from 'util';
+
+      import fs from 'fs/promises';
+
+      import path from 'path';
+
+      import os from 'os';
+
+
+      const promisedExec = promisify(execCallback);
+
+
+      // TODO: part-test-util-run-cli - Implement a promisified exec for running
+      the CLI.
+
+      // INSTRUCTIONS:
+
+      // 1. Create a function `runCli(args: string)` that returns a promise.
+
+      // 2. It should execute the compiled CLI from the `dist` folder.
+
+      // 3. The command should be `node <path-to-project-root>/dist/cli.js
+      ${args}`.
+
+      // 4. It should return an object `{ stdout: string, stderr: string, code:
+      number }`.
+
+      // 5. Handle non-zero exit codes gracefully by catching the error from
+      `exec` and extracting details from it.
+
+      export const runCli = async (
+        args: string,
+      ): Promise<{ stdout: string; stderr: string; code: number }> => {
+        throw new Error('Not implemented');
+      };
+
+
+      // TODO: part-test-util-setup-dir - Implement a test setup utility.
+
+      // INSTRUCTIONS:
+
+      // 1. Create a function `setupTestDirectory()` that returns a promise
+      resolving to an object.
+
+      // 2. The function should create a unique temporary directory using
+      `fs.mkdtemp` in `os.tmpdir()`.
+
+      // 3. It should store the original `process.cwd()` and then
+      `process.chdir()` into the new temp directory.
+
+      // 4. The returned object should contain `testDir: string` (the path to
+      the temp dir) and `cleanup: () => Promise<void>`.
+
+      // 5. The `cleanup` function should `process.chdir()` back to the original
+      directory and remove the temp directory recursively.
+
+      export const setupTestDirectory = async (): Promise<{
+        testDir: string;
+        cleanup: () => Promise<void>;
+      }> => {
+        throw new Error('Not implemented');
+      };
+
+
+      // TODO: part-test-util-git-init - Implement a utility to initialize a git
+      repository.
+
+      // INSTRUCTIONS:
+
+      // 1. Create an async function `initGitRepo()`.
+
+      // 2. It should execute the necessary `git` commands using `promisedExec`.
+
+      // 3. Commands to run:
+
+      //    - `git init`
+
+      //    - `git config user.email "test@example.com"`
+
+      //    - `git config user.name "Test User"`
+
+      //    - `git commit --allow-empty -m "Initial commit"`
+
+      export const initGitRepo = async (): Promise<void> => {
+        throw new Error('Not implemented');
+      };
+    patchStrategy: replace
+snapshot:
+  test/test.util.ts: null
+approved: false
+linesAdded: null
+linesRemoved: null
+linesDifference: null
+gitCommittedAt: null
+status: undone
+id: 11

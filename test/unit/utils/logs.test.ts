@@ -1,53 +1,58 @@
 import { getRecentLogs } from '../../../src/utils/logs';
+import { setupTestDirectory } from '../../test.util';
 import fs from 'fs/promises';
+import path from 'path';
 
-jest.mock('fs/promises');
-const mockedFs = fs as jest.Mocked<typeof fs>;
+describe('unit/utils/logs', () => {
+  let cleanup: () => Promise<void>;
 
-describe('utils/logs', () => {
-  afterEach(() => {
-    jest.clearAllMocks();
+  beforeEach(async () => {
+    // TODO: part-unit-logs-setup - Set up a clean directory for each test.
+    // INSTRUCTIONS:
+    // 1. Use `setupTestDirectory()` to create a temporary, isolated directory.
+    const { cleanup: c } = await setupTestDirectory();
+    cleanup = c;
   });
 
-  describe('getRecentLogs', () => {
-    // TODO: Test case with multiple log files across different phases.
-    // It should read from all relevant directories.
-    // 1. Mock `mockedFs.readdir` to return `['a.log']` for the init dir and `['b.log']` for the dev dir.
-    // 2. Mock `mockedFs.readFile` to return different log content for `a.log` and `b.log`.
+  afterEach(async () => {
+    // TODO: part-unit-logs-cleanup - Clean up the temporary directory.
+    // INSTRUCTIONS:
+    // 1. Call the `cleanup()` function.
+    await cleanup();
+  });
+
+  it('should aggregate logs from all phase directories', async () => {
+    // TODO: part-unit-logs-aggregate - Test reading from both initialization and development log dirs.
+    // INSTRUCTIONS:
+    // 1. Create log directories for both phases, e.g., `.nocaflow/initialization/agent-log`.
+    // 2. Create a log file in each directory with valid log entries.
     // 3. Call `getRecentLogs(10)`.
-    // 4. Assert that the result contains parsed entries from both files (e.g., `result.length === 2`).
-    it('should aggregate logs from all phase directories', async () => {});
+    // 4. Assert that the result contains log entries from both files.
+  });
 
-    // TODO: Test case with a log file containing valid and malformed lines.
-    // It should parse valid lines and skip malformed ones.
-    // 1. Mock `mockedFs.readdir` to return one log file.
-    // 2. Mock `mockedFs.readFile` to return a string with one valid log line and one invalid line.
-    //    - e.g., `valid line\ninvalid line`
-    // 3. Call `getRecentLogs(10)`.
-    // 4. Assert that the result contains exactly one entry, corresponding to the valid line.
-    it('should correctly parse valid log lines and skip invalid ones', async () => {});
-
-    // TODO: Test case with more log entries than the specified limit.
-    // It should return only the most recent 'limit' number of entries, sorted descending by timestamp.
-    // 1. Mock `mockedFs.readdir` and `mockedFs.readFile` to produce multiple log entries with out-of-order timestamps.
-    // 2. Call `getRecentLogs(5)`.
-    // 3. Assert the result has a length of 5.
-    // 4. Assert the timestamps in the result are in descending order by comparing `result[i].timestamp >= result[i+1].timestamp`.
-    it('should return the correct number of recent, sorted log entries', async () => {});
-
-    // TODO: Test case where log directories do not exist.
-    // It should handle the error and return an empty array.
-    // 1. Mock `mockedFs.readdir` to throw an ENOENT error for all log directories.
-    // 2. Call `getRecentLogs(5)`.
-    // 3. Assert the result is an empty array.
-    it('should return an empty array if log directories are missing', async () => {});
-
-    // TODO: Test case with empty log files.
-    // It should return an empty array.
-    // 1. Mock `mockedFs.readdir` to return log file names.
-    // 2. Mock `mockedFs.readFile` to resolve with an empty string for all files.
+  it('should return the correct number of recent, sorted log entries', async () => {
+    // TODO: part-unit-logs-limit-sort - Test the limit and sorting logic.
+    // INSTRUCTIONS:
+    // 1. Create a single log file.
+    // 2. Write several (e.g., 10) valid log entries with timestamps that are *out of order*.
     // 3. Call `getRecentLogs(5)`.
-    // 4. Assert the result is an empty array.
-    it('should return an empty array for empty log files', async () => {});
+    // 4. Assert that the result array has a length of 5.
+    // 5. Assert that the entries in the array are sorted by timestamp in descending order.
+  });
+
+  it('should correctly parse valid log lines and skip invalid ones', async () => {
+    // TODO: part-unit-logs-parse - Test the parsing logic for valid and invalid lines.
+    // INSTRUCTIONS:
+    // 1. Create a log file containing a mix of correctly formatted and malformed log lines.
+    // 2. Call `getRecentLogs(10)`.
+    // 3. Assert that the result only contains entries corresponding to the valid lines.
+  });
+
+  it('should return an empty array if log directories are missing', async () => {
+    // TODO: part-unit-logs-no-dir - Test behavior when log directories do not exist.
+    // INSTRUCTIONS:
+    // 1. Do not create any `.nocaflow` directories.
+    // 2. Call `getRecentLogs(5)`.
+    // 3. Assert that the result is an empty array.
   });
 });

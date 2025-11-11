@@ -1,56 +1,57 @@
 import { getGitLog } from '../../../src/utils/git';
+import { setupTestDirectory, initGitRepo } from '../../test.util';
 import { exec } from 'child_process';
+import { promisify } from 'util';
+import fs from 'fs/promises';
+import path from 'path';
 
-jest.mock('child_process');
-const mockedExec = exec as jest.Mock;
+const promisedExec = promisify(exec);
 
-describe('utils/git', () => {
-  afterEach(() => {
-    jest.clearAllMocks();
+describe('integration/utils/git', () => {
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    // TODO: part-int-git-setup - Set up a clean directory and initialize a git repo.
+    // INSTRUCTIONS:
+    // 1. Use `setupTestDirectory()` to create a temporary, isolated directory.
+    // 2. Use `initGitRepo()` to initialize a git repository inside it.
+    const { cleanup: c } = await setupTestDirectory();
+    cleanup = c;
+    await initGitRepo();
   });
 
-  describe('getGitLog', () => {
-    // TODO: Test case with git log output containing worktree information.
-    // It should correctly parse the commit hash, message, and worktree name.
-    // 1. Mock `mockedExec` to handle two calls: `git worktree list` and `git log`.
-    //    - For `worktree list`, return porcelain output: `worktree /path/to/worktrees/my-feature\nHEAD ...\n`
-    //    - For `git log`, return formatted output where one entry's refs include `HEAD -> worktrees/my-feature`.
-    //      e.g., `hash1|message1|HEAD -> worktrees/my-feature`
+  afterEach(async () => {
+    // TODO: part-int-git-cleanup - Clean up the temporary directory.
+    // INSTRUCTIONS:
+    // 1. Call the `cleanup()` function.
+    await cleanup();
+  });
+
+  it('should parse commits with worktree information', async () => {
+    // TODO: part-int-git-worktree - Test parsing of commits from a git worktree.
+    // INSTRUCTIONS:
+    // 1. Create a new worktree using `git worktree add ../my-feature-wt`.
+    // 2. In the new worktree directory, create a file and commit it with a specific message.
+    // 3. Call `getGitLog(5)`.
+    // 4. Find the commit from the worktree in the results.
+    // 5. Assert that its `worktree` property is `my-feature-wt` (or similar).
+  });
+
+  it('should handle commits not associated with a worktree', async () => {
+    // TODO: part-int-git-mainline - Test parsing of commits not in a worktree.
+    // INSTRUCTIONS:
+    // 1. In the main worktree, create a file and commit it.
     // 2. Call `getGitLog(5)`.
-    // 3. Find the corresponding commit in the result and assert its `worktree` property is `my-feature`.
-    it('should parse commits with worktree information', async () => {});
+    // 3. Find the new commit in the results.
+    // 4. Assert that its `worktree` property is `null`.
+  });
 
-    // TODO: Test case with git log output for commits not in a worktree (e.g., on main).
-    // The 'worktree' property should be null.
-    // 1. Mock `mockedExec` for worktrees and logs.
-    // 2. Ensure one log entry has refs like `HEAD -> main, origin/main`.
-    // 3. Call `getGitLog(5)`.
-    // 4. Find that commit and assert its `worktree` property is `null`.
-    it('should handle commits not associated with a worktree', async () => {});
-
-    // TODO: Test case where `git worktree list` command fails.
-    // It should gracefully handle the error and continue, possibly with null worktrees.
-    // 1. Mock `mockedExec` to throw an error when the command includes `git worktree list`.
-    // 2. Mock `mockedExec` to return valid log output for the `git log` command.
-    // 3. Call `getGitLog(5)`.
-    // 4. Assert that the function does not throw.
-    // 5. Assert that all returned commits have `worktree: null`.
-    it('should handle git worktree command failure', async () => {});
-
-    // TODO: Test case where `git log` command fails.
-    // It should return an empty array.
-    // 1. Mock `mockedExec` to return valid worktree info.
-    // 2. Mock `mockedExec` to throw an error when the command includes `git log`.
-    // 3. Call `getGitLog(5)`.
-    // 4. Assert that the result is an empty array.
-    it('should return an empty array if git log fails', async () => {});
-
-    // TODO: Test case with an empty git log output.
-    // It should return an empty array.
-    // 1. Mock `mockedExec` for worktrees.
-    // 2. Mock `mockedExec` for `git log` to return an empty string for stdout.
-    // 3. Call `getGitLog(5)`.
-    // 4. Assert the result is an empty array.
-    it('should return an empty array for an empty git log', async () => {});
+  it('should return an empty array if not in a git repository', async () => {
+    // TODO: part-int-git-no-repo - Test behavior when run outside a git repository.
+    // INSTRUCTIONS:
+    // 1. This test needs a separate setup. Use `setupTestDirectory` but DO NOT call `initGitRepo`.
+    // 2. Call `getGitLog(5)`.
+    // 3. Assert that the result is an empty array.
+    // 4. Remember to call the cleanup function.
   });
 });
