@@ -46,6 +46,22 @@ describe('integration/utils/git', () => {
     // 4. Assert that its `worktree` property is `null`.
   });
 
+  it('should respect the commit limit', async () => {
+    // TODO: part-int-git-limit - Test that the `limit` parameter is respected.
+    // INSTRUCTIONS:
+    // 1. Create more commits than the limit (e.g., 5 commits).
+    // 2. Call `getGitLog(3)`.
+    // 3. Assert that the length of the returned array is exactly 3.
+  });
+
+  it('should handle commit messages with special characters', async () => {
+    // TODO: part-int-git-special-chars - Test parsing of complex commit messages.
+    // INSTRUCTIONS:
+    // 1. Create a commit with a message containing characters like `|`, `'`, `"`, and newlines.
+    // 2. Call `getGitLog(1)`.
+    // 3. Assert that the `message` property of the returned commit object is the full, unmodified commit message.
+  });
+
   it('should return an empty array if not in a git repository', async () => {
     // TODO: part-int-git-no-repo - Test behavior when run outside a git repository.
     // INSTRUCTIONS:

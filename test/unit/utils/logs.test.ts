@@ -48,6 +48,14 @@ describe('unit/utils/logs', () => {
     // 3. Assert that the result only contains entries corresponding to the valid lines.
   });
 
+  it('should handle empty log files gracefully', async () => {
+    // TODO: part-unit-logs-empty-file - Test behavior with empty log files.
+    // INSTRUCTIONS:
+    // 1. Create a log directory and an empty `agent.log` file inside it.
+    // 2. Call `getRecentLogs(5)`.
+    // 3. Assert that the result is an empty array and no error was thrown.
+  });
+
   it('should return an empty array if log directories are missing', async () => {
     // TODO: part-unit-logs-no-dir - Test behavior when log directories do not exist.
     // INSTRUCTIONS:

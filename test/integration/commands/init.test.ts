@@ -31,6 +31,15 @@ describe('integration/commands/init', () => {
     //    - e.g., '.nocaflow/initialization/agent-log/.gitkeep'
   });
 
+  it('should create the correct number of directories and .gitkeep files', async () => {
+    // TODO: part-int-init-counts - Test the exact count of created items.
+    // INSTRUCTIONS:
+    // 1. Call `handleInitCommand({})`.
+    // 2. Recursively read all created directory and file paths.
+    // 3. Assert that the number of created directories matches the expected count (e.g., 2 phases * 5 plan subdirs + other dirs).
+    // 4. Assert that the number of `.gitkeep` files matches the expected count for empty directories.
+  });
+
   // Note: The case for an existing .nocaflow directory is tested in e2e/cli.test.ts,
   // as it involves checking process exit codes, which is not suitable for an integration test
   // without mocking `process.exit`.

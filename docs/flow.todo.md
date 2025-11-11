@@ -1,7 +1,7 @@
 
 === DONE
 
-you are on the goal of finishing the nocaflow of readme.md project, lets blueprinting test cases should be;
+you are on the goal of finishing the nocaflow of readme.md project, lets blueprinting existing test cases should be;
 ```
 - no MOCK, no spy
 - real implementation

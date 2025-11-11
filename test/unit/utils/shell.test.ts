@@ -26,6 +26,15 @@ describe('unit/utils/shell', () => {
       // 5. Assert that each agent object has correctly parsed details (phase, planId, etc.).
     });
 
+    it('should ignore session names that are similar to but not valid agent sessions', async () => {
+      // TODO: part-unit-shell-parse-similar - Test that tricky but invalid names are ignored.
+      // INSTRUCTIONS:
+      // 1. Define mock `stdout` with sessions like `init-`, `dev-scaffold-123`, `qa`, `my-init-session`.
+      // 2. Mock `mockedExec` to return this stdout.
+      // 3. Call `getActiveAgents()`.
+      // 4. Assert that the result is an empty array.
+    });
+
     it('should return an empty array when there are no tmux sessions', async () => {
       // TODO: part-unit-shell-parse-empty - Test with empty output from tmux.
       // INSTRUCTIONS:
