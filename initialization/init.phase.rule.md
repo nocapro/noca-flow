@@ -2,7 +2,7 @@
 
 ## 1. Testing
 - **Structure**: Tests located in `[e2e|integration|unit]/[domain].test.ts`.
-- **Execution**: `bun test` must pass. No skipped tests.
+- **Execution**: `npm test` must pass. No skipped tests.
 - **Mocks**: External network APIs only. Mocking internal logic is an anti-pattern.
 
 ## 2. State & Blueprint

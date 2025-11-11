@@ -1,0 +1,482 @@
+uuid: c2b3a1d0-e9f8-4b7c-8a1e-5d4f3c2b1a0f
+projectId: noca-flow
+createdAt: '2025-11-11T12:04:10.520Z'
+gitCommitMsg: >-
+  refactor: Align project with agent protocols and Node.js tooling
+
+  - Replace `bun` with `jest` and `eslint` for testing and linting. - Add
+  `jest.config.js` and `.eslintrc.js` configurations. - Update
+  `dev.phase.rule.md` and `init.phase.rule.md` to require `npm test`. - Rework
+  the Plan data model in `src/models/plan.ts` to match the detailed structure
+  from `plan.agent.md`. - Overhaul the main example plan YAML to use the new
+  rich format, including introduction, steps, reasons, and context files. -
+  Adjust logging to follow the `{plan_id}.{part_id}.log` convention, improving
+  traceability.
+promptSummary: >-
+  Align the nocaflow project with detailed agent protocols, switching from bun
+  to a nodejs-based test/lint toolchain, updating data models, and conforming
+  state files to the new specifications.
+reasoning:
+  - >-
+    I understand. The initial boilerplate was a good starting point, but it's
+    crucial to align it with the detailed agent protocols and rules you've
+    provided. The core changes involve adopting a more complex plan structure,
+    switching from `bun` to a Node.js-based tooling for testing/linting, and
+    refining the data models and log formats to match the specifications.
+  - Here are the necessary modifications to align the project.
+  - '### 1. Tooling and Configuration Alignment'
+  - >-
+    First, I'll update `package.json` to include `jest` for testing and `eslint`
+    for linting, as required by the QA and developer agent rules. This replaces
+    the `bun`-specific commands.
+  - I'll add the necessary configuration files for `jest` and `eslint`.
+  - >-
+    Now, I'll update the phase rule files to reflect the change from `bun` to
+    `npm`.
+  - '### 2. Data Model and State File Updates'
+  - >-
+    The `plan.agent.md` defines a much more detailed structure for plans. I'll
+    update the TypeScript model first.
+  - >-
+    Now, I'll replace the simplistic dummy plan with one that conforms to the
+    new, detailed structure. This makes the state representation much richer.
+  - '### 3. Logging Adjustments'
+  - >-
+    The agent rules specify a `{plan_id}.{part_id}.log` naming convention. I'll
+    remove the old generic log file and create new ones that match the
+    convention and the sample output from `README.md`.
+  - >-
+    Finally, I'll update the comment in the log utility to guide the next
+    developer on the correct file naming pattern.
+  - >-
+    These changes bring the project's boilerplate, configuration, and state
+    files into full alignment with the provided agent and phase definitions,
+    ensuring a consistent and rule-compliant foundation.
+operations:
+  - type: write
+    path: package.json
+    content: |
+      --- package.json
+      +++ package.json
+      @@ -9,7 +9,9 @@
+         "scripts": {
+           "start": "node dist/cli.js",
+           "build": "tsc",
+      -    "dev": "ts-node src/cli.ts"
+      +    "dev": "ts-node src/cli.ts",
+      +    "test": "jest",
+      +    "lint": "eslint 'src/**/*.ts'"
+         },
+         "keywords": [
+           "llm",
+      @@ -29,9 +31,15 @@
+           "@types/js-yaml": "^4.0.9",
+           "@types/node": "^20.10.4",
+           "@types/yargs": "^17.0.32",
+      +    "@types/jest": "^29.5.11",
+      +    "@typescript-eslint/eslint-plugin": "^6.14.0",
+      +    "@typescript-eslint/parser": "^6.14.0",
+      +    "eslint": "^8.55.0",
+      +    "jest": "^29.7.0",
+      +    "ts-jest": "^29.1.1",
+           "ts-node": "^10.9.2",
+           "typescript": "^5.3.3"
+         }
+       }
+    patchStrategy: standard-diff
+  - type: write
+    path: jest.config.js
+    content: |-
+      module.exports = {
+        preset: 'ts-jest',
+        testEnvironment: 'node',
+        testMatch: ['**/__tests__/**/*.ts?(x)', '**/?(*.)+(spec|test).ts?(x)'],
+      };
+    patchStrategy: replace
+  - type: write
+    path: .eslintrc.js
+    content: |-
+      module.exports = {
+        root: true,
+        parser: '@typescript-eslint/parser',
+        plugins: [
+          '@typescript-eslint',
+        ],
+        extends: [
+          'eslint:recommended',
+          'plugin:@typescript-eslint/recommended',
+        ],
+        rules: {
+          '@typescript-eslint/no-explicit-any': 'error',
+          '@typescript-eslint/no-unused-vars': ['warn', { 'argsIgnorePattern': '^_' }],
+        },
+      };
+    patchStrategy: replace
+  - type: write
+    path: development/dev.phase.rule.md
+    content: >+
+      --- development/dev.phase.rule.md
+
+      +++ development/dev.phase.rule.md
+
+      @@ -1,7 +1,7 @@
+       codebase compliance rules;
+       
+       1. No OOP, only HOFs
+      -2. Use bun.sh and e2e type safe TypeScript
+
+      +2. Use Node.js and e2e type safe TypeScript
+       3. No unknown or any type
+       4. [e2e|integration|unit]/[domain].test.ts files & dirs
+      -5. Bun tests, isolated idempotent tests. no mock. External network
+      services (e.g., LLM APIs) should be mocked to ensure tests are fast,
+      deterministic, and independent of network or API key issues.
+
+      +5. Use `npm test`. Write isolated, idempotent tests. Do not mock internal
+      application logic. External network services (e.g., LLM APIs) should be
+      mocked to ensure tests are fast, deterministic, and independent of network
+      or API key issues.
+       6. DRY
+
+    patchStrategy: standard-diff
+  - type: write
+    path: initialization/init.phase.rule.md
+    content: |+
+      --- initialization/init.phase.rule.md
+      +++ initialization/init.phase.rule.md
+      @@ -2,7 +2,7 @@
+       
+       ## 1. Testing
+       - **Structure**: Tests located in `[e2e|integration|unit]/[domain].test.ts`.
+      -- **Execution**: `bun test` must pass. No skipped tests.
+      +- **Execution**: `npm test` must pass. No skipped tests.
+       - **Mocks**: External network APIs only. Mocking internal logic is an anti-pattern.
+       
+       ## 2. State & Blueprint
+
+    patchStrategy: standard-diff
+  - type: write
+    path: src/models/plan.ts
+    content: >-
+      // Defines the data structure for a plan.yml file.
+
+
+      export type PlanStatus = 'todo' | 'doing' | 'review' | 'done' | 'failed' |
+      'cancel';
+
+
+      export interface PlanContextFiles {
+        compact: string[];
+        medium: string[];
+        extended: string[];
+      }
+
+
+      export interface PlanStep {
+        id: string;
+        status: PlanStatus;
+        name: string;
+        reason: string;
+        files: string[];
+        operations: string[];
+      }
+
+
+      export interface PlanPart {
+        id: string;
+        status: PlanStatus;
+        isolation: boolean;
+        agent_id: string;
+        depends_on?: string[];
+        name: string;
+        reason: string;
+        steps: PlanStep[];
+        context_files: PlanContextFiles;
+      }
+
+
+      export interface Plan {
+        plan: {
+          id: string;
+          status: PlanStatus;
+          title: string;
+          introduction: string;
+          parts: PlanPart[];
+          conclusion: string;
+          context_files: PlanContextFiles;
+        };
+      }
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/plans/doing/c8a2b1f0.plan.yml
+    content: |-
+      plan:
+        id: 'c8a2b1f0'
+        status: 'doing'
+        title: 'Implement user authentication endpoint'
+        introduction: |
+          This plan outlines the initial scaffolding and implementation for a JWT-based user authentication system.
+          The goal is to create the core utility functions and the primary login endpoint, laying the groundwork for registration and profile management.
+        parts:
+          - id: '9e7f8a7b'
+            status: 'done' # This part is already completed.
+            isolation: false
+            agent_id: '9e7f8a'
+            name: 'Part 1: Create JWT utility functions'
+            reason: |
+              To handle token creation and verification in a centralized, reusable module before any endpoints depend on it.
+            steps:
+              - id: 'step-jwt-create'
+                status: 'done'
+                name: 'Implement createToken function'
+                reason: 'To generate JWTs for authenticated users.'
+                files: ['src/utils/jwt.ts']
+                operations:
+                  - 'Create a function `createToken(user: User): string`.'
+                  - 'Use the `jsonwebtoken` library.'
+                  - 'The token payload must include `userId` and `roles`.'
+                  - 'Set token expiration to 24 hours.'
+              - id: 'step-jwt-verify'
+                status: 'done'
+                name: 'Implement verifyToken function'
+                reason: 'To validate tokens from incoming requests.'
+                files: ['src/utils/jwt.ts']
+                operations:
+                  - 'Create a function `verifyToken(token: string): Session | null`.'
+                  - 'It should return the decoded session payload on success.'
+                  - 'It must return `null` if the token is invalid or expired.'
+            context_files:
+              compact: ['src/utils/jwt.ts']
+              medium: ['src/utils/jwt.ts', 'src/models/user.ts']
+              extended: ['src/utils/jwt.ts', 'src/models/user.ts', 'package.json']
+          - id: 'a1b2c3d4'
+            status: 'doing' # This is the currently active part.
+            isolation: false
+            agent_id: 'a1b2c3'
+            depends_on: ['9e7f8a7b']
+            name: 'Part 2: Implement POST /login endpoint'
+            reason: |
+              To allow users to authenticate and receive a JWT.
+            steps:
+              - id: 'step-login-route'
+                status: 'todo'
+                name: 'Define the route and controller structure'
+                reason: 'To handle incoming POST requests to /login.'
+                files: ['src/routes/auth.ts', 'src/controllers/authController.ts']
+                operations:
+                  - 'In `src/routes/auth.ts`, define a `POST /login` route.'
+                  - 'In `src/controllers/authController.ts`, create a `loginUser` function stub.'
+                  - 'The controller should validate request body for `email` and `password`.'
+                  - 'On successful validation, it should call a user service to verify credentials.'
+                  - 'Upon successful authentication, use the JWT utility to create a token and send it in the response.'
+            context_files:
+              compact: ['src/routes/auth.ts', 'src/controllers/authController.ts', 'src/utils/jwt.ts']
+              medium: ['src/routes/auth.ts', 'src/controllers/authController.ts', 'src/utils/jwt.ts', 'src/services/userService.ts']
+              extended: ['src/routes/auth.ts', 'src/controllers/authController.ts', 'src/utils/jwt.ts', 'src/services/userService.ts', 'src/models/user.ts']
+        conclusion: |
+          Upon completion, the system will have a secure and functional authentication entry point, ready for frontend integration.
+        context_files:
+          compact: ['src/utils/jwt.ts', 'src/routes/auth.ts']
+          medium: ['src/utils/jwt.ts', 'src/routes/auth.ts', 'src/controllers/authController.ts']
+          extended: ['src/utils/jwt.ts', 'src/routes/auth.ts', 'src/controllers/authController.ts', 'src/models/user.ts']
+    patchStrategy: replace
+  - type: delete
+    path: .nocaflow/initialization/agent-log/main.log
+  - type: write
+    path: .nocaflow/initialization/agent-log/c8a2b1f0.9e7f8a.log
+    content: >-
+      2023-10-27T11:28:00Z [DONE] Completed part 9e7f8a7b. Implemented JWT
+      utility functions in src/utils/jwt.ts. Wrote 2 files, all tests pass.
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/agent-log/f0e9d8c7.qa.log
+    content: >-
+      2023-10-27T11:08:00Z [FAIL] QA failed for plan f0e9d8c7. Coverage below
+      80%. See report
+      .nocaflow/initialization/plans/failed/report/f0e9d8c7.b5a4b3c2.report.md.
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/agent-log/f0e9d8c7.scaffold.log
+    content: >-
+      2023-10-27T11:15:00Z [DONE] Completed scaffold for plan f0e9d8c7. Created
+      5 files with TODO blocks for implementation.
+    patchStrategy: replace
+  - type: write
+    path: src/utils/logs.ts
+    content: >+
+      --- src/utils/logs.ts
+
+      +++ src/utils/logs.ts
+
+      @@ -15,7 +15,7 @@
+        * @returns A list of recent log entries, sorted newest first.
+        */
+       export const getRecentLogs = async (limit: number): Promise<LogEntry[]> => {
+      -  // TODO: Find all log files in .nocaflow/{phase}/agent-log/.
+
+      +  // TODO: Find all log files in .nocaflow/{phase}/agent-log/ matching
+      pattern {plan_id}.{part_id_or_agent_name}.log.
+         // TODO: Read the last few lines from each or read all and sort by timestamp.
+         // TODO: Parse log lines into LogEntry objects.
+         // TODO: Return the 'limit' most recent entries.
+
+    patchStrategy: standard-diff
+snapshot:
+  jest.config.js: null
+  .eslintrc.js: null
+  .nocaflow/initialization/agent-log/c8a2b1f0.9e7f8a.log: null
+  .nocaflow/initialization/agent-log/f0e9d8c7.qa.log: null
+  .nocaflow/initialization/agent-log/f0e9d8c7.scaffold.log: null
+  package.json: |-
+    {
+      "name": "nocaflow",
+      "version": "0.0.1",
+      "description": "Filesystem-as-State for Phased LLM Swarms.",
+      "main": "dist/index.js",
+      "bin": {
+        "nocaflow": "dist/cli.js"
+      },
+      "scripts": {
+        "start": "node dist/cli.js",
+        "build": "tsc",
+        "dev": "ts-node src/cli.ts"
+      },
+      "keywords": [
+        "llm",
+        "swarm",
+        "agent",
+        "orchestration"
+      ],
+      "author": "",
+      "license": "ISC",
+      "dependencies": {
+        "chalk": "^4.1.2",
+        "dayjs": "^1.11.10",
+        "js-yaml": "^4.1.0",
+        "yargs": "^17.7.2"
+      },
+      "devDependencies": {
+        "@types/js-yaml": "^4.0.9",
+        "@types/node": "^20.10.4",
+        "@types/yargs": "^17.0.32",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.3.3"
+      }
+    }
+  development/dev.phase.rule.md: >
+    codebase compliance rules;
+
+
+    1. No OOP, only HOFs
+
+    2. Use bun.sh and e2e type safe TypeScript
+
+    3. No unknown or any type
+
+    4. [e2e|integration|unit]/[domain].test.ts files & dirs
+
+    5. Bun tests, isolated idempotent tests. no mock. External network services
+    (e.g., LLM APIs) should be mocked to ensure tests are fast, deterministic,
+    and independent of network or API key issues.
+
+    6. DRY
+  initialization/init.phase.rule.md: >+
+    # Phase Rules: `initialization` for init.agent-swarm.md
+
+
+    ## 1. Testing
+
+    - **Structure**: Tests located in `[e2e|integration|unit]/[domain].test.ts`.
+
+    - **Execution**: `bun test` must pass. No skipped tests.
+
+    - **Mocks**: External network APIs only. Mocking internal logic is an
+    anti-pattern.
+
+
+    ## 2. State & Blueprint
+
+    - **Work Unit**: The spec is the multi-line `INSTRUCTIONS` inside the `/**
+    TODO: ... */` block.
+
+    - **Completion**: Task is complete *only when* the source `TODO` block is
+    deleted and tests pass.
+
+    - **Logging**: `.nocaflow/initialization/agent-log/{plan_id}.{part_id}.log`.
+
+
+  src/models/plan.ts: |-
+    // Defines the data structure for a plan.yml file.
+
+    export interface PlanPart {
+      id: string;
+      status: 'todo' | 'doing' | 'review' | 'done' | 'failed';
+      isolation: boolean;
+      agent_id: string;
+      depends_on: string[];
+      name: string;
+    }
+
+    export interface Plan {
+      plan: {
+        id: string;
+        title: string;
+        status: 'todo' | 'doing' | 'review' | 'done' | 'failed';
+        parts: PlanPart[];
+      };
+    }
+  .nocaflow/initialization/plans/doing/c8a2b1f0.plan.yml: |-
+    plan:
+      id: 'c8a2b1f0'
+      title: 'Implement user authentication endpoint'
+      status: 'doing'
+      parts:
+        - id: '9e7f8a7b'
+          status: 'done'
+          isolation: false
+          agent_id: '9e7f8a'
+          depends_on: []
+          name: 'Create JWT utility functions'
+        - id: 'a1b2c3d4'
+          status: 'doing'
+          isolation: false
+          agent_id: 'a1b2c3'
+          depends_on: ['9e7f8a7b']
+          name: 'Implement POST /login endpoint'
+  .nocaflow/initialization/agent-log/main.log: >-
+    2023-10-27T11:28:00Z [DONE|INIT|9e7f8a] plan:c8a2b1f0 - Wrote 2 files, tests
+    pass.
+
+    2023-10-27T11:15:00Z [DONE|INIT|scaffold] plan:f0e9d8c7 - Scaffolded 5
+    files.
+
+    2023-10-27T11:08:00Z [FAIL|QA|qa-agent] plan:f0e9d8c7 - Coverage below 80%.
+  src/utils/logs.ts: |-
+    export interface LogEntry {
+      status: 'DONE' | 'FAIL' | 'INFO';
+      phase: 'INIT' | 'DEV' | 'QA';
+      agentId: string;
+      planId: string;
+      message: string;
+      timestamp: Date;
+    }
+
+    /**
+     * @description Reads the agent log files and returns the most recent entries.
+     * @param limit - The maximum number of log entries to return.
+     * @returns A list of recent log entries, sorted newest first.
+     */
+    export const getRecentLogs = async (limit: number): Promise<LogEntry[]> => {
+      // TODO: Find all log files in .nocaflow/{phase}/agent-log/.
+      // TODO: Read the last few lines from each or read all and sort by timestamp.
+      // TODO: Parse log lines into LogEntry objects.
+      // TODO: Return the 'limit' most recent entries.
+      return [];
+    };
+approved: true
+linesAdded: null
+linesRemoved: null
+linesDifference: null
+gitCommittedAt: null
+status: committed
+id: 2

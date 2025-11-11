@@ -1,0 +1,495 @@
+uuid: f7b8c1d0-a3e2-4f1c-9b0a-8d7e6c5b4a32
+projectId: noca-flow
+createdAt: '2025-11-11T12:07:18.688Z'
+gitCommitMsg: >-
+  chore: Deepen alignment with agent protocols and lifecycle
+
+  - Add .gitignore and scaffold required directories for tests (unit,
+  integration, e2e) and git worktrees. - Correct agent log files to use the
+  rich, parsable format specified in the README. - Update cheatsheet comments in
+  `logs.ts` and `shell.ts` with more detailed parsing logic based on agent
+  conventions. - Restructure initialization phase plans to accurately model the
+  manager's two-stage lifecycle:
+    - Add a new `todo` plan that is waiting for the `scaffolder.agent`.
+    - Modify the `doing` plan to show its `scaffold` part is complete, making the state consistent with the defined workflow.
+promptSummary: >-
+  Further align the nocaflow project with agent protocols by adding required
+  directories (.gitignore, test structure, worktrees), correcting log formats,
+  updating parsing logic cheatsheets, and crucially, restructuring plan files to
+  accurately reflect the initialization phase's scaffold-then-implement
+  lifecycle.
+reasoning:
+  - >-
+    You are absolutely right to question that. The previous changes were
+    necessary but didn't go deep enough to align the *logic* and *structure*
+    with the detailed agent protocols. I've conducted a deeper review and
+    identified several key inconsistencies.
+  - 'This set of changes will rectify them by:'
+  - >-
+    1.  Establishing the correct project structure for tests and `git worktree`
+    isolation.
+  - >-
+    2.  Aligning the log file format and parsing logic with the rich output seen
+    in the `README.md`.
+  - >-
+    3.  Updating the "cheatsheet" code to reflect the specific tmux conventions
+    from `manager.agent.md`.
+  - >-
+    4.  Most importantly, restructuring the example plans to correctly model the
+    two-stage `scaffold` -> `implement` lifecycle unique to the `initialization`
+    phase.
+  - '### 1. Project Structure and Git Configuration'
+  - >-
+    First, I'll add a `.gitignore` to keep the project clean, and create the
+    directory structures required by the phase rules for testing and for git
+    worktrees.
+  - '### 2. Aligning Logs and Parsing Logic'
+  - >-
+    The previous log files were too simplistic. I'll recreate them to match the
+    structured format from the `README.md`, which is critical for parsing by the
+    `state` command.
+  - >-
+    Now, I'll update the "cheatsheet" code in `src/utils/logs.ts` and
+    `src/utils/shell.ts` with more detailed instructions that reflect the
+    system's actual conventions.
+  - '### 3. Aligning Plan State with Manager Lifecycle'
+  - >-
+    This is the most critical correction. The `manager.agent.md` specifies that
+    `initialization` plans have a `scaffold` part first. The existing state
+    files did not reflect this, creating a logical inconsistency.
+  - >-
+    I will now fix this by replacing the placeholder `todo` plan with a
+    realistic one that is awaiting scaffolding, and updating the `doing` plan to
+    show that its scaffolding part is already `done`. This makes the state
+    perfectly consistent with the manager's operational logic.
+  - First, I'll delete the old placeholder.
+  - Next, create the new, realistic `todo` plan.
+  - Finally, I'll update the `doing` plan to reflect its post-scaffolding state.
+operations:
+  - type: write
+    path: .gitignore
+    content: |-
+      # Dependencies
+      /node_modules
+
+      # Build output
+      /dist
+
+      # NocaFlow worktrees
+      /worktrees
+
+      # IDE and OS files
+      .vscode/
+      .DS_Store
+
+      # Logs (agent logs are inside .nocaflow)
+      *.log
+    patchStrategy: replace
+  - type: write
+    path: worktrees/.gitkeep
+    content: ''
+    patchStrategy: replace
+  - type: write
+    path: unit/.gitkeep
+    content: ''
+    patchStrategy: replace
+  - type: write
+    path: integration/.gitkeep
+    content: ''
+    patchStrategy: replace
+  - type: write
+    path: e2e/.gitkeep
+    content: ''
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/agent-log/c8a2b1f0.9e7f8a.log
+    content: >-
+      2023-10-27T11:28:00Z [DONE|INIT|9e7f8a] plan:c8a2b1f0 - Wrote 2 files,
+      tests pass.
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/agent-log/f0e9d8c7.qa.log
+    content: >-
+      2023-10-27T11:08:00Z [FAIL|QA|f0e9d8c7] plan:f0e9d8c7 - Coverage below
+      80%.
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/agent-log/f0e9d8c7.scaffold.log
+    content: >-
+      2023-10-27T11:15:00Z [DONE|INIT|scaffold] plan:f0e9d8c7 - Scaffolded 5
+      files.
+    patchStrategy: replace
+  - type: write
+    path: src/utils/logs.ts
+    content: >+
+      --- src/utils/logs.ts
+
+      +++ src/utils/logs.ts
+
+      @@ -15,9 +15,10 @@
+        * @returns A list of recent log entries, sorted newest first.
+        */
+       export const getRecentLogs = async (limit: number): Promise<LogEntry[]> => {
+      -  // TODO: Find all log files in .nocaflow/{phase}/agent-log/.
+
+      -  // TODO: Read the last few lines from each or read all and sort by
+      timestamp.
+
+      -  // TODO: Parse log lines into LogEntry objects.
+
+      +  // TODO: Find all log files in .nocaflow/{phase}/agent-log/ matching
+      pattern *.log.
+
+      +  // TODO: Read log files. Each line is an entry.
+
+      +  // TODO: Parse lines with a regex like /^(?<timestamp>.*?)
+      \[(?<status>\w+)\|(?<phase>\w+)\|(?<agentId>.*?)\] plan:(?<planId>\S+) -
+      (?<message>.*)$/
+
+      +  // TODO: Create LogEntry objects.
+         // TODO: Return the 'limit' most recent entries sorted by timestamp.
+         return [];
+       };
+
+    patchStrategy: standard-diff
+  - type: write
+    path: src/utils/shell.ts
+    content: |-
+      import { exec } from 'child_process';
+      import { Plan, PlanPart } from '../models/plan';
+
+      export interface AgentInfo {
+        phase: 'INIT' | 'DEV' | 'QA' | 'SCAF';
+        id: string; // part_id, plan_id for QA/Scaffold
+        planId: string;
+        partId: string; // Can be 'scaffold' or 'qa'
+        runtime: string;
+        pid: string;
+      }
+
+      /**
+       * @description Lists active tmux sessions and parses them to find agent info.
+       * @returns A list of active agents.
+       */
+      export const getActiveAgents = async (): Promise<AgentInfo[]> => {
+        // TODO: Execute 'tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"'.
+        // TODO: Parse the output. Session names follow conventions from manager.agent.md:
+        // - Worker: "{phase}-{part_id}" (e.g., "init-a1b2c3d4")
+        // - Scaffolder: "init-scaffold-{plan_id}"
+        // - QA: "qa-{plan_id}"
+        // TODO: For worker sessions, find the corresponding plan file in `.nocaflow/{phase}/plans/doing/` to look up the planId.
+        // TODO: Calculate runtime from session_activity (it's a unix timestamp).
+        // TODO: Return a list of AgentInfo objects matching the README.md output.
+        return [];
+      };
+    patchStrategy: replace
+  - type: delete
+    path: .nocaflow/initialization/plans/todo/init-todo-1.yml
+  - type: write
+    path: .nocaflow/initialization/plans/todo/e5d6c7b8.plan.yml
+    content: |-
+      plan:
+        id: 'e5d6c7b8'
+        status: 'todo'
+        title: 'Setup Database Schema and User Model'
+        introduction: |
+          This plan will create the initial database migration for the users table and define the corresponding data model in the application.
+          This is a foundational step before any user-related business logic can be implemented.
+        parts:
+          - id: 'scaffold'
+            status: 'todo'
+            isolation: false
+            agent_id: 'scaffolder'
+            name: 'Part 1: Scaffold Database Files'
+            reason: |
+              To create the file structure and boilerplate for the database migration and user model, with detailed TODOs for the implementation swarm.
+            steps:
+              - id: 'scf-step-1'
+                status: 'todo'
+                name: 'Create migration file'
+                reason: 'To define the users table schema.'
+                files: ['src/db/migrations/001_create_users_table.ts']
+                operations:
+                  - 'Create the file.'
+                  - 'Add boilerplate for a database migration script.'
+                  - 'Embed a TODO with instructions to define columns: id, email, password_hash, created_at.'
+              - id: 'scf-step-2'
+                status: 'todo'
+                name: 'Create user model file'
+                reason: 'To provide a type-safe representation of a user.'
+                files: ['src/models/user.ts']
+                operations:
+                  - 'Create the file.'
+                  - 'Add a TypeScript interface `User`.'
+                  - 'Embed a TODO with instructions to add fields corresponding to the database schema.'
+            context_files:
+              compact: []
+              medium: []
+              extended: []
+          - id: 'impl-db-part'
+            status: 'todo'
+            isolation: false
+            agent_id: 'init-swarm-1'
+            depends_on: ['scaffold']
+            name: 'Part 2: Implement Database Migration and Model'
+            reason: |
+              To execute the instructions left by the scaffolder agent to build the actual database schema and user model.
+            steps:
+              - id: 'impl-step-1'
+                status: 'todo'
+                name: 'Implement user migration'
+                reason: 'To write the SQL or ORM code that creates the users table.'
+                files: ['src/db/migrations/001_create_users_table.ts']
+                operations:
+                  - 'Follow the instructions in the TODO block to define the table schema.'
+              - id: 'impl-step-2'
+                status: 'todo'
+                name: 'Implement user model'
+                reason: 'To define the User type.'
+                files: ['src/models/user.ts']
+                operations:
+                  - 'Follow the instructions in the TODO block to define the User interface.'
+            context_files:
+              compact: ['src/db/migrations/001_create_users_table.ts', 'src/models/user.ts']
+              medium: ['src/db/migrations/001_create_users_table.ts', 'src/models/user.ts']
+              extended: ['src/db/migrations/001_create_users_table.ts', 'src/models/user.ts']
+        conclusion: |
+          After this plan is done, the application will have a solid, version-controlled database schema for users.
+        context_files:
+          compact: []
+          medium: []
+          extended: []
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/plans/doing/c8a2b1f0.plan.yml
+    content: |-
+      plan:
+        id: 'c8a2b1f0'
+        status: 'doing'
+        title: 'Implement user authentication endpoint'
+        introduction: |
+          This plan outlines the initial scaffolding and implementation for a JWT-based user authentication system.
+          The goal is to create the core utility functions and the primary login endpoint, laying the groundwork for registration and profile management.
+        parts:
+          - id: 'scaffold'
+            status: 'done' # The scaffolder has already run for this plan.
+            isolation: false
+            agent_id: 'scaffolder'
+            name: 'Part 0: Scaffold Authentication Files'
+            reason: 'To create the file structure for auth endpoints and utilities.'
+            steps:
+              - id: 'scf-step-1'
+                status: 'done'
+                name: 'Scaffold JWT utils and auth routes'
+                reason: 'To create placeholder files with TODOs.'
+                files: ['src/utils/jwt.ts', 'src/routes/auth.ts', 'src/controllers/authController.ts']
+                operations:
+                  - 'Created files and embedded instructions for implementation agents.'
+            context_files:
+              compact: []
+              medium: []
+              extended: []
+          - id: '9e7f8a7b'
+            status: 'done' # This implementation part is also completed.
+            isolation: false
+            agent_id: '9e7f8a'
+            depends_on: ['scaffold']
+            name: 'Part 1: Create JWT utility functions'
+            reason: |
+              To handle token creation and verification in a centralized, reusable module before any endpoints depend on it.
+            steps:
+              - id: 'step-jwt-create'
+                status: 'done'
+                name: 'Implement createToken function'
+                reason: 'To generate JWTs for authenticated users.'
+                files: ['src/utils/jwt.ts']
+                operations:
+                  - 'Create a function `createToken(user: User): string`.'
+                  - 'Use the `jsonwebtoken` library.'
+                  - 'The token payload must include `userId` and `roles`.'
+                  - 'Set token expiration to 24 hours.'
+              - id: 'step-jwt-verify'
+                status: 'done'
+                name: 'Implement verifyToken function'
+                reason: 'To validate tokens from incoming requests.'
+                files: ['src/utils/jwt.ts']
+                operations:
+                  - 'Create a function `verifyToken(token: string): Session | null`.'
+                  - 'It should return the decoded session payload on success.'
+                  - 'It must return `null` if the token is invalid or expired.'
+            context_files:
+              compact: ['src/utils/jwt.ts']
+              medium: ['src/utils/jwt.ts', 'src/models/user.ts']
+              extended: ['src/utils/jwt.ts', 'src/models/user.ts', 'package.json']
+          - id: 'a1b2c3d4'
+            status: 'doing' # This is the currently active implementation part.
+            isolation: false
+            agent_id: 'a1b2c3'
+            depends_on: ['9e7f8a7b']
+            name: 'Part 2: Implement POST /login endpoint'
+            reason: |
+              To allow users to authenticate and receive a JWT.
+            steps:
+              - id: 'step-login-route'
+                status: 'todo'
+                name: 'Define the route and controller structure'
+                reason: 'To handle incoming POST requests to /login.'
+                files: ['src/routes/auth.ts', 'src/controllers/authController.ts']
+                operations:
+                  - 'In `src/routes/auth.ts`, define a `POST /login` route.'
+                  - 'In `src/controllers/authController.ts`, create a `loginUser` function stub.'
+                  - 'The controller should validate request body for `email` and `password`.'
+                  - 'On successful validation, it should call a user service to verify credentials.'
+                  - 'Upon successful authentication, use the JWT utility to create a token and send it in the response.'
+            context_files:
+              compact: ['src/routes/auth.ts', 'src/controllers/authController.ts', 'src/utils/jwt.ts']
+              medium: ['src/routes/auth.ts', 'src/controllers/authController.ts', 'src/utils/jwt.ts', 'src/services/userService.ts']
+              extended: ['src/routes/auth.ts', 'src/controllers/authController.ts', 'src/utils/jwt.ts', 'src/services/userService.ts', 'src/models/user.ts']
+        conclusion: |
+          Upon completion, the system will have a secure and functional authentication entry point, ready for frontend integration.
+        context_files:
+          compact: ['src/utils/jwt.ts', 'src/routes/auth.ts']
+          medium: ['src/utils/jwt.ts', 'src/routes/auth.ts', 'src/controllers/authController.ts']
+          extended: ['src/utils/jwt.ts', 'src/routes/auth.ts', 'src/controllers/authController.ts', 'src/models/user.ts']
+    patchStrategy: replace
+snapshot:
+  worktrees/.gitkeep: null
+  unit/.gitkeep: null
+  integration/.gitkeep: null
+  e2e/.gitkeep: null
+  .nocaflow/initialization/plans/todo/e5d6c7b8.plan.yml: null
+  .gitignore: |
+    # relay state
+    /.relay/
+    docs/repomix.md
+  .nocaflow/initialization/agent-log/c8a2b1f0.9e7f8a.log: >-
+    2023-10-27T11:28:00Z [DONE] Completed part 9e7f8a7b. Implemented JWT utility
+    functions in src/utils/jwt.ts. Wrote 2 files, all tests pass.
+  .nocaflow/initialization/agent-log/f0e9d8c7.qa.log: >-
+    2023-10-27T11:08:00Z [FAIL] QA failed for plan f0e9d8c7. Coverage below 80%.
+    See report
+    .nocaflow/initialization/plans/failed/report/f0e9d8c7.b5a4b3c2.report.md.
+  .nocaflow/initialization/agent-log/f0e9d8c7.scaffold.log: >-
+    2023-10-27T11:15:00Z [DONE] Completed scaffold for plan f0e9d8c7. Created 5
+    files with TODO blocks for implementation.
+  src/utils/logs.ts: |-
+    export interface LogEntry {
+      status: 'DONE' | 'FAIL' | 'INFO';
+      phase: 'INIT' | 'DEV' | 'QA';
+      agentId: string;
+      planId: string;
+      message: string;
+      timestamp: Date;
+    }
+
+    /**
+     * @description Reads the agent log files and returns the most recent entries.
+     * @param limit - The maximum number of log entries to return.
+     * @returns A list of recent log entries, sorted newest first.
+     */
+    export const getRecentLogs = async (limit: number): Promise<LogEntry[]> => {
+      // TODO: Find all log files in .nocaflow/{phase}/agent-log/ matching pattern {plan_id}.{part_id_or_agent_name}.log.
+      // TODO: Read the last few lines from each or read all and sort by timestamp.
+      // TODO: Parse log lines into LogEntry objects.
+      // TODO: Return the 'limit' most recent entries.
+      return [];
+    };
+  .nocaflow/initialization/plans/doing/c8a2b1f0.plan.yml: |-
+    plan:
+      id: 'c8a2b1f0'
+      status: 'doing'
+      title: 'Implement user authentication endpoint'
+      introduction: |
+        This plan outlines the initial scaffolding and implementation for a JWT-based user authentication system.
+        The goal is to create the core utility functions and the primary login endpoint, laying the groundwork for registration and profile management.
+      parts:
+        - id: '9e7f8a7b'
+          status: 'done' # This part is already completed.
+          isolation: false
+          agent_id: '9e7f8a'
+          name: 'Part 1: Create JWT utility functions'
+          reason: |
+            To handle token creation and verification in a centralized, reusable module before any endpoints depend on it.
+          steps:
+            - id: 'step-jwt-create'
+              status: 'done'
+              name: 'Implement createToken function'
+              reason: 'To generate JWTs for authenticated users.'
+              files: ['src/utils/jwt.ts']
+              operations:
+                - 'Create a function `createToken(user: User): string`.'
+                - 'Use the `jsonwebtoken` library.'
+                - 'The token payload must include `userId` and `roles`.'
+                - 'Set token expiration to 24 hours.'
+            - id: 'step-jwt-verify'
+              status: 'done'
+              name: 'Implement verifyToken function'
+              reason: 'To validate tokens from incoming requests.'
+              files: ['src/utils/jwt.ts']
+              operations:
+                - 'Create a function `verifyToken(token: string): Session | null`.'
+                - 'It should return the decoded session payload on success.'
+                - 'It must return `null` if the token is invalid or expired.'
+          context_files:
+            compact: ['src/utils/jwt.ts']
+            medium: ['src/utils/jwt.ts', 'src/models/user.ts']
+            extended: ['src/utils/jwt.ts', 'src/models/user.ts', 'package.json']
+        - id: 'a1b2c3d4'
+          status: 'doing' # This is the currently active part.
+          isolation: false
+          agent_id: 'a1b2c3'
+          depends_on: ['9e7f8a7b']
+          name: 'Part 2: Implement POST /login endpoint'
+          reason: |
+            To allow users to authenticate and receive a JWT.
+          steps:
+            - id: 'step-login-route'
+              status: 'todo'
+              name: 'Define the route and controller structure'
+              reason: 'To handle incoming POST requests to /login.'
+              files: ['src/routes/auth.ts', 'src/controllers/authController.ts']
+              operations:
+                - 'In `src/routes/auth.ts`, define a `POST /login` route.'
+                - 'In `src/controllers/authController.ts`, create a `loginUser` function stub.'
+                - 'The controller should validate request body for `email` and `password`.'
+                - 'On successful validation, it should call a user service to verify credentials.'
+                - 'Upon successful authentication, use the JWT utility to create a token and send it in the response.'
+          context_files:
+            compact: ['src/routes/auth.ts', 'src/controllers/authController.ts', 'src/utils/jwt.ts']
+            medium: ['src/routes/auth.ts', 'src/controllers/authController.ts', 'src/utils/jwt.ts', 'src/services/userService.ts']
+            extended: ['src/routes/auth.ts', 'src/controllers/authController.ts', 'src/utils/jwt.ts', 'src/services/userService.ts', 'src/models/user.ts']
+      conclusion: |
+        Upon completion, the system will have a secure and functional authentication entry point, ready for frontend integration.
+      context_files:
+        compact: ['src/utils/jwt.ts', 'src/routes/auth.ts']
+        medium: ['src/utils/jwt.ts', 'src/routes/auth.ts', 'src/controllers/authController.ts']
+        extended: ['src/utils/jwt.ts', 'src/routes/auth.ts', 'src/controllers/authController.ts', 'src/models/user.ts']
+  src/utils/shell.ts: |-
+    import { exec } from 'child_process';
+
+    export interface AgentInfo {
+      phase: 'INIT' | 'DEV';
+      id: string;
+      planId: string;
+      partId: string;
+      runtime: string;
+    }
+
+    /**
+     * @description Lists active tmux sessions and parses them to find agent info.
+     * @returns A list of active agents.
+     */
+    export const getActiveAgents = async (): Promise<AgentInfo[]> => {
+      // TODO: Execute 'tmux ls' command.
+      // TODO: Parse the output to extract agent details based on a naming convention
+      // for tmux sessions (e.g., 'nc-init-c8a2b1f0-9e7f8a7b').
+      return [];
+    };
+  .nocaflow/initialization/plans/todo/init-todo-1.yml: '# Empty plan file to match count for `nocaflow state`'
+approved: true
+linesAdded: null
+linesRemoved: null
+linesDifference: null
+gitCommittedAt: null
+status: committed
+id: 3

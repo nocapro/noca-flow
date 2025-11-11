@@ -1,17 +1,88 @@
 plan:
   id: 'c8a2b1f0'
-  title: 'Implement user authentication endpoint'
   status: 'doing'
+  title: 'Implement user authentication endpoint'
+  introduction: |
+    This plan outlines the initial scaffolding and implementation for a JWT-based user authentication system.
+    The goal is to create the core utility functions and the primary login endpoint, laying the groundwork for registration and profile management.
   parts:
+    - id: 'scaffold'
+      status: 'done' # The scaffolder has already run for this plan.
+      isolation: false
+      agent_id: 'scaffolder'
+      name: 'Part 0: Scaffold Authentication Files'
+      reason: 'To create the file structure for auth endpoints and utilities.'
+      steps:
+        - id: 'scf-step-1'
+          status: 'done'
+          name: 'Scaffold JWT utils and auth routes'
+          reason: 'To create placeholder files with TODOs.'
+          files: ['src/utils/jwt.ts', 'src/routes/auth.ts', 'src/controllers/authController.ts']
+          operations:
+            - 'Created files and embedded instructions for implementation agents.'
+      context_files:
+        compact: []
+        medium: []
+        extended: []
     - id: '9e7f8a7b'
-      status: 'done'
+      status: 'done' # This implementation part is also completed.
       isolation: false
       agent_id: '9e7f8a'
-      depends_on: []
-      name: 'Create JWT utility functions'
+      depends_on: ['scaffold']
+      name: 'Part 1: Create JWT utility functions'
+      reason: |
+        To handle token creation and verification in a centralized, reusable module before any endpoints depend on it.
+      steps:
+        - id: 'step-jwt-create'
+          status: 'done'
+          name: 'Implement createToken function'
+          reason: 'To generate JWTs for authenticated users.'
+          files: ['src/utils/jwt.ts']
+          operations:
+            - 'Create a function `createToken(user: User): string`.'
+            - 'Use the `jsonwebtoken` library.'
+            - 'The token payload must include `userId` and `roles`.'
+            - 'Set token expiration to 24 hours.'
+        - id: 'step-jwt-verify'
+          status: 'done'
+          name: 'Implement verifyToken function'
+          reason: 'To validate tokens from incoming requests.'
+          files: ['src/utils/jwt.ts']
+          operations:
+            - 'Create a function `verifyToken(token: string): Session | null`.'
+            - 'It should return the decoded session payload on success.'
+            - 'It must return `null` if the token is invalid or expired.'
+      context_files:
+        compact: ['src/utils/jwt.ts']
+        medium: ['src/utils/jwt.ts', 'src/models/user.ts']
+        extended: ['src/utils/jwt.ts', 'src/models/user.ts', 'package.json']
     - id: 'a1b2c3d4'
-      status: 'doing'
+      status: 'doing' # This is the currently active implementation part.
       isolation: false
       agent_id: 'a1b2c3'
       depends_on: ['9e7f8a7b']
-      name: 'Implement POST /login endpoint'
+      name: 'Part 2: Implement POST /login endpoint'
+      reason: |
+        To allow users to authenticate and receive a JWT.
+      steps:
+        - id: 'step-login-route'
+          status: 'todo'
+          name: 'Define the route and controller structure'
+          reason: 'To handle incoming POST requests to /login.'
+          files: ['src/routes/auth.ts', 'src/controllers/authController.ts']
+          operations:
+            - 'In `src/routes/auth.ts`, define a `POST /login` route.'
+            - 'In `src/controllers/authController.ts`, create a `loginUser` function stub.'
+            - 'The controller should validate request body for `email` and `password`.'
+            - 'On successful validation, it should call a user service to verify credentials.'
+            - 'Upon successful authentication, use the JWT utility to create a token and send it in the response.'
+      context_files:
+        compact: ['src/routes/auth.ts', 'src/controllers/authController.ts', 'src/utils/jwt.ts']
+        medium: ['src/routes/auth.ts', 'src/controllers/authController.ts', 'src/utils/jwt.ts', 'src/services/userService.ts']
+        extended: ['src/routes/auth.ts', 'src/controllers/authController.ts', 'src/utils/jwt.ts', 'src/services/userService.ts', 'src/models/user.ts']
+  conclusion: |
+    Upon completion, the system will have a secure and functional authentication entry point, ready for frontend integration.
+  context_files:
+    compact: ['src/utils/jwt.ts', 'src/routes/auth.ts']
+    medium: ['src/utils/jwt.ts', 'src/routes/auth.ts', 'src/controllers/authController.ts']
+    extended: ['src/utils/jwt.ts', 'src/routes/auth.ts', 'src/controllers/authController.ts', 'src/models/user.ts']

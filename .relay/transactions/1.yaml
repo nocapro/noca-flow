@@ -1,0 +1,718 @@
+uuid: a1f8b3c2-d5e4-4a0b-8f1d-9c8e7b6a5a31
+projectId: noca-flow
+createdAt: '2025-11-11T11:52:17.785Z'
+gitCommitMsg: >-
+  feat: Initialize nocaflow project structure and state
+
+  - Add package.json and tsconfig.json for a new TypeScript project. - Scaffold
+  the source code for the `nocaflow` CLI, including commands, models, and utils,
+  with a focus on HOF style and "cheatsheet" comments. - Create the `.nocaflow`
+  directory structure. - Populate the state directories with dummy plans, logs,
+  and reports to match the exact output of the `nocaflow state` command example
+  in the README.
+promptSummary: >-
+  Initialize the nocaflow npm project with boilerplate source code and
+  filesystem state to match the README example.
+reasoning:
+  - Of course. Here is the response with the correct file modification syntax.
+  - '### 1. Project Configuration'
+  - >-
+    First, I'll create `package.json` to define the project, its dependencies,
+    and scripts.
+  - Next, I'll add a `tsconfig.json` for TypeScript configuration.
+  - '### 2. Application Source Code'
+  - I'll create the main CLI entrypoint with `yargs` for command handling.
+  - >-
+    This file will contain the logic for the `state` command, responsible for
+    fetching data and rendering the report.
+  - I'll define the TypeScript types for plans.
+  - And I'll define the types for phases.
+  - >-
+    This utility file will contain HOFs for filesystem operations like reading
+    plans and stats.
+  - This utility file will handle git-related operations.
+  - This utility file is for parsing agent logs.
+  - And this utility file is for shell commands, like checking `tmux` sessions.
+  - '### 3. State Files and Directories'
+  - >-
+    I will create the `user.prompt.md` which serves as the initial input for the
+    `plan.agent`.
+  - >-
+    Now, I'll create the necessary `.nocaflow` directory structure and populate
+    it with dummy plans, logs, and reports to match the state described in the
+    README. This plan represents an active task.
+  - This file is a QA report for a failed plan part.
+  - ...
+  - >-
+    -------------------|---------|----------|---------|---------|-------------------
+  - >-
+    File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line
+    #s
+  - >-
+    -------------------|---------|----------|---------|---------|-------------------
+  - All files          |   78.57 |    66.67 |   83.33 |   78.26 |
+  - src/utils         |   65.00 |    50.00 |   60.00 |   65.00 |
+  - new-feature.ts   |   65.00 |    50.00 |   60.00 |   65.00 | 15-25
+  - >-
+    -------------------|---------|----------|---------|---------|-------------------
+  - This log file contains recent agent activity.
+  - >-
+    To satisfy the plan counts from the `state` command, I'll create the
+    remaining empty plan files for the `initialization` phase.
+  - >-
+    Now, I'll create the 25 placeholder plan files for the `development` phase's
+    `todo` directory.
+  - >-
+    Finally, I'll create `.gitkeep` files to ensure empty state directories are
+    tracked by `git`.
+operations:
+  - type: write
+    path: package.json
+    content: |-
+      {
+        "name": "nocaflow",
+        "version": "0.0.1",
+        "description": "Filesystem-as-State for Phased LLM Swarms.",
+        "main": "dist/index.js",
+        "bin": {
+          "nocaflow": "dist/cli.js"
+        },
+        "scripts": {
+          "start": "node dist/cli.js",
+          "build": "tsc",
+          "dev": "ts-node src/cli.ts"
+        },
+        "keywords": [
+          "llm",
+          "swarm",
+          "agent",
+          "orchestration"
+        ],
+        "author": "",
+        "license": "ISC",
+        "dependencies": {
+          "chalk": "^4.1.2",
+          "dayjs": "^1.11.10",
+          "js-yaml": "^4.1.0",
+          "yargs": "^17.7.2"
+        },
+        "devDependencies": {
+          "@types/js-yaml": "^4.0.9",
+          "@types/node": "^20.10.4",
+          "@types/yargs": "^17.0.32",
+          "ts-node": "^10.9.2",
+          "typescript": "^5.3.3"
+        }
+      }
+    patchStrategy: replace
+  - type: write
+    path: tsconfig.json
+    content: |-
+      {
+        "compilerOptions": {
+          "target": "es2020",
+          "module": "commonjs",
+          "rootDir": "./src",
+          "outDir": "./dist",
+          "esModuleInterop": true,
+          "strict": true,
+          "skipLibCheck": true
+        },
+        "include": ["src/**/*"]
+      }
+    patchStrategy: replace
+  - type: write
+    path: src/cli.ts
+    content: >-
+      import yargs from 'yargs';
+
+      import { hideBin } from 'yargs/helpers';
+
+      import { handleStateCommand } from './commands/state';
+
+
+      // TODO: Set up yargs to handle commands and options.
+
+      // 'init' command: Initializes a nocaflow project. (Implementation
+      pending)
+
+      // 'state' command: Displays the current state of the project.
+
+
+      yargs(hideBin(process.argv))
+        .command('init', 'Initialize a nocaflow project in the current directory',
+          () => {},
+          (argv) => console.log('// TODO: Implement init command logic.')
+        )
+        .command('state', 'Display the current state of the nocaflow project',
+          () => {},
+          handleStateCommand
+        )
+        .demandCommand(1, 'You need at least one command before moving on')
+        .help()
+        .argv;
+    patchStrategy: replace
+  - type: write
+    path: src/commands/state.ts
+    content: >-
+      import { getPhaseStats, PhaseStats, getFailedReports, FailedReport } from
+      '../utils/fs';
+
+      import { getActiveAgents, AgentInfo } from '../utils/shell';
+
+      import { getRecentLogs, LogEntry } from '../utils/logs';
+
+      import { getGitLog, GitCommit } from '../utils/git';
+
+
+      // TODO: Implement the logic for the 'state' command.
+
+      // This function will be called by yargs when 'nocaflow state' is
+      executed.
+
+
+      /**
+       * @description Renders a progress bar.
+       * @param current - The current progress value.
+       * @param total - The total value for 100%.
+       * @param length - The character length of the bar.
+       * @returns A string representing the progress bar.
+       */
+      const renderProgressBar = (current: number, total: number, length: number
+      = 20): string => {
+        // TODO: Implement progress bar rendering logic. e.g. [▇▇▇▇----]
+        return `(${current}/${total} plans done)`;
+      };
+
+
+      /**
+       * @description Displays the full state report to the console.
+       */
+      export const handleStateCommand = async (argv: {}): Promise<void> => {
+        // TODO: Fetch all necessary data using utility functions.
+        // const phase = 'initialization'; // TODO: Determine current phase dynamically.
+        // const phaseStats = await getPhaseStats();
+        // const activeAgents = await getActiveAgents();
+        // const recentLogs = await getRecentLogs(5);
+        // const failedReports = await getFailedReports(24);
+        // const gitCommits = await getGitLog(10);
+
+        // TODO: Format and print the state report to the console,
+        // matching the example in README.md. Use 'chalk' for colors.
+        console.log(`
+      == nocaflow State [2023-10-27 11:30:00] ==
+
+      Current Phase: initialization
+
+
+      == Phase Progress ==
+
+      [INITIALIZATION]  ▇▇▇▇▇▇---- (6/10 plans done)
+
+      [DEVELOPMENT]     ---------- (0/25 plans done)
+
+
+      == Phase Stats (Plans) ==
+
+      [INITIALIZATION]  todo: 1, doing: 2, review: 1, failed: 0, done: 6
+
+      [DEVELOPMENT]     todo: 25, doing: 0, review: 0, failed: 0, done: 0
+
+
+      == Active Agents (tmux) ==
+
+      [INIT|463462] plan:c8a2b1f0 part:9e7f8a7b (running 12m)
+
+      [INIT|823523] plan:c8a2b1f0 part:a1b2c3d4 (running 2m)
+
+
+      == Recent Agent Activity (last 5) ==
+
+      [DONE|INIT|9e7f8a] plan:c8a2b1f0 - Wrote 2 files, tests pass. (2m ago)
+
+      [DONE|INIT|scaffold] plan:f0e9d8c7 - Scaffolded 5 files. (15m ago)
+
+      [FAIL|QA|f0e9d8c7] plan:f0e9d8c7 - Coverage below 80%. (22m ago)
+
+
+      == Stalled / Failed (last 24h) ==
+
+      [FAILED] plan:f0e9d8c7 part:b5a4b3c2 - "Coverage below 80%"
+               Report: .nocaflow/initialization/plans/failed/report/f0e9d8c7.b5a4b3c2.report.md
+
+      == Recent Git Commits (all worktrees) ==
+
+      a4e2c1f (wt-dev-995104) feat: add initial test harness for gitignore
+
+      c3b1a0d (wt-dev-995104) fix: handle nested .gitignore files correctly
+
+      8e7f6d5 (main) chore: update dependencies
+
+      ... (7 more)
+        `);
+      };
+    patchStrategy: replace
+  - type: write
+    path: src/models/plan.ts
+    content: |-
+      // Defines the data structure for a plan.yml file.
+
+      export interface PlanPart {
+        id: string;
+        status: 'todo' | 'doing' | 'review' | 'done' | 'failed';
+        isolation: boolean;
+        agent_id: string;
+        depends_on: string[];
+        name: string;
+      }
+
+      export interface Plan {
+        plan: {
+          id: string;
+          title: string;
+          status: 'todo' | 'doing' | 'review' | 'done' | 'failed';
+          parts: PlanPart[];
+        };
+      }
+    patchStrategy: replace
+  - type: write
+    path: src/models/phase.ts
+    content: |-
+      // Defines data structures related to phases.
+
+      export type PhaseName = 'initialization' | 'development';
+
+      export interface Phase {
+        name: PhaseName;
+        path: string;
+        // TODO: Add other phase-specific properties if needed.
+      }
+    patchStrategy: replace
+  - type: write
+    path: src/utils/fs.ts
+    content: >-
+      import { Plan } from '../models/plan';
+
+
+      export interface PhaseStats {
+        [phaseName: string]: {
+          todo: number;
+          doing: number;
+          review: number;
+          failed: number;
+          done: number;
+          total: number;
+        };
+      }
+
+
+      export interface FailedReport {
+        planId: string;
+        partId: string;
+        reason: string;
+        reportPath: string;
+      }
+
+
+      /**
+       * @description Reads all plan files from all phases and aggregates stats.
+       * @returns An object containing plan counts for each status in each phase.
+       */
+      export const getPhaseStats = async (): Promise<PhaseStats> => {
+        // TODO: Walk through .nocaflow/{phase}/plans/* directories.
+        // TODO: Count files in todo/, doing/, review/, failed/, done/.
+        // TODO: Return the aggregated stats matching the README example.
+        return {} as PhaseStats;
+      };
+
+
+      /**
+       * @description Scans the failed reports directory for recent failures.
+       * @param hours - The lookback period in hours.
+       * @returns A list of failed report details.
+       */
+      export const getFailedReports = async (hours: number):
+      Promise<FailedReport[]> => {
+        // TODO: Read files from .nocaflow/{phase}/plans/failed/report/.
+        // TODO: Filter reports created within the last 'hours'.
+        // TODO: Parse report content to get the reason.
+        return [];
+      };
+
+
+      /**
+       * @description Reads and parses a YAML plan file.
+       * @param filePath - The path to the plan.yml file.
+       * @returns The parsed Plan object.
+       */
+      export const readPlan = async (filePath: string): Promise<Plan> => {
+          // TODO: Read file content and parse using js-yaml.
+          return {} as Plan;
+      }
+    patchStrategy: replace
+  - type: write
+    path: src/utils/git.ts
+    content: |-
+      import { exec } from 'child_process';
+
+      export interface GitCommit {
+        hash: string;
+        worktree: string | null;
+        message: string;
+      }
+
+      /**
+       * @description Executes 'git log' to get recent commit history across all worktrees.
+       * @param limit - The maximum number of commits to return.
+       * @returns A list of recent git commits.
+       */
+      export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
+        // TODO: Execute 'git log --all ...' with a custom format.
+        // TODO: May need to query for worktree information and associate it.
+        // TODO: Parse the output and return a list of GitCommit objects.
+        return [];
+      };
+    patchStrategy: replace
+  - type: write
+    path: src/utils/logs.ts
+    content: >-
+      export interface LogEntry {
+        status: 'DONE' | 'FAIL' | 'INFO';
+        phase: 'INIT' | 'DEV' | 'QA';
+        agentId: string;
+        planId: string;
+        message: string;
+        timestamp: Date;
+      }
+
+
+      /**
+       * @description Reads the agent log files and returns the most recent entries.
+       * @param limit - The maximum number of log entries to return.
+       * @returns A list of recent log entries, sorted newest first.
+       */
+      export const getRecentLogs = async (limit: number): Promise<LogEntry[]> =>
+      {
+        // TODO: Find all log files in .nocaflow/{phase}/agent-log/.
+        // TODO: Read the last few lines from each or read all and sort by timestamp.
+        // TODO: Parse log lines into LogEntry objects.
+        // TODO: Return the 'limit' most recent entries.
+        return [];
+      };
+    patchStrategy: replace
+  - type: write
+    path: src/utils/shell.ts
+    content: |-
+      import { exec } from 'child_process';
+
+      export interface AgentInfo {
+        phase: 'INIT' | 'DEV';
+        id: string;
+        planId: string;
+        partId: string;
+        runtime: string;
+      }
+
+      /**
+       * @description Lists active tmux sessions and parses them to find agent info.
+       * @returns A list of active agents.
+       */
+      export const getActiveAgents = async (): Promise<AgentInfo[]> => {
+        // TODO: Execute 'tmux ls' command.
+        // TODO: Parse the output to extract agent details based on a naming convention
+        // for tmux sessions (e.g., 'nc-init-c8a2b1f0-9e7f8a7b').
+        return [];
+      };
+    patchStrategy: replace
+  - type: write
+    path: user.prompt.md
+    content: >-
+      // This file contains the high-level user request.
+
+      // The plan.agent will read this file to generate the initial plans.
+
+
+      Implement a full-stack user authentication system with JWT.
+
+      - Create a REST API with endpoints for /register, /login, /profile.
+
+      - Use a PostgreSQL database for user storage.
+
+      - The frontend should be a simple React app with login and registration
+      forms.
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/plans/doing/c8a2b1f0.plan.yml
+    content: |-
+      plan:
+        id: 'c8a2b1f0'
+        title: 'Implement user authentication endpoint'
+        status: 'doing'
+        parts:
+          - id: '9e7f8a7b'
+            status: 'done'
+            isolation: false
+            agent_id: '9e7f8a'
+            depends_on: []
+            name: 'Create JWT utility functions'
+          - id: 'a1b2c3d4'
+            status: 'doing'
+            isolation: false
+            agent_id: 'a1b2c3'
+            depends_on: ['9e7f8a7b']
+            name: 'Implement POST /login endpoint'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/plans/failed/report/f0e9d8c7.b5a4b3c2.report.md
+    content: >-
+      # QA Failure Report
+
+
+      **Plan ID**: `f0e9d8c7`
+
+      **Part ID**: `b5a4b3c2`
+
+      **Agent**: `qa.agent`
+
+      **Timestamp**: `2023-10-27T11:08:00Z`
+
+
+      ## Summary
+
+      Test coverage for `src/utils/new-feature.ts` is 65%, which is below the
+      required 80% threshold for the `initialization` phase.
+
+
+      ## Details
+
+      `npm test -- --coverage` output:
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/agent-log/main.log
+    content: >-
+      2023-10-27T11:28:00Z [DONE|INIT|9e7f8a] plan:c8a2b1f0 - Wrote 2 files,
+      tests pass.
+
+      2023-10-27T11:15:00Z [DONE|INIT|scaffold] plan:f0e9d8c7 - Scaffolded 5
+      files.
+
+      2023-10-27T11:08:00Z [FAIL|QA|qa-agent] plan:f0e9d8c7 - Coverage below
+      80%.
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/plans/todo/init-todo-1.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/plans/doing/init-doing-2.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/plans/review/init-review-1.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/plans/done/init-done-1.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/plans/done/init-done-2.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/plans/done/init-done-3.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/plans/done/init-done-4.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/plans/done/init-done-5.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/initialization/plans/done/init-done-6.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-01.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-02.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-03.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-04.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-05.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-06.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-07.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-08.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-09.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-10.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-11.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-12.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-13.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-14.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-15.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-16.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-17.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-18.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-19.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-20.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-21.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-22.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-23.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-24.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/todo/dev-plan-25.yml
+    content: '# Empty plan file to match count for `nocaflow state`'
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/agent-log/.gitkeep
+    content: ''
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/done/.gitkeep
+    content: ''
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/doing/.gitkeep
+    content: ''
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/failed/report/.gitkeep
+    content: ''
+    patchStrategy: replace
+  - type: write
+    path: .nocaflow/development/plans/review/.gitkeep
+    content: ''
+    patchStrategy: replace
+snapshot:
+  package.json: null
+  tsconfig.json: null
+  src/cli.ts: null
+  src/commands/state.ts: null
+  src/models/plan.ts: null
+  src/models/phase.ts: null
+  src/utils/fs.ts: null
+  src/utils/git.ts: null
+  src/utils/logs.ts: null
+  src/utils/shell.ts: null
+  user.prompt.md: null
+  .nocaflow/initialization/plans/doing/c8a2b1f0.plan.yml: null
+  .nocaflow/initialization/plans/failed/report/f0e9d8c7.b5a4b3c2.report.md: null
+  .nocaflow/initialization/agent-log/main.log: null
+  .nocaflow/initialization/plans/todo/init-todo-1.yml: null
+  .nocaflow/initialization/plans/doing/init-doing-2.yml: null
+  .nocaflow/initialization/plans/review/init-review-1.yml: null
+  .nocaflow/initialization/plans/done/init-done-1.yml: null
+  .nocaflow/initialization/plans/done/init-done-2.yml: null
+  .nocaflow/initialization/plans/done/init-done-3.yml: null
+  .nocaflow/initialization/plans/done/init-done-4.yml: null
+  .nocaflow/initialization/plans/done/init-done-5.yml: null
+  .nocaflow/initialization/plans/done/init-done-6.yml: null
+  .nocaflow/development/plans/todo/dev-plan-01.yml: null
+  .nocaflow/development/plans/todo/dev-plan-02.yml: null
+  .nocaflow/development/plans/todo/dev-plan-03.yml: null
+  .nocaflow/development/plans/todo/dev-plan-04.yml: null
+  .nocaflow/development/plans/todo/dev-plan-05.yml: null
+  .nocaflow/development/plans/todo/dev-plan-06.yml: null
+  .nocaflow/development/plans/todo/dev-plan-07.yml: null
+  .nocaflow/development/plans/todo/dev-plan-08.yml: null
+  .nocaflow/development/plans/todo/dev-plan-09.yml: null
+  .nocaflow/development/plans/todo/dev-plan-10.yml: null
+  .nocaflow/development/plans/todo/dev-plan-11.yml: null
+  .nocaflow/development/plans/todo/dev-plan-12.yml: null
+  .nocaflow/development/plans/todo/dev-plan-13.yml: null
+  .nocaflow/development/plans/todo/dev-plan-14.yml: null
+  .nocaflow/development/plans/todo/dev-plan-15.yml: null
+  .nocaflow/development/plans/todo/dev-plan-16.yml: null
+  .nocaflow/development/plans/todo/dev-plan-17.yml: null
+  .nocaflow/development/plans/todo/dev-plan-18.yml: null
+  .nocaflow/development/plans/todo/dev-plan-19.yml: null
+  .nocaflow/development/plans/todo/dev-plan-20.yml: null
+  .nocaflow/development/plans/todo/dev-plan-21.yml: null
+  .nocaflow/development/plans/todo/dev-plan-22.yml: null
+  .nocaflow/development/plans/todo/dev-plan-23.yml: null
+  .nocaflow/development/plans/todo/dev-plan-24.yml: null
+  .nocaflow/development/plans/todo/dev-plan-25.yml: null
+  .nocaflow/development/agent-log/.gitkeep: null
+  .nocaflow/development/plans/done/.gitkeep: null
+  .nocaflow/development/plans/doing/.gitkeep: null
+  .nocaflow/development/plans/failed/report/.gitkeep: null
+  .nocaflow/development/plans/review/.gitkeep: null
+approved: true
+linesAdded: null
+linesRemoved: null
+linesDifference: null
+gitCommittedAt: '2025-11-11T11:56:28.981Z'
+status: committed
+id: 1
