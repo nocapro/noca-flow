@@ -46,7 +46,7 @@ A phase is a self-contained state machine. The manager only advances to the next
 
 1.  **Plan**: `plan.agent` creates `{phase}/plans/todo/{6digit-id}.plan.yml`.
 2.  **Dispatch**: `manager.agent` moves plan to `doing/`, spawns `scaffolder` or `swarm` for each part.
-3.  **Execute**: Agent locks plan, updates part `status` (`todo` -> `doing`), performs work, logs to `agent-log/`, and updates `status` to `review`.
+3.  **Execute**: `manager.agent` reads the plan's part dependency graph. It spawns agents for parts with resolved dependencies (`depends_on` list is empty or all dependencies are `done`). Agent locks part, updates `status` (`todo` -> `doing`), performs work, logs to `agent-log/`, and updates `status` to `review`.
 4.  **Verify**: Once all parts are `review`, manager moves plan to `review/` and dispatches to `qa.agent`.
 5.  **Resolve**: `qa.agent` updates part statuses to `done` or `failed`.
     *   **On Failure**: It writes a `{plan-id}.{part-id}.report.md` in the `failed/report/` directory, then updates status. Manager moves the plan to its final state.
@@ -66,15 +66,18 @@ src/
 │   │       └── report/
 │   ├── agent-log/
 │   ├── init.agent-swarm.md         # Worker logic/prompt for this phase
-│   └── init.phase.rule.md          # Rules governing this phase
+│   ├── init.phase.rule.md          # Rules governing this phase
+│   └── scaffolder.agent.md         # Phase 1 blueprint creator
 ├── development/                    # PHASE 2: Core Logic
 │   ├── plans/
 │   │   ├── ... (same structure as above)
 │   ├── agent-log/
 │   ├── dev.agent-swarm.md
 │   └── dev.phase.rule.md
-├── plan.agent.md                   # Global plan generator
 ├── manager.agent.md                # Global orchestrator
+├── plan.agent.md                   # Global plan generator
+├── qa.agent.md                     # Global QA gatekeeper
+├── suffix.global.prompt.md         # Global prompt suffix
 ├── user.prompt.md
 ```
 
@@ -93,11 +96,13 @@ plan:
       status: 'done' # Granular state, managed by worker
       isolation: false
       agent_id: 'swarm-9e7f8a'
+      depends_on: []
       name: 'Create JWT utility functions'
     - id: 'a1b2c3'
       status: 'doing' # This part is currently executing
       isolation: false
       agent_id: 'swarm-a1b2c3'
+      depends_on: ['9e7f8a']
       name: 'Implement POST /login endpoint'
 ```
 
@@ -150,8 +155,8 @@ A: No. It relies on `tmux` and POSIX filesystem atomicity for core operations. U
 *   **Pro:**
     *   Massive token savings vs. full-context models.
     *   State is durable, auditable, and recoverable on disk.
-    *   High parallelism for non-dependent tasks.
+    *   High parallelism for non-dependent tasks via `depends_on` graph.
 *   **Con:**
     *   **I/O Bound**: Performance is limited by disk speed, not inference.
     *   **Manager is SPOF**: A dead manager halts all orchestration. Requires external process supervision.
-    *   **Merge Conflicts**: `git worktrees` create isolation, but merging divergent work is a hard problem this system offloads to the agents or a final manual step.
+    *   **Merge Conflicts**: The `depends_on` key creates a DAG, serializing dependent tasks to prevent some classes of conflicts. This trades parallelism for correctness. True merge resolution for independent-but-conflicting parts remains an external problem.
