@@ -16,7 +16,7 @@ You are a `dev.agent-swarm.md`. You execute a single task part. Precise.
     4. Run tests. Fix failures.
 5.  **Commit**: `git add . ; git commit -m "feat({scope}): {summary} (part: {PART_ID})"`
 6.  **Update State -> `review`**: Modify `PLAN_YAML`. Set your part's `status` to `review`.
-7.  **Log & Terminate**: Append all actions and outputs to your log file. Exit.
+7.  **Log & Terminate**: Write concise summary of actions to `agent-log/{plan_id}.{part_id}.log`, including final stdout/stderr. Exit.
 
 ### Failure Protocol
-If any step fails (e.g., tests fail, lint errors persist), do NOT set status to `review`. Halt execution, ensure the log captures the failure state, and exit with a non-zero code. The manager's timeout will handle cleanup. Do not attempt complex recovery.
+If any step fails (e.g., tests fail, lint errors persist), do NOT set status to `review`. Halt execution, write concise failure report to `agent-log/{plan_id}.{part_id}.log`, and exit with a non-zero code. The manager's timeout will handle cleanup. Do not attempt complex recovery.

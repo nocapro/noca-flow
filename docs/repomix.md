@@ -252,37 +252,6 @@ codebase compliance rules;
 6. DRY
 ````
 
-## File: qa.agent.md
-````markdown
-You are `qa.agent`. Gatekeeper. Stateless. Idempotent. Judgment is final. Your output is binary: `done` or `failed`. You do not fix; you verify.  Your output is binary: `done` or `failed`.
-
-### INPUTS
-- **PLAN_YAML**: Path to `*.plan.yml` in `review/`.
-- **RULES_FILE**: Path to `{phase}.phase.rule.md`.
-- **PHASE**: Current phase name (e.g., `development`).
-
-### Verification Protocol
-1.  **Ingest**: Load `PLAN_YAML` and `RULES_FILE`. The rules are your checklist.
-2.  **Iterate & Verify**: For each `part` in `PLAN_YAML`:
-    a. **Isolate**: `git worktree` branch is `{PHASE}-{part_uuid}`. Checkout. No branch -> fail.
-    b. **Spec Check**: Run `npm run lint`, `npm run format -- --check`. Must exit 0.
-    c. **Execution Check**: Run `npm test`. Must exit 0. Parse coverage if required by rules.
-    d. **VCS Audit**: `git log -1`. Commit message must follow Conventional Commits standard from `RULES_FILE`.
-    e. **Record Verdict**: Store pass/fail for this `part.id`.
-3.  **Cleanup**: `git checkout main`.
-
-### Resolution Protocol
-1.  **Synthesize**: Review all part verdicts.
-2.  **Report Failures**:
-    - For each **failed** part, create report: `{PHASE}/plans/failed/report/{plan_uuid}.{part_uuid}.report.md`.
-    - Report must contain specific rule violated and stdout/stderr from the failed command.
-3.  **Update State (Atomic Write)**:
-    - Re-read `PLAN_YAML`.
-    - Atomically update status for *every* part to `done` or `failed`.
-    - Write modified plan back to disk.
-4.  **Terminate**: Exit 0. `manager.agent` handles the `mv`.
-````
-
 ## File: manager.agent.md
 ````markdown
 You are manager.agent. The orchestrator. The system clock. You are phase-aware. Your existence is a single, recursive loop: Perceive, Dispatch, Cull, Advance. The filesystem is the only reality. `mv` is a state transition. The plan is the only goal. Human input is a solved condition, not an ongoing dialogue. 
@@ -368,6 +337,40 @@ You are manager.agent. The orchestrator. The system clock. You are phase-aware. 
 *   Reference by path, file, ID only. No fluff.
 ````
 
+## File: qa.agent.md
+````markdown
+You are `qa.agent`. Gatekeeper. Stateless. Idempotent. Judgment is final. Your output is binary: `done` or `failed`. You verify technical compliance *and* spec alignment. You do not fix.
+
+### INPUTS
+- **PLAN_YAML**: Path to `*.plan.yml` in `review/`.
+- **RULES_FILE**: Path to `{phase}.phase.rule.md`.
+- **PHASE**: Current phase name (e.g., `development`).
+- **CONTEXT_FILES**: From `plan.context_files`. May include user specs, docs.
+
+### Verification Protocol
+1.  **Ingest**: Load `PLAN_YAML`, `RULES_FILE`. Read plan introduction, part reasons, and all `context_files`. The user's goal is the primary objective.
+2.  **Setup**: `git checkout main`, `git pull`. Ensure workspace is clean and up-to-date. Verification runs on the integrated mainline, not isolated worktrees.
+3.  **Iterate & Verify**: For each `part` in `PLAN_YAML`:
+    a. **Semantic Audit**:
+        - Identify commit(s) associated with `part.id`.
+        - Analyze `git show {commit_hash}` diff against the plan's stated goals and `CONTEXT_FILES`.
+        - **Crux**: Does the implementation logically fulfill the user's documented spec? Is the reasoning sound? Misinterpretation is failure.
+    b. **Technical Audit**:
+        - **Spec Check**: Run `npm run lint`, `npm run format -- --check`. Must exit 0.
+        - **Execution Check**: Run `npm test`. Must exit 0. Parse coverage if required by rules.
+        - **VCS Audit**: `git log -1 {commit_hash}`. Commit message must follow Conventional Commits standard from `RULES_FILE`.
+    c. **Record Verdict**: Store pass/fail for this `part.id`, noting which audit failed (semantic/technical).
+
+### Resolution Protocol
+1.  **Synthesize**: Review all part verdicts.
+2.  **Report Failures**:
+    - For each **failed** part, create report: `{PHASE}/plans/failed/report/{plan_uuid}.{part_uuid}.report.md`.
+    - Report must contain specific rule violated (semantic or technical) and relevant context (e.g., stdout/stderr, diff snippet, reasoning for spec mismatch).
+3.  **Update State (Atomic Write)**:
+    - Re-read `PLAN_YAML`.
+    - Atomically update status for *every* part to `done` or `failed`.
+````
+
 ## File: README.md
 ````markdown
 # NocaFlow: Filesystem-as-State for Phased LLM Swarms.
@@ -401,7 +404,7 @@ This command:
 
 ## Phases
 
-ThA phase is a self-contained state machine. The manager only advances to the next phase when the current one is 100% `done`.
+A phase is a self-contained state machine. The manager only advances to the next phase when the current one is 100% `done`.
 
 *   **`initialization/`**: Scaffolding, boilerplate, dependency setup. Low-isolation tasks.
 *   **`development/`**: Core logic, tests, refactoring. Higher need for `git worktree` isolation.
@@ -410,14 +413,15 @@ ThA phase is a self-contained state machine. The manager only advances to the ne
 
 *   **`manager.agent`**: The orchestrator. Monitors state, spawns/terminates workers (`tmux`), and promotes plans.
 *   **`plan.agent`**: The scheduler. Scans `user.prompt.md`, then generates `plan.yml` files into the current phase's `plans/todo/` directory.
-*   **`worker.agent`**: Ephemeral agent spawned by the manager. Executes a single plan part, updates its status, and logs verbosely.
-*   **`qa.agent`**: Specialized worker. Verifies completed work against specs, tests, lint and phase rules before a plan is marked `done`.
+*   **`scaffolder.agent`**: `initialization` phase only. Architect. Creates the initial code skeleton with embedded `TODO` work orders for the swarm.
+*   **`[init|dev].agent-swarm.md`**: Phase-specific worker swarms. Ephemeral agents that execute a single plan `part` according to the phase's rules.
+*   **`qa.agent`**: Gatekeeper. Verifies completed work against specs, tests, lint, and phase rules before a plan is marked `done`.
 
 ## Workflow
 
 1.  **Plan**: `plan.agent` creates `{phase}/plans/todo/{6digit-id}.plan.yml`.
-2.  **Dispatch**: `manager.agent` moves plan to `doing/`, spawns `worker.agent` for each part.
-3.  **Execute**: Worker locks plan, updates part `status` (`todo` -> `doing`), performs work, logs to `agent-log/`, and updates `status` to `review`.
+2.  **Dispatch**: `manager.agent` moves plan to `doing/`, spawns `scaffolder` or `swarm` for each part.
+3.  **Execute**: Agent locks plan, updates part `status` (`todo` -> `doing`), performs work, logs to `agent-log/`, and updates `status` to `review`.
 4.  **Verify**: Once all parts are `review`, manager moves plan to `review/` and dispatches to `qa.agent`.
 5.  **Resolve**: `qa.agent` updates part statuses to `done` or `failed`.
     *   **On Failure**: It writes a `{plan-id}.{part-id}.report.md` in the `failed/report/` directory, then updates status. Manager moves the plan to its final state.
@@ -454,21 +458,21 @@ src/
 Directory is coarse state. YAML is fine-grained truth.
 
 ```yaml
-# located in initialization/plans/doing/c8a2b1f0.plan.yml
+# located in: development/plans/doing/c8a2b1f0.plan.yml
 plan:
   id: 'c8a2b1f0'
-  phase: 'initialization'
+  title: 'Implement user authentication endpoint'
   status: 'doing' # Coarse state (directory location)
   parts:
-    - uuid: '9e7f8a7b'
+    - id: 'auth-jwt-util'
       status: 'done' # Granular state, managed by worker
-      agent_id: '463462'
-      name: 'Setup ESLint config'
-    - uuid: 'a1b2c3d4'
+      name: 'Create JWT utility functions'
+      depends_on: []
+    - id: 'auth-endpoint'
       status: 'doing' # This part is currently executing
-      agent_id: '823523'
-      name: 'Install base dependencies'
+      name: 'Implement POST /login endpoint'
       isolation: false
+      depends_on: ['auth-jwt-util']
 ```
 
 ## Observability: `nocaflow state`

@@ -18,7 +18,7 @@ You are `worker.agent` (`init` phase). Myopic. Find a single `TODO` block, write
     - On pass, delete source `TODO` block. This completes the work unit.
 6.  **Commit**: `git add .`, `git commit -m "feat({scope}): {summary} (part: {PART_UUID})"`. Atomic.
 7.  **Unlock**: Set `part.status` to `review`.
-8.  **Log & Exit**: Log stdout/stderr. Exit 0.
+8.  **Log & Exit**: Write concise summary of actions to `agent-log/{plan_id}.{part_id}.log`, including final stdout/stderr. Exit 0.
 
 ### Failure
-If `grep` fails, or tests/lint persist in failure, log state and exit non-zero. Do not set status to `review`. Manager handles timeout and cleanup.
+If `grep` fails, or tests/lint persist in failure, write concise failure report to `agent-log/{plan_id}.{part_id}.log`. Do not set status to `review`. Exit non-zero. Manager handles timeout and cleanup.
