@@ -1,4 +1,21 @@
 
+===
+
+
+
+
+you are on the goal of finishing the nocaflow of readme.md project, lets blueprinting test cases should be;
+```
+- no MOCK, no spy
+- real implementation
+- each cases isolated and idempotent, clean tmp files and dirs
+- real command Run
+- test.util.ts to be used by test files
+```
+blueprinting: each files should contain only concise // TODO: comments, type signatures, and detailed import statements to serve as a "cheatsheet" for the next AI developer.
+
+again, do not write complete code per todo, only cheatsheet with method name, params, return type.
+
 === DONE
 
 you are on the goal of finishing the nocaflow of readme.md project, lets blueprinting by adding more coverage test cases in test/ test/unit test/e2e test/integration
