@@ -41,6 +41,24 @@ describe('unit/utils/fs', () => {
       // 2. Call `getPhaseStats()`.
       // 3. Assert that all counts in the returned stats object are 0.
     });
+
+    it('should handle missing status subdirectories gracefully', async () => {
+      // TODO: part-unit-fs-stats-missing-subdir - Test plan counting with some status dirs missing.
+      // INSTRUCTIONS:
+      // 1. Create a structure like `.nocaflow/initialization/plans/` but only create a `todo` subdirectory, not `doing`, `done`, etc.
+      // 2. Create a plan file in the `todo` directory.
+      // 3. Call `getPhaseStats()`.
+      // 4. Assert that the stats for `initialization` show `todo: 1` and `doing: 0`, `done: 0`, etc., without throwing an error.
+    });
+
+    it('should ignore non-YAML files', async () => {
+      // TODO: part-unit-fs-stats-ignore-files - Test that non-plan files are not counted.
+      // INSTRUCTIONS:
+      // 1. Create a `.nocaflow/development/plans/todo` directory.
+      // 2. Create `plan1.yml` and `notes.txt` in that directory.
+      // 3. Call `getPhaseStats()`.
+      // 4. Assert that the `todo` count for `development` is 1, not 2.
+    });
   });
 
   describe('getFailedReports', () => {
@@ -62,6 +80,22 @@ describe('unit/utils/fs', () => {
       // 2. Write markdown content to it, including a "## Summary" section.
       // 3. Call `getFailedReports(1)`.
       // 4. Assert that the returned `FailedReport` object has `planId: 'plan1'`, `partId: 'partA'`, and the correct `reason` text.
+    });
+
+    it('should return an empty array if the report directory does not exist', async () => {
+      // TODO: part-unit-fs-reports-no-dir - Test behavior with no report directory.
+      // INSTRUCTIONS:
+      // 1. Do not create any failed report directories.
+      // 2. Call `getFailedReports(24)`.
+      // 3. Assert that the result is an empty array.
+    });
+
+    it('should gracefully handle malformed report filenames', async () => {
+      // TODO: part-unit-fs-reports-bad-name - Test parsing of malformed report names.
+      // INSTRUCTIONS:
+      // 1. Create a report file named `malformed.report.md` (missing partId).
+      // 2. Call `getFailedReports(1)`.
+      // 3. Assert that the returned object has sensible defaults (e.g., `planId: 'malformed'`, `partId: undefined`).
     });
   });
 

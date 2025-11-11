@@ -59,6 +59,17 @@ describe('e2e/cli', () => {
       // 5. Assert that the command exits with code 0.
     });
 
+    it('should display a complex state with active agents and failed reports', async () => {
+      // TODO: part-e2e-state-complex - Test the `state` command with a rich project state.
+      // INSTRUCTIONS:
+      // 1. Run `init` and set up a git repo.
+      // 2. Create multiple dummy plan files in various states (todo, doing, done).
+      // 3. Create a dummy failed report file.
+      // 4. (Challenge) If possible, mock `exec` to simulate `tmux` output for active agents. This is an exception to the "no mock" rule for `tmux`.
+      // 5. Run `runCli('state')`.
+      // 6. Assert that the output contains sections for "Active Agents" and "Stalled / Failed" with the dummy data.
+    });
+
     it('should show an error when run in a non-initialized directory', async () => {
       // TODO: part-e2e-state-fail - Test the `state` command in a non-initialized directory.
       // INSTRUCTIONS:
@@ -74,6 +85,15 @@ describe('e2e/cli', () => {
       // INSTRUCTIONS:
       // 1. Run `runCli('')`.
       // 2. Assert that `stdout` contains the help message (e.g., "Commands:", "Options:").
+    });
+
+    it('should display help when --help flag is used', async () => {
+      // TODO: part-e2e-help-flag - Test running the CLI with --help.
+      // INSTRUCTIONS:
+      // 1. Run `runCli('--help')`.
+      // 2. Assert that `stdout` contains the help message.
+      // 3. Run `runCli('state --help')`.
+      // 4. Assert that `stdout` contains help information specific to the `state` command.
     });
   });
 });

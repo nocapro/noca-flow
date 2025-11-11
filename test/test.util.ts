@@ -45,3 +45,18 @@ export const setupTestDirectory = async (): Promise<{
 export const initGitRepo = async (): Promise<void> => {
   throw new Error('Not implemented');
 };
+
+// TODO: part-test-util-create-plan - Implement a utility to create a dummy plan file.
+// INSTRUCTIONS:
+// 1. Create an async function `createDummyPlanFile(phase: 'initialization' | 'development', status: 'todo' | 'doing' | 'done' | 'review' | 'failed', fileName: string)`.
+// 2. The function should create the necessary directory structure inside the current test directory.
+//    - e.g., `.nocaflow/${phase}/plans/${status}/`
+// 3. It should write a minimal, empty YAML file to that path.
+//    - e.g., `fs.writeFile(path.join(..., fileName), '# dummy plan')`.
+export const createDummyPlanFile = async (
+  phase: 'initialization' | 'development',
+  status: 'todo' | 'doing' | 'done' | 'review' | 'failed',
+  fileName: string,
+): Promise<void> => {
+  throw new Error('Not implemented');
+};
