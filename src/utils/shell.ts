@@ -17,9 +17,9 @@ export interface AgentInfo {
 export const getActiveAgents = async (): Promise<AgentInfo[]> => {
   // TODO: Execute 'tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"'.
   // TODO: Parse the output. Session names follow conventions from manager.agent.md:
-  // - Worker: "{phase}-{part_id}" (e.g., "init-a1b2c3d4")
-  // - Scaffolder: "init-scaffold-{plan_id}"
-  // - QA: "qa-{plan_id}"
+  // - Worker: "{phase}-{part_id}" (e.g., "init-a1b2c3")
+  // - Scaffolder: "init-scaffold-{plan_id}" (e.g., "init-scaffold-c8a2b1")
+  // - QA: "qa-{plan_id}" (e.g., "qa-f0e9d8")
   // TODO: For worker sessions, find the corresponding plan file in `.nocaflow/{phase}/plans/doing/` to look up the planId.
   // TODO: Calculate runtime from session_activity (it's a unix timestamp).
   // TODO: Return a list of AgentInfo objects matching the README.md output.

@@ -1,12 +1,12 @@
 plan:
-  id: 'e5d6c7b8'
+  id: 'e5d6c7'
   status: 'todo'
   title: 'Setup Database Schema and User Model'
   introduction: |
     This plan will create the initial database migration for the users table and define the corresponding data model in the application.
     This is a foundational step before any user-related business logic can be implemented.
   parts:
-    - id: 'scaffold'
+    - id: 'scaf02'
       status: 'todo'
       isolation: false
       agent_id: 'scaffolder'
@@ -14,7 +14,7 @@ plan:
       reason: |
         To create the file structure and boilerplate for the database migration and user model, with detailed TODOs for the implementation swarm.
       steps:
-        - id: 'scf-step-1'
+        - id: 'scfs2a'
           status: 'todo'
           name: 'Create migration file'
           reason: 'To define the users table schema.'
@@ -23,7 +23,7 @@ plan:
             - 'Create the file.'
             - 'Add boilerplate for a database migration script.'
             - 'Embed a TODO with instructions to define columns: id, email, password_hash, created_at.'
-        - id: 'scf-step-2'
+        - id: 'scfs2b'
           status: 'todo'
           name: 'Create user model file'
           reason: 'To provide a type-safe representation of a user.'
@@ -36,23 +36,23 @@ plan:
         compact: []
         medium: []
         extended: []
-    - id: 'impl-db-part'
+    - id: 'dbimpl'
       status: 'todo'
       isolation: false
-      agent_id: 'init-swarm-1'
-      depends_on: ['scaffold']
+      agent_id: 'agntd1'
+      depends_on: ['scaf02']
       name: 'Part 2: Implement Database Migration and Model'
       reason: |
         To execute the instructions left by the scaffolder agent to build the actual database schema and user model.
       steps:
-        - id: 'impl-step-1'
+        - id: 'dbim1a'
           status: 'todo'
           name: 'Implement user migration'
           reason: 'To write the SQL or ORM code that creates the users table.'
           files: ['src/db/migrations/001_create_users_table.ts']
           operations:
             - 'Follow the instructions in the TODO block to define the table schema.'
-        - id: 'impl-step-2'
+        - id: 'dbim1b'
           status: 'todo'
           name: 'Implement user model'
           reason: 'To define the User type.'
