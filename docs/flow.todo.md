@@ -1,3 +1,6 @@
+
+create new branch, implement development phase
+
 === DONE
 
 you are on the goal of finishing the nocaflow of readme.md project, lets blueprinting by adding more coverage test cases in test/ test/unit test/e2e test/integration while also eliminating redundancies
