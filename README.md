@@ -29,7 +29,7 @@ This command:
 
 ## Phases
 
-ThA phase is a self-contained state machine. The manager only advances to the next phase when the current one is 100% `done`.
+A phase is a self-contained state machine. The manager only advances to the next phase when the current one is 100% `done`.
 
 *   **`initialization/`**: Scaffolding, boilerplate, dependency setup. Low-isolation tasks.
 *   **`development/`**: Core logic, tests, refactoring. Higher need for `git worktree` isolation.
@@ -38,14 +38,15 @@ ThA phase is a self-contained state machine. The manager only advances to the ne
 
 *   **`manager.agent`**: The orchestrator. Monitors state, spawns/terminates workers (`tmux`), and promotes plans.
 *   **`plan.agent`**: The scheduler. Scans `user.prompt.md`, then generates `plan.yml` files into the current phase's `plans/todo/` directory.
-*   **`worker.agent`**: Ephemeral agent spawned by the manager. Executes a single plan part, updates its status, and logs verbosely.
-*   **`qa.agent`**: Specialized worker. Verifies completed work against specs, tests, lint and phase rules before a plan is marked `done`.
+*   **`scaffolder.agent`**: `initialization` phase only. Architect. Creates the initial code skeleton with embedded `TODO` work orders for the swarm.
+*   **`[init|dev].agent-swarm.md`**: Phase-specific worker swarms. Ephemeral agents that execute a single plan `part` according to the phase's rules.
+*   **`qa.agent`**: Gatekeeper. Verifies completed work against specs, tests, lint, and phase rules before a plan is marked `done`.
 
 ## Workflow
 
 1.  **Plan**: `plan.agent` creates `{phase}/plans/todo/{6digit-id}.plan.yml`.
-2.  **Dispatch**: `manager.agent` moves plan to `doing/`, spawns `worker.agent` for each part.
-3.  **Execute**: Worker locks plan, updates part `status` (`todo` -> `doing`), performs work, logs to `agent-log/`, and updates `status` to `review`.
+2.  **Dispatch**: `manager.agent` moves plan to `doing/`, spawns `scaffolder` or `swarm` for each part.
+3.  **Execute**: Agent locks plan, updates part `status` (`todo` -> `doing`), performs work, logs to `agent-log/`, and updates `status` to `review`.
 4.  **Verify**: Once all parts are `review`, manager moves plan to `review/` and dispatches to `qa.agent`.
 5.  **Resolve**: `qa.agent` updates part statuses to `done` or `failed`.
     *   **On Failure**: It writes a `{plan-id}.{part-id}.report.md` in the `failed/report/` directory, then updates status. Manager moves the plan to its final state.
@@ -82,21 +83,21 @@ src/
 Directory is coarse state. YAML is fine-grained truth.
 
 ```yaml
-# located in initialization/plans/doing/c8a2b1f0.plan.yml
+# located in: development/plans/doing/c8a2b1f0.plan.yml
 plan:
   id: 'c8a2b1f0'
-  phase: 'initialization'
+  title: 'Implement user authentication endpoint'
   status: 'doing' # Coarse state (directory location)
   parts:
-    - uuid: '9e7f8a7b'
+    - id: 'auth-jwt-util'
       status: 'done' # Granular state, managed by worker
-      agent_id: '463462'
-      name: 'Setup ESLint config'
-    - uuid: 'a1b2c3d4'
+      name: 'Create JWT utility functions'
+      depends_on: []
+    - id: 'auth-endpoint'
       status: 'doing' # This part is currently executing
-      agent_id: '823523'
-      name: 'Install base dependencies'
+      name: 'Implement POST /login endpoint'
       isolation: false
+      depends_on: ['auth-jwt-util']
 ```
 
 ## Observability: `nocaflow state`
