@@ -6,6 +6,17 @@ update readme.md
 - no worker.agent, only init.agent-swarms.md and dev.agent-swarms.md
 - ## State Representation (YAML) should be follow the format on plan.agent.md
 
+update plan.agent.md
+plan.agent should phase aware about when and how to produce plan for initialization concern vs development concern 
+
+
+also need depends_on for parts in plan.
+
+
+
+update all agent.md: 
+- should explicit mention in agent log
+
 
 update qa.agent.md
 
@@ -13,13 +24,6 @@ update qa.agent.md
 - should has step to understand user project specs. sometimes user specs located in docs
 - main goal is to align implementation with user specs and expectations
 
-update plan.agent
-
-plan.agent should phase aware about when and how to produce plan for initialization concern vs development concern 
-
-update all agent.md
-
-- should explicit mention in agent log
 
 ===
 
