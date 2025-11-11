@@ -1,9 +1,14 @@
+=== DONE
 
-===
+- in init, phase qa should make sure that all blueprint todos and structure across codebase is sufficient to make app production ready after done by worker, also comply with user specs. 
+
+- in dev phase, qa should make sure no technical debt like DRYless, bandaids etc.
+
+=== DONE
 
 should give path .nocaflow/ when mentioning files/dirs because .nocaflow will inside the user project root
 
-===
+=== DONE
 
 add last agents activites in nocaflow state bash output
 
