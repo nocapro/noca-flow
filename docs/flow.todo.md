@@ -1,5 +1,8 @@
 
-===
+
+applied, but I still believe many things not aligned with below additional context
+
+=== DONE
 
 
 understand everything especially the readme, then initialize the npm nocaflow project by prepare detailed boilerplate across structure to create nocaflow state with exatc output like in readme.md nocaflow state bash. each files should contain only concise // TODO: comments, type signatures, and detailed import statements to serve as a "cheatsheet" for the next AI developer.
@@ -7,6 +10,19 @@ understand everything especially the readme, then initialize the npm nocaflow pr
 again. to save your token cost , do not write complete code per todo, only cheatsheet like method name, params, return type.
 
 all should HOF no OOP
+
+do not generate what are already exist
+
+huawei@huawei:~/project/code/noca-flow$ ls
+development       plan.agent.md      repomix.config.json
+docs              qa.agent.md        suffix.global.prompt.md
+initialization    README.md
+manager.agent.md  relay.config.json
+huawei@huawei:~/project/code/noca-flow$ ls initialization
+init.agent-swarm.md  init.phase.rule.md  scaffolder.agent.md
+huawei@huawei:~/project/code/noca-flow$ ls development
+dev.agent-swarm.md  dev.phase.rule.md
+huawei@huawei:~/project/code/noca-flow$
 
 =====
 start programming

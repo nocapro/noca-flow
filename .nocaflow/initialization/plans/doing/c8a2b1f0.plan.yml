@@ -1,0 +1,17 @@
+plan:
+  id: 'c8a2b1f0'
+  title: 'Implement user authentication endpoint'
+  status: 'doing'
+  parts:
+    - id: '9e7f8a7b'
+      status: 'done'
+      isolation: false
+      agent_id: '9e7f8a'
+      depends_on: []
+      name: 'Create JWT utility functions'
+    - id: 'a1b2c3d4'
+      status: 'doing'
+      isolation: false
+      agent_id: 'a1b2c3'
+      depends_on: ['9e7f8a7b']
+      name: 'Implement POST /login endpoint'
