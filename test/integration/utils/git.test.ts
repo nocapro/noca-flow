@@ -54,6 +54,14 @@ describe('integration/utils/git', () => {
     // 3. Assert that the length of the returned array is exactly 3.
   });
 
+  it('should return an empty array for a repository with no commits', async () => {
+    // TODO: part-int-git-no-commits - Test behavior with a fresh repo.
+    // INSTRUCTIONS:
+    // 1. Use a separate setup that only calls `git init` but does not create an initial commit.
+    // 2. Call `getGitLog(5)`.
+    // 3. Assert that the result is an empty array.
+  });
+
   it('should handle commit messages with special characters', async () => {
     // TODO: part-int-git-special-chars - Test parsing of complex commit messages.
     // INSTRUCTIONS:
