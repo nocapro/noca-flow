@@ -2,15 +2,13 @@
 
 ## Core Problem
 
-Context windows are volatile, expensive memory. Passing full history to parallel agents doesn't scale. It creates context rot and massive token overhead.
+Passing full history to parallel agents doesn't scale. It creates context rot and massive token overhead.
 
 ## The Fix: Phased, Durable State Machine on Disk
 
-nocaflow treats the filesystem as the single source of truth. State changes are atomic file operations. Agents are stateless workers executing tasks defined in YAML. The system progresses through distinct phases (`initialization`, `development`), each with its own rules and plan queue. This is a job tracker built on `mv`, `flock`, and `git`.
+nocaflow treats the filesystem as the single source of truth. State changes are atomic file operations. Agents are stateless workers executing tasks defined in YAML. The system progresses through `initialization`, `development` phases, each with its own rules and plan queue. This is a job tracker built on `mv`, `flock`, and `git`.
 
 ## Installation
-
-This is an NPM package. Install the CLI globally.
 
 ```bash
 npm install -g nocaflow
@@ -25,13 +23,13 @@ nocaflow init
 ```
 
 This command:
-1.  Checks for `git` and `tmux`. Fails if they are not installed.
-2.  Runs `git init` if the directory is not already a Git repository.
+1.  Checks for `git` and `tmux`. Fails if not installed.
+2.  Runs `git init`
 3.  Scaffolds the phase directories: `initialization/` and `development/`, including all necessary subdirectories (`plans/todo`, `agent-log`, etc.) and placeholder agent/rule files.
 
 ## Phases
 
-The project lifecycle is broken into isolated stages. A phase is a self-contained state machine. The manager only advances to the next phase when the current one is 100% `done`.
+ThA phase is a self-contained state machine. The manager only advances to the next phase when the current one is 100% `done`.
 
 *   **`initialization/`**: Scaffolding, boilerplate, dependency setup. Low-isolation tasks.
 *   **`development/`**: Core logic, tests, refactoring. Higher need for `git worktree` isolation.
@@ -54,8 +52,9 @@ The project lifecycle is broken into isolated stages. A phase is a self-containe
 
 ## Directory & Naming Conventions
 
-```
-nocaflow/
+``` project root
+src/
+.nocaflow/
 ├── initialization/                 # PHASE 1: Scaffolding
 │   ├── plans/
 │   │   ├── todo/
@@ -74,7 +73,6 @@ nocaflow/
 │   ├── dev.agent-swarm.md
 │   └── dev.phase.rule.md
 ├── plan.agent.md                   # Global plan generator
-├── plan.prompt.md                  # Global plan generator
 ├── manager.agent.md                # Global orchestrator
 ├── user.prompt.md
 ```
@@ -86,7 +84,7 @@ Directory is coarse state. YAML is fine-grained truth.
 ```yaml
 # located in initialization/plans/doing/c8a2b1f0.plan.yml
 plan:
-  uuid: 'c8a2b1f0'
+  id: 'c8a2b1f0'
   phase: 'initialization'
   status: 'doing' # Coarse state (directory location)
   parts:

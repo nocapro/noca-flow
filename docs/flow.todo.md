@@ -1,21 +1,50 @@
 ===
 
+update readme.md
+
+- mention scaffolder.agent.md in ## Actors
+- no worker.agent, only init.agent-swarms.md and dev.agent-swarms.md
+- ## State Representation (YAML) should be follow the format on plan.agent.md
+
+
+update qa.agent.md
+
+- should not isolated git worktree
+- should has step to understand user project specs. sometimes user specs located in docs
+- main goal is to align implementation with user specs and expectations
+
+update plan.agent
+
+plan.agent should phase aware about when and how to produce plan for initialization concern vs development concern 
+
+update all agent.md
+
+- should explicit mention in agent log
+
+===
+
 nocaflow state | nocaflow agent.plan
 
 
 ===
 
-let's put current manager.agent.md to development/ dir as dev-manager.agent.md because now we need init-manager.agent.md in initialization/
+let's put current manager.agent.md to development/ dir as dev-manager.agent.md because now we need init-manager.agent.md on in initialization/
 
 init phase cycle
 
-- scaffolder agent output is whole codebase blueprint analysed from a all parts of plan.yml 
-- manager.agent spawn worker.agent swarms to execute blindly all blueprint todos across codebase
-- worker.agent swarms only execute the todo instructions steps with unit tests cases until greens no lint problems
-- qa.agent review for worker.agent work 
-- manager.agent spawn another worker.agent for unpass qa.agent work
+1. scaffolder agent output is whole codebase blueprint analysed from a all parts of plan.yml 
+2. manager.agent spawn worker.agent swarms to execute blindly all blueprint todos across codebase
+3. worker.agent swarms only execute the todo instructions steps with unit tests cases until greens no lint problems
+4. qa.agent review for worker.agent work 
+5. manager.agent spawn another worker.agent for unpass qa.agent work
 
 when there is no blueprint todo in codebase, and qa says advance, then phase development starts
+
+___
+
+1. scaffolder.agent execute whole single plan not individual part 
+scaffolder.agent execute whole single plan not individual part 
+2. // todo should multiline detailed instructions steps because the worker is less intelligence 
 
 ===
 
