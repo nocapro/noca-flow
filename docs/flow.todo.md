@@ -1,5 +1,9 @@
 === DONE
 
+project structure in readme.md needs to mention all mds files
+
+=== DONE
+
 Yaml example in readme.md should be in correct format/shape as in plan.agent.md like all ids should be 6 random digit and has agent_id on parts
 
 === DONE
