@@ -1,0 +1,140 @@
+uuid: 09d93616-d3a9-4679-b1d6-44b4c207fc19
+projectId: noca-flow
+createdAt: '2025-11-11T12:22:51.665Z'
+gitCommitMsg: >-
+  feat: blueprint init command and update CLI
+
+  This commit continues the process of converting the codebase into
+  agent-friendly blueprints.
+
+  - A new file `src/commands/init.ts` is created with a detailed blueprint for
+  the `handleInitCommand` function. This blueprint outlines the steps to create
+  the `.nocaflow` directory structure. - `src/cli.ts` is updated to import and
+  use `handleInitCommand`, replacing the placeholder inline function.
+
+  This change finalizes the blueprinting of the core CLI commands, making the
+  entire application structure ready for implementation by AI agents.
+promptSummary: >-
+  The user requested to continue blueprinting the codebase to align with agent
+  protocols. This involved creating a new command handler for `init` and
+  updating the main CLI file.
+reasoning:
+  - >-
+    Excellent. The blueprinting process is aligning the codebase with the
+    agent-driven development model. The next logical step is to continue this
+    pattern for the remaining commands and logic.
+  - >-
+    I will now blueprint the `init` command. This involves creating a new
+    command handler file, `src/commands/init.ts`, and updating the main CLI
+    entrypoint, `src/cli.ts`, to use it. This will complete the blueprinting for
+    all core functionalities defined so far.
+  - '### Create `init` Command Blueprint'
+  - >-
+    First, I will create the file `src/commands/init.ts`. This file will contain
+    the `handleInitCommand` function with a detailed blueprint for creating the
+    necessary `.nocaflow` directory structure. This ensures the project
+    initialization is also handled by a dedicated agent part.
+  - '### Update CLI Entrypoint'
+  - >-
+    Next, I will modify `src/cli.ts` to integrate the new `init` command
+    handler. This removes the last piece of placeholder logic from the main
+    entrypoint, making it a pure command router.
+  - >-
+    With these changes, all TypeScript files containing logic have been
+    converted into clean, actionable blueprints. The codebase is now fully
+    prepared for the implementation phase by the AI swarm, with each task
+    clearly delineated.
+operations:
+  - type: write
+    path: src/commands/init.ts
+    content: |-
+      import fs from 'fs/promises';
+      import path from 'path';
+
+      /**
+       * @description Handles the logic for the 'init' command.
+       */
+      export const handleInitCommand = async (argv: {}): Promise<void> => {
+        // TODO: part-init-scaffold - Create the initial .nocaflow directory structure.
+        // INSTRUCTIONS:
+        // 1. Check if a `.nocaflow` directory already exists in the current working directory. If it does, log a warning message and exit the process to avoid overwriting existing state.
+        // 2. Define an array of directory paths that need to be created. This should include all subdirectories for both 'initialization' and 'development' phases as seen in the project structure.
+        //    - e.g., '.nocaflow/initialization/agent-log', '.nocaflow/initialization/plans/todo', etc.
+        // 3. Iterate through the array and use `fs.mkdir` with the `{ recursive: true }` option to create each directory.
+        // 4. Define an array of paths for `.gitkeep` files that should be placed in empty directories to ensure they are tracked by Git.
+        //    - e.g., '.nocaflow/initialization/agent-log/.gitkeep', '.nocaflow/development/plans/todo/.gitkeep', etc.
+        // 5. Iterate through the `.gitkeep` file paths and create each empty file using `fs.writeFile(filePath, '')`.
+        // 6. After successfully creating the structure, log a confirmation message to the console.
+        throw new Error('Not implemented');
+      };
+    patchStrategy: replace
+  - type: write
+    path: src/cli.ts
+    content: >+
+      --- src/cli.ts
+
+      +++ src/cli.ts
+
+      @@ -1,15 +1,14 @@
+       import yargs from 'yargs';
+       import { hideBin } from 'yargs/helpers';
+       import { handleStateCommand } from './commands/state';
+      -
+
+      -// TODO: Set up yargs to handle commands and options.
+
+      -// 'init' command: Initializes a nocaflow project. (Implementation
+      pending)
+
+      -// 'state' command: Displays the current state of the project.
+
+      +import { handleInitCommand } from './commands/init';
+       
+       yargs(hideBin(process.argv))
+      -  .command('init', 'Initialize a nocaflow project in the current
+      directory',
+
+      +  .command(
+
+      +    'init',
+
+      +    'Initialize a nocaflow project in the current directory',
+           () => {},
+      -    (argv) => console.log('// TODO: Implement init command logic.')
+
+      +    handleInitCommand,
+         )
+         .command('state', 'Display the current state of the nocaflow project',
+           () => {},
+
+    patchStrategy: standard-diff
+snapshot:
+  src/commands/init.ts: null
+  src/cli.ts: |-
+    import yargs from 'yargs';
+    import { hideBin } from 'yargs/helpers';
+    import { handleStateCommand } from './commands/state';
+
+    // TODO: Set up yargs to handle commands and options.
+    // 'init' command: Initializes a nocaflow project. (Implementation pending)
+    // 'state' command: Displays the current state of the project.
+
+    yargs(hideBin(process.argv))
+      .command('init', 'Initialize a nocaflow project in the current directory',
+        () => {},
+        (argv) => console.log('// TODO: Implement init command logic.')
+      )
+      .command('state', 'Display the current state of the nocaflow project',
+        () => {},
+        handleStateCommand
+      )
+      .demandCommand(1, 'You need at least one command before moving on')
+      .help()
+      .argv;
+approved: true
+linesAdded: null
+linesRemoved: null
+linesDifference: null
+gitCommittedAt: null
+status: committed
+id: 6
