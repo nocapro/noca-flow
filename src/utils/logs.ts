@@ -13,9 +13,10 @@ export interface LogEntry {
  * @returns A list of recent log entries, sorted newest first.
  */
 export const getRecentLogs = async (limit: number): Promise<LogEntry[]> => {
-  // TODO: Find all log files in .nocaflow/{phase}/agent-log/.
-  // TODO: Read the last few lines from each or read all and sort by timestamp.
-  // TODO: Parse log lines into LogEntry objects.
+  // TODO: Find all log files in .nocaflow/{phase}/agent-log/ matching pattern *.log.
+  // TODO: Read log files. Each line is an entry.
+  // TODO: Parse lines with a regex like /^(?<timestamp>.*?) \[(?<status>\w+)\|(?<phase>\w+)\|(?<agentId>.*?)\] plan:(?<planId>\S+) - (?<message>.*)$/
+  // TODO: Create LogEntry objects.
   // TODO: Return the 'limit' most recent entries.
   return [];
 };
