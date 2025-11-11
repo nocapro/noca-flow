@@ -1,0 +1,35 @@
+{
+  "name": "nocaflow",
+  "version": "0.0.1",
+  "description": "Filesystem-as-State for Phased LLM Swarms.",
+  "main": "dist/index.js",
+  "bin": {
+    "nocaflow": "dist/cli.js"
+  },
+  "scripts": {
+    "start": "node dist/cli.js",
+    "build": "tsc",
+    "dev": "ts-node src/cli.ts"
+  },
+  "keywords": [
+    "llm",
+    "swarm",
+    "agent",
+    "orchestration"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "dayjs": "^1.11.10",
+    "js-yaml": "^4.1.0",
+    "yargs": "^17.7.2"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.10.4",
+    "@types/yargs": "^17.0.32",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
