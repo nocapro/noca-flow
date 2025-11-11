@@ -44,12 +44,12 @@ A phase is a self-contained state machine. The manager only advances to the next
 
 ## Workflow
 
-1.  **Plan**: `plan.agent` creates `{phase}/plans/todo/{6digit-id}.plan.yml`.
+1.  **Plan**: `plan.agent` creates `.nocaflow/{phase}/plans/todo/{6digit-id}.plan.yml`.
 2.  **Dispatch**: `manager.agent` moves plan to `doing/`, spawns `scaffolder` or `swarm` for each part.
-3.  **Execute**: `manager.agent` reads the plan's part dependency graph. It spawns agents for parts with resolved dependencies (`depends_on` list is empty or all dependencies are `done`). Agent locks part, updates `status` (`todo` -> `doing`), performs work, logs to `agent-log/`, and updates `status` to `review`.
+3.  **Execute**: `manager.agent` reads the plan's part dependency graph. It spawns agents for parts with resolved dependencies (`depends_on` list is empty or all dependencies are `done`). Agent locks part, updates `status` (`todo` -> `doing`), performs work, logs to `.nocaflow/{phase}/agent-log/`, and updates `status` to `review`.
 4.  **Verify**: Once all parts are `review`, manager moves plan to `review/` and dispatches to `qa.agent`.
 5.  **Resolve**: `qa.agent` updates part statuses to `done` or `failed`.
-    *   **On Failure**: It writes a `{plan-id}.{part-id}.report.md` in the `failed/report/` directory, then updates status. Manager moves the plan to its final state.
+    *   **On Failure**: It writes a `{plan-id}.{part-id}.report.md` in the `.nocaflow/{phase}/plans/failed/report/` directory, then updates status. Manager moves the plan to its final state.
 
 ## Directory & Naming Conventions
 
@@ -86,7 +86,7 @@ src/
 Directory is coarse state. YAML is fine-grained truth.
 
 ```yaml
-# located in: development/plans/doing/c8a2b1.plan.yml
+# located in: .nocaflow/development/plans/doing/c8a2b1.plan.yml
 plan:
   id: 'c8a2b1'
   title: 'Implement user authentication endpoint'
@@ -128,9 +128,14 @@ Current Phase: initialization
 [INIT|463462] plan:c8a2b1f0 part:9e7f8a7b (running 12m)
 [INIT|823523] plan:c8a2b1f0 part:a1b2c3d4 (running 2m)
 
+== Recent Agent Activity (last 5) ==
+[DONE|INIT|9e7f8a] plan:c8a2b1f0 - Wrote 2 files, tests pass. (2m ago)
+[DONE|INIT|scaffold] plan:f0e9d8c7 - Scaffolded 5 files. (15m ago)
+[FAIL|QA|f0e9d8c7] plan:f0e9d8c7 - Coverage below 80%. (22m ago)
+
 == Stalled / Failed (last 24h) ==
 [FAILED] plan:f0e9d8c7 part:b5a4b3c2 - "Coverage below 80%"
-         Report: initialization/plans/failed/f0e9d8c7.b5a4b3c2.report.md
+         Report: .nocaflow/initialization/plans/failed/f0e9d8c7.b5a4b3c2.report.md
 
 == Recent Git Commits (all worktrees) ==
 a4e2c1f (wt-dev-995104) feat: add initial test harness for gitignore
