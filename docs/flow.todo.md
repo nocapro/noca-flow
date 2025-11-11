@@ -1,3 +1,19 @@
+===
+
+last agents activites in nocaflow state bash output
+
+=== DONE
+
+**Concurrency**: 3–5 swarm agents (min 3, max 5). Give me diff patches of manager.agent.md  So manage agent task is also  to maintain the pace . Just simple edit. 
+
+=== DONE
+
+Make the qa.agent.md understand what to do in init or dev phase situation ... Give me the diff patches
+
+=== DONE
+
+all repeated should be in suffix.global.prompt.md 
+
 === DONE
 
 project structure in readme.md needs to mention all mds files
