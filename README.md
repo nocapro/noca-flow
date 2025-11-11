@@ -83,21 +83,22 @@ src/
 Directory is coarse state. YAML is fine-grained truth.
 
 ```yaml
-# located in: development/plans/doing/c8a2b1f0.plan.yml
+# located in: development/plans/doing/c8a2b1.plan.yml
 plan:
-  id: 'c8a2b1f0'
+  id: 'c8a2b1'
   title: 'Implement user authentication endpoint'
   status: 'doing' # Coarse state (directory location)
   parts:
-    - id: 'auth-jwt-util'
+    - id: '9e7f8a'
       status: 'done' # Granular state, managed by worker
-      name: 'Create JWT utility functions'
-      depends_on: []
-    - id: 'auth-endpoint'
-      status: 'doing' # This part is currently executing
-      name: 'Implement POST /login endpoint'
       isolation: false
-      depends_on: ['auth-jwt-util']
+      agent_id: 'swarm-9e7f8a'
+      name: 'Create JWT utility functions'
+    - id: 'a1b2c3'
+      status: 'doing' # This part is currently executing
+      isolation: false
+      agent_id: 'swarm-a1b2c3'
+      name: 'Implement POST /login endpoint'
 ```
 
 ## Observability: `nocaflow state`
