@@ -24,6 +24,7 @@ describe('state command helpers', () => {
     // It should respect the length parameter.
     // 1. Call `renderProgressBar(1, 2, 20)`.
     // 2. Assert the filled part has 10 '▇' characters.
+    // 3. Assert the output is `[▇▇▇▇▇▇▇▇▇▇----------] (1/2 plans done)`.
     it('should handle different bar lengths', () => {});
 
     // TODO: Test case for progress that isn't a clean fraction.
