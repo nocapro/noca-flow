@@ -3,7 +3,7 @@
   "projectId": "noca-flow",
   "core": {
     "logLevel": "info",
-    "enableNotifications": true,
+    "enableNotifications": false,
     "watchConfig": true
   },
   "watcher": {
@@ -11,9 +11,9 @@
     "preferredStrategy": "auto"
   },
   "patch": {
-    "approvalMode": "auto",
+    "approvalMode": "manual",
     "approvalOnErrorCount": 0,
-    "linter": "bun tsc --noEmit",
+    "linter": "",
     "preCommand": "",
     "postCommand": "",
     "minFileChanges": 0
