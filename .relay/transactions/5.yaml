@@ -1,0 +1,889 @@
+uuid: 44033ec0-e221-4f08-b12e-14eb023f79aa
+projectId: noca-flow
+createdAt: '2025-11-11T12:20:37.529Z'
+gitCommitMsg: >-
+  refactor: convert TODOs to detailed agent blueprints
+
+  This commit refactors the core utility and command files to align with the
+  agent protocol of providing detailed blueprints rather than placeholder
+  implementations.
+
+  - Replaced simple `// TODO:` comments with multi-line `INSTRUCTIONS` blocks
+  that serve as "cheatsheets" for implementation agents. - Removed placeholder
+  return values and hardcoded examples, replacing them with `throw new
+  Error('Not implemented')`. - Added necessary imports (`chalk`, `dayjs`, `fs`,
+  `path`, etc.) to prepare files for implementation. - Promisified
+  `child_process.exec` for cleaner async/await usage in git and shell utilities.
+
+  This change makes the codebase a more effective scaffold for the AI swarm,
+  clarifying the tasks for each agent part.
+promptSummary: >-
+  The user requested to deepen alignment with agent protocols by converting
+  TODOs into detailed blueprints for implementation agents. This involves adding
+  detailed instructions, type signatures, and necessary imports, while removing
+  placeholder logic.
+reasoning:
+  - >-
+    This request requires a deep alignment with the agent-based development
+    protocol outlined in your project's documentation. My primary goal is to
+    transform existing `// TODO:` comments into detailed, structured
+    "blueprints" or "cheatsheets". These blueprints will guide subsequent AI
+    agents by providing clear instructions, function signatures, and necessary
+    imports, without implementing the logic itself. This adheres to the
+    principle of creating a scaffold for other agents to build upon, thereby
+    saving on token costs and ensuring a clear separation of concerns between
+    planning and execution.
+  - >-
+    I will now modify the key utility and command files to reflect this
+    blueprinting strategy.
+  - '### Refactor `state` Command'
+  - >-
+    First, I'll update `src/commands/state.ts`. The existing implementation
+    contains a hardcoded example output and basic `TODO`s. I will replace these
+    with detailed blueprints for fetching data and rendering the state report,
+    and I'll remove the large, static console log. I'm also adding `chalk` to
+    the imports as it will be required for rendering.
+  - '### Blueprint Filesystem Utilities'
+  - >-
+    Next, I'll enhance the filesystem utilities in `src/utils/fs.ts`. This
+    involves adding necessary imports (`path`, `fs/promises`, `js-yaml`,
+    `dayjs`) and replacing the simple `TODO` comments with comprehensive
+    instructions for each function.
+  - '### Blueprint Git Utilities'
+  - >-
+    The `git` utility needs a more robust blueprint for fetching and parsing
+    commit logs, especially for handling worktrees. I'll promisify the `exec`
+    function and provide a detailed multi-step process for the implementation
+    agent.
+  - '### Blueprint Log Parsing Utilities'
+  - >-
+    Similarly, the log parsing utility in `src/utils/logs.ts` will be updated to
+    provide a clearer path for implementation, including which directories to
+    scan and what a parsing regex might look like.
+  - '### Blueprint Shell Utilities'
+  - >-
+    Finally, I'll update the shell utility in `src/utils/shell.ts` for
+    discovering active agents via `tmux`. This is a complex task, so the
+    blueprint needs to be very specific about parsing the command output and
+    handling the various agent naming conventions.
+  - >-
+    These changes convert the existing codebase into a well-defined set of
+    blueprints, perfectly aligning with the project's agent-based development
+    methodology.
+operations:
+  - type: write
+    path: src/commands/state.ts
+    content: >+
+      --- src/commands/state.ts
+
+      +++ src/commands/state.ts
+
+      @@ -1,11 +1,8 @@
+
+      +import chalk from 'chalk';
+       import { getPhaseStats, PhaseStats, getFailedReports, FailedReport } from '../utils/fs';
+       import { getActiveAgents, AgentInfo } from '../utils/shell';
+       import { getRecentLogs, LogEntry } from '../utils/logs';
+       import { getGitLog, GitCommit } from '../utils/git';
+      -
+
+      -// TODO: Implement the logic for the 'state' command.
+
+      -// This function will be called by yargs when 'nocaflow state' is
+      executed.
+       
+       /**
+        * @description Renders a progress bar.
+      @@ -15,49 +12,48 @@
+        * @returns A string representing the progress bar.
+        */
+       const renderProgressBar = (current: number, total: number, length: number = 20): string => {
+      -  // TODO: Implement progress bar rendering logic. e.g. [▇▇▇▇----]
+
+      -  return `(${current}/${total} plans done)`;
+
+      +  // TODO: part-state-render-progress - Implement progress bar rendering
+      logic.
+
+      +  // INSTRUCTIONS:
+
+      +  // 1. Calculate the percentage of `current` to `total`.
+
+      +  // 2. Determine how many `length` characters should be filled (e.g.,
+      '▇').
+
+      +  // 3. Determine how many `length` characters should be empty (e.g.,
+      '-').
+
+      +  // 4. Return a string like `[▇▇▇▇----] (current/total plans done)`.
+
+      +  // 5. If total is 0, return a string representing an empty bar
+      `[----------] (0/0 plans done)`.
+
+      +  throw new Error('Not implemented');
+       };
+       
+       /**
+        * @description Displays the full state report to the console.
+        */
+       export const handleStateCommand = async (argv: {}): Promise<void> => {
+      -  // TODO: Fetch all necessary data using utility functions.
+
+      -  // const phase = 'initialization'; // TODO: Determine current phase
+      dynamically.
+
+      -  // const phaseStats = await getPhaseStats();
+
+      -  // const activeAgents = await getActiveAgents();
+
+      -  // const recentLogs = await getRecentLogs(5);
+
+      -  // const failedReports = await getFailedReports(24);
+
+      -  // const gitCommits = await getGitLog(10);
+
+      -
+
+      -  // TODO: Format and print the state report to the console,
+
+      -  // matching the example in README.md. Use 'chalk' for colors.
+
+      -  console.log(`
+
+      -== nocaflow State [2023-10-27 11:30:00] ==
+
+      -Current Phase: initialization
+
+      -
+
+      -== Phase Progress ==
+
+      -[INITIALIZATION]  ▇▇▇▇▇▇---- (6/10 plans done)
+
+      -[DEVELOPMENT]     ---------- (0/25 plans done)
+
+      -
+
+      -== Phase Stats (Plans) ==
+
+      -[INITIALIZATION]  todo: 1, doing: 2, review: 1, failed: 0, done: 6
+
+      -[DEVELOPMENT]     todo: 25, doing: 0, review: 0, failed: 0, done: 0
+
+      -
+
+      -== Active Agents (tmux) ==
+
+      -[INIT|agntc3] plan:c8a2b1 part:a1b2c3 (running 2m)
+
+      -[INIT|agnt8a] plan:c8a2b1 part:9e7f8a (running 12m)
+
+      -
+
+      -== Recent Agent Activity (last 5) ==
+
+      -[DONE|INIT|9e7f8a] plan:c8a2b1 - Wrote 2 files, tests pass. (2m ago)
+
+      -[DONE|INIT|scaffold] plan:f0e9d8 - Scaffolded 5 files. (15m ago)
+
+      -[FAIL|QA|f0e9d8] plan:f0e9d8 - Coverage below 80%. (22m ago)
+
+      -
+
+      -== Stalled / Failed (last 24h) ==
+
+      -[FAILED] plan:f0e9d8 part:b5a4b3 - "Coverage below 80%"
+
+      -         Report:
+      .nocaflow/initialization/plans/failed/f0e9d8.b5a4b3.report.md
+
+      -
+
+      -== Recent Git Commits (all worktrees) ==
+
+      -a4e2c1f (wt-dev-995104) feat: add initial test harness for gitignore
+
+      -c3b1a0d (wt-dev-995104) fix: handle nested .gitignore files correctly
+
+      -8e7f6d5 (main) chore: update dependencies
+
+      -... (7 more)
+
+      -  `);
+
+      +  // TODO: part-state-fetch-data - Fetch all necessary data using utility
+      functions.
+
+      +  // INSTRUCTIONS:
+
+      +  // 1. Determine the current phase. For now, this can be hardcoded or
+      inferred. Assume 'initialization' then 'development'.
+
+      +  // 2. Call `getPhaseStats()` to get statistics for all phases.
+
+      +  // 3. Call `getActiveAgents()` to get a list of running agents.
+
+      +  // 4. Call `getRecentLogs(5)` to get the last 5 log entries.
+
+      +  // 5. Call `getFailedReports(24)` to get failures in the last 24 hours.
+
+      +  // 6. Call `getGitLog(10)` to get the 10 most recent git commits.
+
+      +  const phaseStats: PhaseStats = {} as PhaseStats;
+
+      +  const activeAgents: AgentInfo[] = [];
+
+      +  const recentLogs: LogEntry[] = [];
+
+      +  const failedReports: FailedReport[] = [];
+
+      +  const gitCommits: GitCommit[] = [];
+
+      +  const currentPhase = 'initialization'; // Placeholder
+
+      +  
+
+      +  // TODO: part-state-render-output - Format and print the state report.
+
+      +  // INSTRUCTIONS:
+
+      +  // 1. Use `chalk` for all coloring to match the style in the project's
+      README.md.
+
+      +  // 2. Print a header with the current time.
+
+      +  // 3. Print the current phase.
+
+      +  // 4. Print phase progress using `renderProgressBar` for each phase
+      found in `phaseStats`.
+
+      +  // 5. Print detailed plan counts for each phase.
+
+      +  // 6. Print a list of active agents, including their phase, IDs, and
+      runtime.
+
+      +  // 7. Print recent agent activity from `recentLogs`, color-coding by
+      status (DONE, FAIL).
+
+      +  // 8. Print any stalled or failed reports from `failedReports`.
+
+      +  // 9. Print recent git commits, including hash, worktree (if any), and
+      message.
+
+      +  throw new Error('Not implemented');
+       };
+
+    patchStrategy: standard-diff
+  - type: write
+    path: src/utils/fs.ts
+    content: >+
+      --- src/utils/fs.ts
+
+      +++ src/utils/fs.ts
+
+      @@ -1,4 +1,8 @@
+
+      +import path from 'path';
+
+      +import fs from 'fs/promises';
+
+      +import yaml from 'js-yaml';
+
+      +import dayjs from 'dayjs';
+       import { Plan } from '../models/plan';
+       
+       export interface PhaseStats {
+      @@ -23,10 +27,18 @@
+        * @returns An object containing plan counts for each status in each phase.
+        */
+       export const getPhaseStats = async (): Promise<PhaseStats> => {
+      -  // TODO: Walk through .nocaflow/{phase}/plans/* directories.
+
+      -  // TODO: Count files in todo/, doing/, review/, failed/, done/.
+
+      -  // TODO: Return the aggregated stats matching the README example.
+
+      -  return {} as PhaseStats;
+
+      +  // TODO: part-fs-get-phase-stats - Walk through
+      .nocaflow/{phase}/plans/* directories and count plans.
+
+      +  // INSTRUCTIONS:
+
+      +  // 1. Define phase directories: ['.nocaflow/initialization',
+      '.nocaflow/development'].
+
+      +  // 2. For each phase, iterate through subdirectories: 'todo', 'doing',
+      'review', 'failed', 'done'.
+
+      +  // 3. Use `fs.readdir` to count the number of files in each
+      subdirectory. Handle errors for non-existent directories (count should be
+      0).
+
+      +  // 4. Aggregate the counts into a `PhaseStats` object.
+
+      +  // 5. Calculate the `total` for each phase.
+
+      +  // 6. Example structure for one phase:
+
+      +  //    'initialization': { todo: 1, doing: 2, review: 1, failed: 0,
+      done: 6, total: 10 }
+
+      +  // 7. Return the final `PhaseStats` object.
+
+      +  throw new Error('Not implemented');
+       };
+       
+       /**
+      @@ -35,18 +47,26 @@
+        * @returns A list of failed report details.
+        */
+       export const getFailedReports = async (hours: number): Promise<FailedReport[]> => {
+      -  // TODO: Read files from .nocaflow/{phase}/plans/failed/report/.
+
+      -  // TODO: Filter reports created within the last 'hours'.
+
+      -  // TODO: Parse report content to get the reason.
+
+      -  return [];
+
+      +  // TODO: part-fs-get-failed-reports - Scan failed report directories
+      for recent failures.
+
+      +  // INSTRUCTIONS:
+
+      +  // 1. Define report directories to scan, e.g.,
+      '.nocaflow/initialization/plans/failed/report'.
+
+      +  // 2. Use `fs.readdir` to get all report files (ending in .md).
+
+      +  // 3. For each file, get its stats using `fs.stat` to find the creation
+      time (`birthtime`).
+
+      +  // 4. Use `dayjs` to check if `birthtime` is within the last `hours`.
+
+      +  // 5. If it is recent, read the file content.
+
+      +  // 6. Parse the markdown content to extract the summary/reason. A
+      simple regex or string search for a "Summary" section is sufficient.
+
+      +  // 7. The filename typically follows the pattern
+      `{planId}.{partId}.report.md`. Parse this to get IDs.
+
+      +  // 8. Construct a `FailedReport` object and add it to a results array.
+
+      +  // 9. Return the array of recent failed reports.
+
+      +  throw new Error('Not implemented');
+       };
+       
+       /**
+        * @description Reads and parses a YAML plan file.
+        * @param filePath - The path to the plan.yml file.
+        * @returns The parsed Plan object.
+        */
+       export const readPlan = async (filePath: string): Promise<Plan> => {
+      -    // TODO: Read file content and parse using js-yaml.
+
+      -    return {} as Plan;
+
+      -}
+
+      +    // TODO: part-fs-read-plan - Read file content and parse using
+      js-yaml.
+
+      +    // INSTRUCTIONS:
+
+      +    // 1. Use `fs.readFile` to read the content of `filePath` as a UTF-8
+      string.
+
+      +    // 2. Use `yaml.load()` from the 'js-yaml' library to parse the
+      string content.
+
+      +    // 3. Cast the result to the `Plan` type and return it.
+
+      +    // 4. Include error handling for file-not-found and YAML parsing
+      errors.
+
+      +    throw new Error('Not implemented');
+
+      +};
+
+    patchStrategy: standard-diff
+  - type: write
+    path: src/utils/git.ts
+    content: >+
+      --- src/utils/git.ts
+
+      +++ src/utils/git.ts
+
+      @@ -1,4 +1,5 @@
+
+      -import { exec } from 'child_process';
+
+      +import { promisify } from 'util';
+
+      +import { exec as execCallback } from 'child_process';
+       
+       export interface GitCommit {
+         hash: string;
+      @@ -6,14 +7,23 @@
+         message: string;
+       }
+       
+      +const exec = promisify(execCallback);
+
+      +
+       /**
+        * @description Executes 'git log' to get recent commit history across all worktrees.
+        * @param limit - The maximum number of commits to return.
+        * @returns A list of recent git commits.
+        */
+       export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
+      -  // TODO: Execute 'git log --all ...' with a custom format.
+
+      -  // TODO: May need to query for worktree information and associate it.
+
+      -  // TODO: Parse the output and return a list of GitCommit objects.
+
+      -  return [];
+
+      +  // TODO: part-git-get-log - Get recent git commits across all
+      worktrees.
+
+      +  // INSTRUCTIONS:
+
+      +  // 1. First, get a map of worktree paths to their names. Execute `git
+      worktree list --porcelain`.
+
+      +  //    Parse the output to create a map like: {
+      '/path/to/worktrees/wt-name': 'wt-name' }.
+
+      +  // 2. Execute `git log --all -n ${limit} --pretty=format:'%H|%s|%D'`.
+      The `%D` ref names can help identify worktrees.
+
+      +  //    The output for each commit will be like: `a4e2c1f|feat: some
+      message|HEAD -> main, origin/main, worktrees/wt-dev-995104/HEAD`
+
+      +  // 3. Split the log output by newline to process each commit.
+
+      +  // 4. For each line, split by '|' to get hash, message, and ref names.
+
+      +  // 5. In the ref names string, look for a worktree path (e.g.,
+      'worktrees/wt-dev-995104'). Match this against the map from step 1 to find
+      the worktree name.
+
+      +  // 6. If no worktree is found, the `worktree` property should be
+      `null`.
+
+      +  // 7. Construct `GitCommit` objects and return them in an array.
+
+      +  throw new Error('Not implemented');
+       };
+
+    patchStrategy: standard-diff
+  - type: write
+    path: src/utils/logs.ts
+    content: >+
+      --- src/utils/logs.ts
+
+      +++ src/utils/logs.ts
+
+      @@ -1,4 +1,7 @@
+
+      -export interface LogEntry {
+
+      +import path from 'path';
+
+      +import fs from 'fs/promises';
+
+      +
+
+      + export interface LogEntry {
+         status: 'DONE' | 'FAIL' | 'INFO';
+         phase: 'INIT' | 'DEV' | 'QA';
+         agentId: string;
+      @@ -13,11 +16,17 @@
+        * @returns A list of recent log entries, sorted newest first.
+        */
+       export const getRecentLogs = async (limit: number): Promise<LogEntry[]> => {
+      -  // TODO: Find all log files in .nocaflow/{phase}/agent-log/ matching
+      pattern *.log.
+
+      -  // TODO: Read log files. Each line is an entry.
+
+      -  // TODO: Parse lines with a regex like /^(?<timestamp>.*?)
+      \[(?<status>\w+)\|(?<phase>\w+)\|(?<agentId>.*?)\] plan:(?<planId>\S+) -
+      (?<message>.*)$/
+
+      -  // TODO: Create LogEntry objects.
+
+      -  // TODO: Return the 'limit' most recent entries.
+
+      -  return [];
+
+      +  // TODO: part-logs-get-recent - Read and parse agent log files.
+
+      +  // INSTRUCTIONS:
+
+      +  // 1. Define log directories to scan:
+      ['.nocaflow/initialization/agent-log', '.nocaflow/development/agent-log'].
+
+      +  // 2. Recursively find all files ending in `.log` within these
+      directories.
+
+      +  // 3. Read the content of each log file. Each line is a potential log
+      entry.
+
+      +  // 4. For each line, use a regex to parse it. A good starting regex is:
+
+      +  //    /^(?<timestamp>.*?)
+      \[(?<status>\w+)\|(?<phase>\w+)\|(?<agentId>.*?)\] plan:(?<planId>\S+) -
+      (?<message>.*)$/
+
+      +  // 5. If a line matches, create a `LogEntry` object. Convert the
+      timestamp string to a `Date` object.
+
+      +  // 6. Collect all parsed log entries into a single array.
+
+      +  // 7. Sort the array in descending order by timestamp (newest first).
+
+      +  // 8. Return a slice of the array containing the top `limit` entries.
+
+      +  throw new Error('Not implemented');
+       };
+
+    patchStrategy: standard-diff
+  - type: write
+    path: src/utils/shell.ts
+    content: >+
+      --- src/utils/shell.ts
+
+      +++ src/utils/shell.ts
+
+      @@ -1,5 +1,7 @@
+
+      -import { exec } from 'child_process';
+
+      +import { promisify } from 'util';
+
+      +import { exec as execCallback } from 'child_process';
+
+      +import dayjs from 'dayjs';
+       import { Plan, PlanPart } from '../models/plan';
+       
+       export interface AgentInfo {
+      @@ -11,20 +13,29 @@
+         pid: string;
+       }
+       
+      +const exec = promisify(execCallback);
+
+      +
+       /**
+        * @description Lists active tmux sessions and parses them to find agent info.
+        * @returns A list of active agents.
+        */
+       export const getActiveAgents = async (): Promise<AgentInfo[]> => {
+      -  // TODO: Execute 'tmux ls -F "#{session_name} #{pane_pid}
+      #{session_activity}"'.
+
+      -  // TODO: Parse the output. Session names follow conventions from
+      manager.agent.md:
+
+      -  // - Worker: "{phase}-{part_id}" (e.g., "init-a1b2c3")
+
+      -  // - Scaffolder: "init-scaffold-{plan_id}" (e.g.,
+      "init-scaffold-c8a2b1")
+
+      -  // - QA: "qa-{plan_id}" (e.g., "qa-f0e9d8")
+
+      -  // TODO: For worker sessions, find the corresponding plan file in
+      `.nocaflow/{phase}/plans/doing/` to look up the planId.
+
+      -  // TODO: Calculate runtime from session_activity (it's a unix
+      timestamp).
+
+      -  // TODO: Return a list of AgentInfo objects matching the README.md
+      output.
+
+      -  return [];
+
+      +  // TODO: part-shell-get-agents - List and parse active tmux sessions to
+      find agent info.
+
+      +  // INSTRUCTIONS:
+
+      +  // 1. Execute `tmux ls -F "#{session_name} #{pane_pid}
+      #{session_activity}"`. Use `promisify(exec)`.
+
+      +  // 2. Split the stdout by newline to get a list of active sessions.
+
+      +  // 3. For each session string, parse it to extract name, PID, and
+      activity timestamp.
+
+      +  // 4. Use regex or string splitting on the session name to determine
+      the agent type and IDs based on conventions from `manager.agent.md`:
+
+      +  //    - Worker: /^(init|dev)-(.+)/ -> { phase, partId }
+
+      +  //    - Scaffolder: /^(init)-scaffold-(.+)/ -> { phase: 'SCAF', planId
+      }
+
+      +  //    - QA: /^qa-(.+)/ -> { phase: 'QA', planId }
+
+      +  // 5. For worker agents, you need to find the planId. This is tricky. A
+      simplified approach is to assume the `partId` is unique and not try to
+      look up the plan file. The `planId` can be set to 'unknown' or the partId.
+      A better approach would be to scan `doing` directories for plans
+      containing the partId. Let's stick to the simpler one for now.
+
+      +  // 6. Calculate runtime: The `session_activity` is a Unix timestamp.
+      Use `dayjs` to find the duration from that time to now (e.g.,
+      `dayjs().to(dayjs.unix(timestamp))`).
+
+      +  // 7. Construct `AgentInfo` objects for each valid session.
+
+      +  // 8. Return the list of `AgentInfo` objects.
+
+      +  // 9. Handle the case where tmux is not running or there are no
+      sessions (command might fail or return empty string).
+
+      +  throw new Error('Not implemented');
+       };
+
+    patchStrategy: standard-diff
+snapshot:
+  src/commands/state.ts: >-
+    import { getPhaseStats, PhaseStats, getFailedReports, FailedReport } from
+    '../utils/fs';
+
+    import { getActiveAgents, AgentInfo } from '../utils/shell';
+
+    import { getRecentLogs, LogEntry } from '../utils/logs';
+
+    import { getGitLog, GitCommit } from '../utils/git';
+
+
+    // TODO: Implement the logic for the 'state' command.
+
+    // This function will be called by yargs when 'nocaflow state' is executed.
+
+
+    /**
+     * @description Renders a progress bar.
+     * @param current - The current progress value.
+     * @param total - The total value for 100%.
+     * @param length - The character length of the bar.
+     * @returns A string representing the progress bar.
+     */
+    const renderProgressBar = (current: number, total: number, length: number =
+    20): string => {
+      // TODO: Implement progress bar rendering logic. e.g. [▇▇▇▇----]
+      return `(${current}/${total} plans done)`;
+    };
+
+
+    /**
+     * @description Displays the full state report to the console.
+     */
+    export const handleStateCommand = async (argv: {}): Promise<void> => {
+      // TODO: Fetch all necessary data using utility functions.
+      // const phase = 'initialization'; // TODO: Determine current phase dynamically.
+      // const phaseStats = await getPhaseStats();
+      // const activeAgents = await getActiveAgents();
+      // const recentLogs = await getRecentLogs(5);
+      // const failedReports = await getFailedReports(24);
+      // const gitCommits = await getGitLog(10);
+
+      // TODO: Format and print the state report to the console,
+      // matching the example in README.md. Use 'chalk' for colors.
+      console.log(`
+    == nocaflow State [2023-10-27 11:30:00] ==
+
+    Current Phase: initialization
+
+
+    == Phase Progress ==
+
+    [INITIALIZATION]  ▇▇▇▇▇▇---- (6/10 plans done)
+
+    [DEVELOPMENT]     ---------- (0/25 plans done)
+
+
+    == Phase Stats (Plans) ==
+
+    [INITIALIZATION]  todo: 1, doing: 2, review: 1, failed: 0, done: 6
+
+    [DEVELOPMENT]     todo: 25, doing: 0, review: 0, failed: 0, done: 0
+
+
+    == Active Agents (tmux) ==
+
+    [INIT|agntc3] plan:c8a2b1 part:a1b2c3 (running 2m)
+
+    [INIT|agnt8a] plan:c8a2b1 part:9e7f8a (running 12m)
+
+
+    == Recent Agent Activity (last 5) ==
+
+    [DONE|INIT|9e7f8a] plan:c8a2b1 - Wrote 2 files, tests pass. (2m ago)
+
+    [DONE|INIT|scaffold] plan:f0e9d8 - Scaffolded 5 files. (15m ago)
+
+    [FAIL|QA|f0e9d8] plan:f0e9d8 - Coverage below 80%. (22m ago)
+
+
+    == Stalled / Failed (last 24h) ==
+
+    [FAILED] plan:f0e9d8 part:b5a4b3 - "Coverage below 80%"
+             Report: .nocaflow/initialization/plans/failed/f0e9d8.b5a4b3.report.md
+
+    == Recent Git Commits (all worktrees) ==
+
+    a4e2c1f (wt-dev-995104) feat: add initial test harness for gitignore
+
+    c3b1a0d (wt-dev-995104) fix: handle nested .gitignore files correctly
+
+    8e7f6d5 (main) chore: update dependencies
+
+    ... (7 more)
+      `);
+    };
+  src/utils/fs.ts: >-
+    import { Plan } from '../models/plan';
+
+
+    export interface PhaseStats {
+      [phaseName: string]: {
+        todo: number;
+        doing: number;
+        review: number;
+        failed: number;
+        done: number;
+        total: number;
+      };
+    }
+
+
+    export interface FailedReport {
+      planId: string;
+      partId: string;
+      reason: string;
+      reportPath: string;
+    }
+
+
+    /**
+     * @description Reads all plan files from all phases and aggregates stats.
+     * @returns An object containing plan counts for each status in each phase.
+     */
+    export const getPhaseStats = async (): Promise<PhaseStats> => {
+      // TODO: Walk through .nocaflow/{phase}/plans/* directories.
+      // TODO: Count files in todo/, doing/, review/, failed/, done/.
+      // TODO: Return the aggregated stats matching the README example.
+      return {} as PhaseStats;
+    };
+
+
+    /**
+     * @description Scans the failed reports directory for recent failures.
+     * @param hours - The lookback period in hours.
+     * @returns A list of failed report details.
+     */
+    export const getFailedReports = async (hours: number):
+    Promise<FailedReport[]> => {
+      // TODO: Read files from .nocaflow/{phase}/plans/failed/report/.
+      // TODO: Filter reports created within the last 'hours'.
+      // TODO: Parse report content to get the reason.
+      return [];
+    };
+
+
+    /**
+     * @description Reads and parses a YAML plan file.
+     * @param filePath - The path to the plan.yml file.
+     * @returns The parsed Plan object.
+     */
+    export const readPlan = async (filePath: string): Promise<Plan> => {
+        // TODO: Read file content and parse using js-yaml.
+        return {} as Plan;
+    }
+  src/utils/git.ts: |-
+    import { exec } from 'child_process';
+
+    export interface GitCommit {
+      hash: string;
+      worktree: string | null;
+      message: string;
+    }
+
+    /**
+     * @description Executes 'git log' to get recent commit history across all worktrees.
+     * @param limit - The maximum number of commits to return.
+     * @returns A list of recent git commits.
+     */
+    export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
+      // TODO: Execute 'git log --all ...' with a custom format.
+      // TODO: May need to query for worktree information and associate it.
+      // TODO: Parse the output and return a list of GitCommit objects.
+      return [];
+    };
+  src/utils/logs.ts: |-
+    export interface LogEntry {
+      status: 'DONE' | 'FAIL' | 'INFO';
+      phase: 'INIT' | 'DEV' | 'QA';
+      agentId: string;
+      planId: string;
+      message: string;
+      timestamp: Date;
+    }
+
+    /**
+     * @description Reads the agent log files and returns the most recent entries.
+     * @param limit - The maximum number of log entries to return.
+     * @returns A list of recent log entries, sorted newest first.
+     */
+    export const getRecentLogs = async (limit: number): Promise<LogEntry[]> => {
+      // TODO: Find all log files in .nocaflow/{phase}/agent-log/ matching pattern *.log.
+      // TODO: Read log files. Each line is an entry.
+      // TODO: Parse lines with a regex like /^(?<timestamp>.*?) \[(?<status>\w+)\|(?<phase>\w+)\|(?<agentId>.*?)\] plan:(?<planId>\S+) - (?<message>.*)$/
+      // TODO: Create LogEntry objects.
+      // TODO: Return the 'limit' most recent entries.
+      return [];
+    };
+  src/utils/shell.ts: |-
+    import { exec } from 'child_process';
+    import { Plan, PlanPart } from '../models/plan';
+
+    export interface AgentInfo {
+      phase: 'INIT' | 'DEV' | 'QA' | 'SCAF';
+      id: string; // part_id, plan_id for QA/Scaffold
+      planId: string;
+      partId: string; // Can be 'scaffold' or 'qa'
+      runtime: string;
+      pid: string;
+    }
+
+    /**
+     * @description Lists active tmux sessions and parses them to find agent info.
+     * @returns A list of active agents.
+     */
+    export const getActiveAgents = async (): Promise<AgentInfo[]> => {
+      // TODO: Execute 'tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"'.
+      // TODO: Parse the output. Session names follow conventions from manager.agent.md:
+      // - Worker: "{phase}-{part_id}" (e.g., "init-a1b2c3")
+      // - Scaffolder: "init-scaffold-{plan_id}" (e.g., "init-scaffold-c8a2b1")
+      // - QA: "qa-{plan_id}" (e.g., "qa-f0e9d8")
+      // TODO: For worker sessions, find the corresponding plan file in `.nocaflow/{phase}/plans/doing/` to look up the planId.
+      // TODO: Calculate runtime from session_activity (it's a unix timestamp).
+      // TODO: Return a list of AgentInfo objects matching the README.md output.
+      return [];
+    };
+approved: true
+linesAdded: null
+linesRemoved: null
+linesDifference: null
+gitCommittedAt: null
+status: committed
+id: 5

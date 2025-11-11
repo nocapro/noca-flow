@@ -1,5 +1,21 @@
 
 
+lets blueprinting the test cases in test/ test/unit test/e2e test/integration
+
+===
+
+09d93616-d3a9-4679-b1d6-44b4c207fc19 applied. continue aligment blueprinting!
+
+=== DONE
+
+Deepen alignment with agent protocols and lifecycle
+
+keep blueprinting: each files should contain only concise // TODO: comments, type signatures, and detailed import statements to serve as a "cheatsheet" for the next AI developer.
+
+again. to save your token cost , do not write complete code per todo, only cheatsheet like method name, params, return type.
+
+=== DONE
+
 applied, but I still believe many things not aligned with below additional context
 
 === DONE

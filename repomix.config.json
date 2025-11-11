@@ -23,12 +23,12 @@
     }
   },
   "include": [
-    "development",
-    "initialization",
-    "manager.agent.md",
-    "plan.agent.md",
-    "qa.agent.md",
-    "suffix.global.prompt.md"
+    // "development",
+    // "initialization",
+    // "manager.agent.md",
+    // "plan.agent.md",
+    // "qa.agent.md",
+    // "suffix.global.prompt.md"
   ],
   "ignore": {
     "useGitignore": true,
@@ -38,8 +38,8 @@
       ".gitignore",
       "repomix.config.json",
       "relay.config.json",
-      "docs",
-      "README.md"
+      "docs"
+      // "README.md"
     ]
   },
   "security": {
