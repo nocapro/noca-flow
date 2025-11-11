@@ -15,7 +15,7 @@ also need depends_on for parts in plan.
 
 
 update all agent.md: 
-- should explicit mention in agent log
+- should explicit mention to short concise report in agent_log/
 
 
 update qa.agent.md
