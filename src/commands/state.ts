@@ -12,7 +12,7 @@ import { getGitLog, GitCommit } from '../utils/git';
  * @param length - The character length of the bar.
  * @returns A string representing the progress bar.
  */
-const renderProgressBar = (current: number, total: number, length: number = 20): string => {
+export const renderProgressBar = (current: number, total: number, length: number = 20): string => {
   // TODO: part-state-render-progress - Implement progress bar rendering logic.
   // INSTRUCTIONS:
   // 1. Calculate the percentage of `current` to `total`.
