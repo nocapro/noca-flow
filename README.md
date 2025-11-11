@@ -95,13 +95,13 @@ plan:
     - id: '9e7f8a'
       status: 'done' # Granular state, managed by worker
       isolation: false
-      agent_id: 'swarm-9e7f8a'
+      agent_id: '9e7f8a'
       depends_on: []
       name: 'Create JWT utility functions'
     - id: 'a1b2c3'
       status: 'doing' # This part is currently executing
       isolation: false
-      agent_id: 'swarm-a1b2c3'
+      agent_id: 'a1b2c3'
       depends_on: ['9e7f8a']
       name: 'Implement POST /login endpoint'
 ```
