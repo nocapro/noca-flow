@@ -1,4 +1,8 @@
-===
+=== DONE
+
+Yaml example in readme.md should be in correct format/shape as in plan.agent.md like all ids should be 6 random digit and has agent_id on parts
+
+=== DONE
 
 update readme.md
 
@@ -30,9 +34,8 @@ update qa.agent.md
 nocaflow state | nocaflow agent.plan
 
 
-===
+=== DONE
 
-let's put current manager.agent.md to development/ dir as dev-manager.agent.md because now we need init-manager.agent.md on in initialization/
 
 init phase cycle
 
@@ -50,7 +53,7 @@ ___
 scaffolder.agent execute whole single plan not individual part 
 2. // todo should multiline detailed instructions steps because the worker is less intelligence 
 
-===
+=== DONE
 
 please create plan.agent.md in keyword based hacker news netizen language style,,, 
 
@@ -143,16 +146,13 @@ plan:
 
 ```
 
-===
 
-deps
-
-===
+=== DONE
 
 qa in dev phase should also align implementation with spec
 qa in init phase should do the same
 
-===
+=== DONE
 
 at initialization, it ask user which coding agent wether claude code or droid, because they have diff commmand to spawn.
 also ask concurrency limit
