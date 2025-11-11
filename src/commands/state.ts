@@ -45,17 +45,17 @@ Current Phase: initialization
 [DEVELOPMENT]     todo: 25, doing: 0, review: 0, failed: 0, done: 0
 
 == Active Agents (tmux) ==
-[INIT|463462] plan:c8a2b1f0 part:9e7f8a7b (running 12m)
-[INIT|823523] plan:c8a2b1f0 part:a1b2c3d4 (running 2m)
+[INIT|agntc3] plan:c8a2b1 part:a1b2c3 (running 2m)
+[INIT|agnt8a] plan:c8a2b1 part:9e7f8a (running 12m)
 
 == Recent Agent Activity (last 5) ==
-[DONE|INIT|9e7f8a] plan:c8a2b1f0 - Wrote 2 files, tests pass. (2m ago)
-[DONE|INIT|scaffold] plan:f0e9d8c7 - Scaffolded 5 files. (15m ago)
-[FAIL|QA|f0e9d8c7] plan:f0e9d8c7 - Coverage below 80%. (22m ago)
+[DONE|INIT|9e7f8a] plan:c8a2b1 - Wrote 2 files, tests pass. (2m ago)
+[DONE|INIT|scaffold] plan:f0e9d8 - Scaffolded 5 files. (15m ago)
+[FAIL|QA|f0e9d8] plan:f0e9d8 - Coverage below 80%. (22m ago)
 
 == Stalled / Failed (last 24h) ==
-[FAILED] plan:f0e9d8c7 part:b5a4b3c2 - "Coverage below 80%"
-         Report: .nocaflow/initialization/plans/failed/report/f0e9d8c7.b5a4b3c2.report.md
+[FAILED] plan:f0e9d8 part:b5a4b3 - "Coverage below 80%"
+         Report: .nocaflow/initialization/plans/failed/f0e9d8.b5a4b3.report.md
 
 == Recent Git Commits (all worktrees) ==
 a4e2c1f (wt-dev-995104) feat: add initial test harness for gitignore
