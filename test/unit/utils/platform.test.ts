@@ -3,7 +3,7 @@ import { exec as execCallback, ExecException } from 'child_process';
 import os from 'os';
 
 jest.mock('child_process');
-const mockedExec = execCallback as jest.Mock;
+const mockedExec = execCallback as unknown as jest.Mock;
 
 jest.mock('os');
 const mockedOs = os as jest.Mocked<typeof os>;

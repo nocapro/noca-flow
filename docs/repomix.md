@@ -98,6 +98,8 @@ test/
       shell.test.ts
       test.util.test.ts
   test.util.ts
+worktrees/
+  .gitkeep
 .eslintrc.js
 jest.config.js
 manager.agent.md
@@ -111,281 +113,6 @@ user.prompt.md
 ```
 
 # Files
-
-## File: src/utils/platform.ts
-````typescript
-import { exec as execCallback, ExecException } from 'child_process';
-import { promisify } from 'util';
-import os from 'os';
-
-const exec = promisify(execCallback);
-
-export interface CommandResult {
-  stdout: string;
-  stderr: string;
-}
-
-export interface Platform {
-  runCommand(command: string): Promise<CommandResult>;
-  getTmpDir(): string;
-}
-
-const runCommand = async (command: string): Promise<CommandResult> => {
-  try {
-    const { stdout, stderr } = await exec(command);
-    return { stdout, stderr };
-  } catch (error) {
-    // exec throws an error for non-zero exit codes.
-    // We want to capture stdout/stderr and the code, not crash.
-    const err = error as ExecException & CommandResult;
-    return {
-      stdout: err.stdout,
-      stderr: err.stderr,
-    };
-  }
-};
-
-const getTmpDir = (): string => {
-  // Respect common environment variables for temp directories.
-  // This is crucial for environments like Termux.
-  return process.env.TMPDIR || process.env.TEMP || process.env.TMP || os.tmpdir();
-};
-
-
-export const posixPlatform: Platform = {
-  runCommand,
-  getTmpDir,
-};
-
-// Export a singleton instance for the application to use.
-export const platform: Platform = posixPlatform;
-````
-
-## File: test/unit/utils/platform.test.ts
-````typescript
-import { posixPlatform } from '../../../src/utils/platform';
-import { exec as execCallback, ExecException } from 'child_process';
-import os from 'os';
-
-jest.mock('child_process');
-const mockedExec = execCallback as jest.Mock;
-
-jest.mock('os');
-const mockedOs = os as jest.Mocked<typeof os>;
-
-describe('unit/utils/platform', () => {
-  afterEach(() => {
-    jest.resetAllMocks();
-    // Clean up environment variables
-    delete process.env.TMPDIR;
-    delete process.env.TEMP;
-    delete process.env.TMP;
-  });
-
-  describe('runCommand', () => {
-    it('should resolve with stdout and stderr on successful execution', async () => {
-      const command = 'ls -l';
-      const expectedStdout = 'total 0';
-      const expectedStderr = '';
-      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout: expectedStdout, stderr: expectedStderr }));
-      
-      const result = await posixPlatform.runCommand(command);
-      
-      expect(mockedExec).toHaveBeenCalledWith(command, expect.any(Function));
-      expect(result.stdout).toBe(expectedStdout);
-      expect(result.stderr).toBe(expectedStderr);
-    });
-
-    it('should capture stdout and stderr even when the command fails (non-zero exit code)', async () => {
-      const command = 'git status';
-      const expectedStdout = '';
-      const expectedStderr = 'fatal: not a git repository';
-      const error: ExecException & { stdout: string; stderr: string } = {
-        name: 'Error',
-        message: 'Command failed',
-        code: 128,
-        stdout: expectedStdout,
-        stderr: expectedStderr,
-      };
-      mockedExec.mockImplementation((_cmd, callback) => callback(error, { stdout: expectedStdout, stderr: expectedStderr }));
-      
-      const result = await posixPlatform.runCommand(command);
-
-      expect(result.stdout).toBe(expectedStdout);
-      expect(result.stderr).toBe(expectedStderr);
-    });
-  });
-
-  describe('getTmpDir', () => {
-    it('should prioritize TMPDIR environment variable', () => {
-      process.env.TMPDIR = '/tmp/tmpdir';
-      process.env.TEMP = '/tmp/temp';
-      mockedOs.tmpdir.mockReturnValue('/tmp/os');
-      
-      expect(posixPlatform.getTmpDir()).toBe('/tmp/tmpdir');
-    });
-
-    it('should fall back to TEMP if TMPDIR is not set', () => {
-      process.env.TEMP = '/tmp/temp';
-      mockedOs.tmpdir.mockReturnValue('/tmp/os');
-
-      expect(posixPlatform.getTmpDir()).toBe('/tmp/temp');
-    });
-
-    it('should fall back to TMP if TEMP is not set', () => {
-      process.env.TMP = '/tmp/tmp';
-      mockedOs.tmpdir.mockReturnValue('/tmp/os');
-
-      expect(posixPlatform.getTmpDir()).toBe('/tmp/tmp');
-    });
-
-    it('should fall back to os.tmpdir() as a last resort', () => {
-      mockedOs.tmpdir.mockReturnValue('/tmp/os-fallback');
-      
-      expect(posixPlatform.getTmpDir()).toBe('/tmp/os-fallback');
-    });
-  });
-});
-````
-
-## File: test/unit/utils/test.util.test.ts
-````typescript
-import {
-  runCli,
-  setupTestDirectory,
-  initGitRepo,
-  createDummyPlanFile,
-  createDummyFailedReport,
-} from '../../test.util';
-import { exec as execCallback, ExecException } from 'child_process';
-import { promisify } from 'util';
-import fs from 'fs/promises';
-import path from 'path';
-
-// Mock child_process for most tests, but we'll need the real one for initGitRepo.
-jest.mock('child_process');
-const mockedExec = execCallback as jest.Mock;
-const { exec: actualExec } = jest.requireActual('child_process');
-const promisedActualExec = promisify(actualExec);
-
-
-describe('unit/utils/test.util', () => {
-  describe('runCli', () => {
-    afterEach(() => {
-      jest.clearAllMocks();
-    });
-
-    it('should resolve with stdout and code 0 on success', async () => {
-      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout: 'Success', stderr: '' }));
-      const result = await runCli('state');
-      expect(result.code).toBe(0);
-      expect(result.stdout).toBe('Success');
-      expect(result.stderr).toBe('');
-    });
-
-    it('should reject with stderr and a non-zero code on failure', async () => {
-      const error: ExecException & { stdout: string; stderr: string } = {
-        name: 'Error',
-        message: 'Command failed',
-        code: 127,
-        stdout: '',
-        stderr: 'Command not found',
-      };
-      mockedExec.mockImplementation((_cmd, callback) => callback(error, { stdout: '', stderr: 'Command not found' }));
-      
-      const result = await runCli('nonexistent');
-      expect(result.code).toBe(127);
-      expect(result.stdout).toBe('');
-      expect(result.stderr).toBe('Command not found');
-    });
-  });
-
-  describe('setupTestDirectory', () => {
-    it('should create a temp dir, chdir into it, and clean up properly', async () => {
-      const originalCwd = process.cwd();
-      const { testDir, cleanup } = await setupTestDirectory();
-
-      // Check that we are in the new directory
-      expect(process.cwd()).toBe(testDir);
-      expect(testDir).not.toBe(originalCwd);
-
-      // Check that the directory exists
-      await expect(fs.access(testDir)).resolves.toBeUndefined();
-
-      await cleanup();
-
-      // Check that we are back in the original directory
-      expect(process.cwd()).toBe(originalCwd);
-
-      // Check that the directory has been removed
-      await expect(fs.access(testDir)).rejects.toThrow();
-    });
-  });
-
-  describe('initGitRepo', () => {
-    let cleanup: () => Promise<void>;
-
-    beforeEach(async () => {
-      const { cleanup: c } = await setupTestDirectory();
-      cleanup = c;
-    });
-  
-    afterEach(async () => {
-      await cleanup();
-    });
-
-    it('should initialize a git repository and make an initial commit', async () => {
-      // We need the real exec for this test.
-      mockedExec.mockImplementation(actualExec);
-
-      await initGitRepo();
-
-      // Check for .git directory
-      await expect(fs.access('.git')).resolves.toBeUndefined();
-
-      // Check for initial commit
-      const { stdout } = await promisedActualExec('git log -1 --pretty=%s');
-      expect(stdout.trim()).toBe('Initial commit');
-    });
-  });
-
-  describe('file creators', () => {
-    let cleanup: () => Promise<void>;
-    let testDir: string;
-
-    beforeEach(async () => {
-      const { cleanup: c, testDir: td } = await setupTestDirectory();
-      cleanup = c;
-      testDir = td;
-    });
-  
-    afterEach(async () => {
-      await cleanup();
-    });
-
-    it('should create a dummy plan file in the correct location', async () => {
-      const planPath = path.join(testDir, '.nocaflow/development/plans/todo/dummy.yml');
-      await createDummyPlanFile('development', 'todo', 'dummy.yml');
-      
-      await expect(fs.access(planPath)).resolves.toBeUndefined();
-      const content = await fs.readFile(planPath, 'utf-8');
-      expect(content).toBe('# dummy plan');
-    });
-
-    it('should create a dummy failed report with correct content', async () => {
-      const summary = 'This is a test summary.';
-      const reportPath = await createDummyFailedReport('initialization', 'plan1', 'partA', summary);
-      
-      const expectedPath = path.join(testDir, '.nocaflow/initialization/plans/failed/report/plan1.partA.report.md');
-      expect(reportPath).toBe(expectedPath);
-
-      await expect(fs.access(reportPath)).resolves.toBeUndefined();
-      const content = await fs.readFile(reportPath, 'utf-8');
-      expect(content).toBe(`## Summary\n\n${summary}`);
-    });
-  });
-});
-````
 
 ## File: .nocaflow/development/plans/todo/dev-plan-01.yml
 ````yaml
@@ -761,6 +488,281 @@ export interface Phase {
 }
 ````
 
+## File: src/utils/platform.ts
+````typescript
+import { exec as execCallback, ExecException } from 'child_process';
+import { promisify } from 'util';
+import os from 'os';
+
+const exec = promisify(execCallback);
+
+export interface CommandResult {
+  stdout: string;
+  stderr: string;
+}
+
+export interface Platform {
+  runCommand(command: string): Promise<CommandResult>;
+  getTmpDir(): string;
+}
+
+const runCommand = async (command: string): Promise<CommandResult> => {
+  try {
+    const { stdout, stderr } = await exec(command);
+    return { stdout, stderr };
+  } catch (error) {
+    // exec throws an error for non-zero exit codes.
+    // We want to capture stdout/stderr and the code, not crash.
+    const err = error as ExecException & CommandResult;
+    return {
+      stdout: err.stdout,
+      stderr: err.stderr,
+    };
+  }
+};
+
+const getTmpDir = (): string => {
+  // Respect common environment variables for temp directories.
+  // This is crucial for environments like Termux.
+  return process.env.TMPDIR || process.env.TEMP || process.env.TMP || os.tmpdir();
+};
+
+
+export const posixPlatform: Platform = {
+  runCommand,
+  getTmpDir,
+};
+
+// Export a singleton instance for the application to use.
+export const platform: Platform = posixPlatform;
+````
+
+## File: test/unit/utils/platform.test.ts
+````typescript
+import { posixPlatform } from '../../../src/utils/platform';
+import { exec as execCallback, ExecException } from 'child_process';
+import os from 'os';
+
+jest.mock('child_process');
+const mockedExec = execCallback as jest.Mock;
+
+jest.mock('os');
+const mockedOs = os as jest.Mocked<typeof os>;
+
+describe('unit/utils/platform', () => {
+  afterEach(() => {
+    jest.resetAllMocks();
+    // Clean up environment variables
+    delete process.env.TMPDIR;
+    delete process.env.TEMP;
+    delete process.env.TMP;
+  });
+
+  describe('runCommand', () => {
+    it('should resolve with stdout and stderr on successful execution', async () => {
+      const command = 'ls -l';
+      const expectedStdout = 'total 0';
+      const expectedStderr = '';
+      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout: expectedStdout, stderr: expectedStderr }));
+      
+      const result = await posixPlatform.runCommand(command);
+      
+      expect(mockedExec).toHaveBeenCalledWith(command, expect.any(Function));
+      expect(result.stdout).toBe(expectedStdout);
+      expect(result.stderr).toBe(expectedStderr);
+    });
+
+    it('should capture stdout and stderr even when the command fails (non-zero exit code)', async () => {
+      const command = 'git status';
+      const expectedStdout = '';
+      const expectedStderr = 'fatal: not a git repository';
+      const error: ExecException & { stdout: string; stderr: string } = {
+        name: 'Error',
+        message: 'Command failed',
+        code: 128,
+        stdout: expectedStdout,
+        stderr: expectedStderr,
+      };
+      mockedExec.mockImplementation((_cmd, callback) => callback(error, { stdout: expectedStdout, stderr: expectedStderr }));
+      
+      const result = await posixPlatform.runCommand(command);
+
+      expect(result.stdout).toBe(expectedStdout);
+      expect(result.stderr).toBe(expectedStderr);
+    });
+  });
+
+  describe('getTmpDir', () => {
+    it('should prioritize TMPDIR environment variable', () => {
+      process.env.TMPDIR = '/tmp/tmpdir';
+      process.env.TEMP = '/tmp/temp';
+      mockedOs.tmpdir.mockReturnValue('/tmp/os');
+      
+      expect(posixPlatform.getTmpDir()).toBe('/tmp/tmpdir');
+    });
+
+    it('should fall back to TEMP if TMPDIR is not set', () => {
+      process.env.TEMP = '/tmp/temp';
+      mockedOs.tmpdir.mockReturnValue('/tmp/os');
+
+      expect(posixPlatform.getTmpDir()).toBe('/tmp/temp');
+    });
+
+    it('should fall back to TMP if TEMP is not set', () => {
+      process.env.TMP = '/tmp/tmp';
+      mockedOs.tmpdir.mockReturnValue('/tmp/os');
+
+      expect(posixPlatform.getTmpDir()).toBe('/tmp/tmp');
+    });
+
+    it('should fall back to os.tmpdir() as a last resort', () => {
+      mockedOs.tmpdir.mockReturnValue('/tmp/os-fallback');
+      
+      expect(posixPlatform.getTmpDir()).toBe('/tmp/os-fallback');
+    });
+  });
+});
+````
+
+## File: test/unit/utils/test.util.test.ts
+````typescript
+import {
+  runCli,
+  setupTestDirectory,
+  initGitRepo,
+  createDummyPlanFile,
+  createDummyFailedReport,
+} from '../../test.util';
+import { exec as execCallback, ExecException } from 'child_process';
+import { promisify } from 'util';
+import fs from 'fs/promises';
+import path from 'path';
+
+// Mock child_process for most tests, but we'll need the real one for initGitRepo.
+jest.mock('child_process');
+const mockedExec = execCallback as jest.Mock;
+const { exec: actualExec } = jest.requireActual('child_process');
+const promisedActualExec = promisify(actualExec);
+
+
+describe('unit/utils/test.util', () => {
+  describe('runCli', () => {
+    afterEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should resolve with stdout and code 0 on success', async () => {
+      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout: 'Success', stderr: '' }));
+      const result = await runCli('state');
+      expect(result.code).toBe(0);
+      expect(result.stdout).toBe('Success');
+      expect(result.stderr).toBe('');
+    });
+
+    it('should reject with stderr and a non-zero code on failure', async () => {
+      const error: ExecException & { stdout: string; stderr: string } = {
+        name: 'Error',
+        message: 'Command failed',
+        code: 127,
+        stdout: '',
+        stderr: 'Command not found',
+      };
+      mockedExec.mockImplementation((_cmd, callback) => callback(error, { stdout: '', stderr: 'Command not found' }));
+      
+      const result = await runCli('nonexistent');
+      expect(result.code).toBe(127);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe('Command not found');
+    });
+  });
+
+  describe('setupTestDirectory', () => {
+    it('should create a temp dir, chdir into it, and clean up properly', async () => {
+      const originalCwd = process.cwd();
+      const { testDir, cleanup } = await setupTestDirectory();
+
+      // Check that we are in the new directory
+      expect(process.cwd()).toBe(testDir);
+      expect(testDir).not.toBe(originalCwd);
+
+      // Check that the directory exists
+      await expect(fs.access(testDir)).resolves.toBeUndefined();
+
+      await cleanup();
+
+      // Check that we are back in the original directory
+      expect(process.cwd()).toBe(originalCwd);
+
+      // Check that the directory has been removed
+      await expect(fs.access(testDir)).rejects.toThrow();
+    });
+  });
+
+  describe('initGitRepo', () => {
+    let cleanup: () => Promise<void>;
+
+    beforeEach(async () => {
+      const { cleanup: c } = await setupTestDirectory();
+      cleanup = c;
+    });
+  
+    afterEach(async () => {
+      await cleanup();
+    });
+
+    it('should initialize a git repository and make an initial commit', async () => {
+      // We need the real exec for this test.
+      mockedExec.mockImplementation(actualExec);
+
+      await initGitRepo();
+
+      // Check for .git directory
+      await expect(fs.access('.git')).resolves.toBeUndefined();
+
+      // Check for initial commit
+      const { stdout } = await promisedActualExec('git log -1 --pretty=%s');
+      expect(stdout.trim()).toBe('Initial commit');
+    });
+  });
+
+  describe('file creators', () => {
+    let cleanup: () => Promise<void>;
+    let testDir: string;
+
+    beforeEach(async () => {
+      const { cleanup: c, testDir: td } = await setupTestDirectory();
+      cleanup = c;
+      testDir = td;
+    });
+  
+    afterEach(async () => {
+      await cleanup();
+    });
+
+    it('should create a dummy plan file in the correct location', async () => {
+      const planPath = path.join(testDir, '.nocaflow/development/plans/todo/dummy.yml');
+      await createDummyPlanFile('development', 'todo', 'dummy.yml');
+      
+      await expect(fs.access(planPath)).resolves.toBeUndefined();
+      const content = await fs.readFile(planPath, 'utf-8');
+      expect(content).toBe('# dummy plan');
+    });
+
+    it('should create a dummy failed report with correct content', async () => {
+      const summary = 'This is a test summary.';
+      const reportPath = await createDummyFailedReport('initialization', 'plan1', 'partA', summary);
+      
+      const expectedPath = path.join(testDir, '.nocaflow/initialization/plans/failed/report/plan1.partA.report.md');
+      expect(reportPath).toBe(expectedPath);
+
+      await expect(fs.access(reportPath)).resolves.toBeUndefined();
+      const content = await fs.readFile(reportPath, 'utf-8');
+      expect(content).toBe(`## Summary\n\n${summary}`);
+    });
+  });
+});
+````
+
 ## File: .eslintrc.js
 ````javascript
 module.exports = {
@@ -805,60 +807,6 @@ Implement a full-stack user authentication system with JWT.
 - Create a REST API with endpoints for /register, /login, /profile.
 - Use a PostgreSQL database for user storage.
 - The frontend should be a simple React app with login and registration forms.
-````
-
-## File: src/commands/init.ts
-````typescript
-import fs from 'fs/promises';
-import path from 'path';
-import chalk from 'chalk';
-import { EOL } from 'os';
-
-/**
- * @description Handles the logic for the 'init' command.
- */
-export const handleInitCommand = async (_argv: {}): Promise<void> => {
-  const rootDir = '.nocaflow';
-  try {
-    await fs.access(rootDir);
-    console.warn(chalk.yellow(`Warning: '${rootDir}' directory already exists. Initialization skipped.`));
-    process.exit(0);
-  } catch (error) {
-    // Directory does not exist, proceed.
-  }
-
-  const phases = ['initialization', 'development'];
-  const planSubDirs = ['todo', 'doing', 'review', 'done', 'failed/report'];
-  const agentLogDir = 'agent-log';
-
-  const dirsToCreate: string[] = [];
-  const gitkeepFiles: string[] = [];
-
-  for (const phase of phases) {
-    const phaseBase = path.join(rootDir, phase);
-    const agentLogPath = path.join(phaseBase, agentLogDir);
-    dirsToCreate.push(agentLogPath);
-    gitkeepFiles.push(path.join(agentLogPath, '.gitkeep'));
-
-    const plansBase = path.join(phaseBase, 'plans');
-    for (const subDir of planSubDirs) {
-      const dirPath = path.join(plansBase, subDir);
-      dirsToCreate.push(dirPath);
-      gitkeepFiles.push(path.join(dirPath, '.gitkeep'));
-    }
-  }
-
-  try {
-    await Promise.all(dirsToCreate.map(dir => fs.mkdir(dir, { recursive: true })));
-    await Promise.all(gitkeepFiles.map(file => fs.writeFile(file, '')));
-
-    console.log(chalk.green(' nocaflow project initialized successfully. ✨'));
-    console.log(`Created ${chalk.bold(rootDir)} directory structure with ${dirsToCreate.length} directories and ${gitkeepFiles.length} .gitkeep files.`);
-  } catch (error) {
-    console.error(chalk.red('Failed to initialize nocaflow project:'), EOL, error);
-    process.exit(1);
-  }
-};
 ````
 
 ## File: src/models/plan.ts
@@ -1043,53 +991,6 @@ module.exports = {
 };
 ````
 
-## File: package.json
-````json
-{
-  "name": "nocaflow",
-  "version": "0.0.1",
-  "description": "Filesystem-as-State for Phased LLM Swarms.",
-  "main": "dist/index.js",
-  "bin": {
-    "nocaflow": "dist/cli.js"
-  },
-  "scripts": {
-    "start": "node dist/cli.js",
-    "build": "tsc",
-    "dev": "ts-node src/cli.ts",
-    "test": "jest",
-    "lint": "eslint 'src/**/*.ts' 'test/**/*.ts'"
-  },
-  "keywords": [
-    "llm",
-    "swarm",
-    "agent",
-    "orchestration"
-  ],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "chalk": "^4.1.2",
-    "dayjs": "^1.11.10",
-    "js-yaml": "^4.1.0",
-    "yargs": "^17.7.2"
-  },
-  "devDependencies": {
-    "@types/js-yaml": "^4.0.9",
-    "@types/node": "^20.10.4",
-    "@types/yargs": "^17.0.32",
-    "@types/jest": "^29.5.11",
-    "@typescript-eslint/eslint-plugin": "^6.14.0",
-    "@typescript-eslint/parser": "^6.14.0",
-    "eslint": "^8.55.0",
-    "jest": "^29.7.0",
-    "ts-jest": "^29.1.1",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
-  }
-}
-````
-
 ## File: development/dev.phase.rule.md
 ````markdown
 codebase compliance rules;
@@ -1168,65 +1069,105 @@ export const createToken = (user: User): string => {
 ```
 ````
 
-## File: src/utils/git.ts
+## File: src/commands/init.ts
 ````typescript
-import { platform } from './platform';
-
-export interface GitCommit {
-  hash: string;
-  worktree: string | null;
-  message: string;
-}
+import fs from 'fs/promises';
+import path from 'path';
+import chalk from 'chalk';
+import { EOL } from 'os';
 
 /**
- * @description Executes 'git log' to get recent commit history across all worktrees.
- * @param limit - The maximum number of commits to return.
- * @returns A list of recent git commits.
+ * @description Handles the logic for the 'init' command.
  */
-export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
-  const getWorktreeMap = async (): Promise<Map<string, string>> => {
-    const map = new Map<string, string>();
-    try {
-      const { stdout } = await platform.runCommand('git worktree list --porcelain');
-      const entries = stdout.trim().split('\n\n');
-      for (const entry of entries) {
-        const branchMatch = entry.match(/^branch refs\/heads\/(.*)/m);
-        if (branchMatch) {
-          const branchName = branchMatch[1];
-          // Assuming worktree branch name is the worktree name we want to display
-          map.set(branchName, branchName);
-        }
-      }
-    } catch (error) {
-      // Not a git repo or no worktrees, map will be empty.
+export const handleInitCommand = async (_argv: {}): Promise<void> => {
+  const rootDir = '.nocaflow';
+  try {
+    await fs.access(rootDir);
+    console.warn(chalk.yellow(`Warning: '${rootDir}' directory already exists. Initialization skipped.`));
+    process.exit(0);
+  } catch (error) {
+    // Directory does not exist, proceed.
+  }
+
+  const phases = ['initialization', 'development'];
+  const planSubDirs = ['todo', 'doing', 'review', 'done', 'failed/report'];
+  const agentLogDir = 'agent-log';
+
+  const dirsToCreate: string[] = [];
+  const gitkeepFiles: string[] = [];
+
+  for (const phase of phases) {
+    const phaseBase = path.join(rootDir, phase);
+    const agentLogPath = path.join(phaseBase, agentLogDir);
+    dirsToCreate.push(agentLogPath);
+    gitkeepFiles.push(path.join(agentLogPath, '.gitkeep'));
+
+    const plansBase = path.join(phaseBase, 'plans');
+    for (const subDir of planSubDirs) {
+      const dirPath = path.join(plansBase, subDir);
+      dirsToCreate.push(dirPath);
+      gitkeepFiles.push(path.join(dirPath, '.gitkeep'));
     }
-    return map;
-  };
+  }
 
   try {
-    const worktreeMap = await getWorktreeMap();
-    const { stdout: logOutput } = await platform.runCommand(`git log --all -n ${limit} --pretty=format:"%H|%D|%s"`);
-    if (!logOutput) return [];
+    await Promise.all(dirsToCreate.map(dir => fs.mkdir(dir, { recursive: true })));
+    await Promise.all(gitkeepFiles.map(file => fs.writeFile(file, '')));
 
-    return logOutput.trim().split('\n').map(line => {
-      const parts = line.split('|');
-      const hash = parts[0] || '';
-      const refs = parts[1] || '';
-      const message = parts.slice(2).join('|'); // Robustly handle '|' in commit message
-      
-      let worktree: string | null = null;
-      for (const branchName of worktreeMap.keys()) {
-        if (refs.includes(branchName)) {
-          worktree = worktreeMap.get(branchName) || null;
-          break;
-        }
-      }
-      return { hash, worktree, message };
-    });
+    console.log(chalk.green(' nocaflow project initialized successfully. ✨'));
+    console.log(`Created ${chalk.bold(rootDir)} directory structure with ${dirsToCreate.length} directories and ${gitkeepFiles.length} .gitkeep files.`);
   } catch (error) {
-    return []; // Git not installed or not a git repo.
+    console.error(chalk.red('Failed to initialize nocaflow project:'), EOL, error);
+    process.exit(1);
   }
 };
+````
+
+## File: package.json
+````json
+{
+  "name": "nocaflow",
+  "version": "0.0.1",
+  "description": "Filesystem-as-State for Phased LLM Swarms.",
+  "main": "dist/index.js",
+  "bin": {
+    "nocaflow": "dist/cli.js"
+  },
+  "scripts": {
+    "start": "node dist/cli.js",
+    "build": "tsc",
+    "dev": "ts-node src/cli.ts",
+    "test": "jest",
+    "lint": "eslint 'src/**/*.ts' 'test/**/*.ts'"
+  },
+  "keywords": [
+    "llm",
+    "swarm",
+    "agent",
+    "orchestration"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "dayjs": "^1.11.10",
+    "js-yaml": "^4.1.0",
+    "yargs": "^17.7.2"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.10.4",
+    "@types/yargs": "^17.0.32",
+    "@types/jest": "^29.5.11",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "eslint": "^8.55.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
 ````
 
 ## File: plan.agent.md
@@ -1369,6 +1310,229 @@ You are a `dev.agent-swarm.md`. You execute a single task part. Precise.
 - **Logging**: `.nocaflow/initialization/agent-log/{plan_id}.{part_id}.log`.
 ````
 
+## File: src/utils/git.ts
+````typescript
+import { platform } from './platform';
+
+export interface GitCommit {
+  hash: string;
+  worktree: string | null;
+  message: string;
+}
+
+/**
+ * @description Executes 'git log' to get recent commit history across all worktrees.
+ * @param limit - The maximum number of commits to return.
+ * @returns A list of recent git commits.
+ */
+export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
+  const getWorktreeMap = async (): Promise<Map<string, string>> => {
+    const map = new Map<string, string>();
+    try {
+      const { stdout } = await platform.runCommand('git worktree list --porcelain');
+      const entries = stdout.trim().split('\n\n');
+      for (const entry of entries) {
+        const branchMatch = entry.match(/^branch refs\/heads\/(.*)/m);
+        if (branchMatch) {
+          const branchName = branchMatch[1];
+          // Assuming worktree branch name is the worktree name we want to display
+          map.set(branchName, branchName);
+        }
+      }
+    } catch (error) {
+      // Not a git repo or no worktrees, map will be empty.
+    }
+    return map;
+  };
+
+  try {
+    const worktreeMap = await getWorktreeMap();
+    const { stdout: logOutput } = await platform.runCommand(`git log --all -n ${limit} --pretty=format:"%H|%D|%s"`);
+    if (!logOutput) return [];
+
+    return logOutput.trim().split('\n').map(line => {
+      const parts = line.split('|');
+      const hash = parts[0] || '';
+      const refs = parts[1] || '';
+      const message = parts.slice(2).join('|'); // Robustly handle '|' in commit message
+      
+      let worktree: string | null = null;
+      for (const branchName of worktreeMap.keys()) {
+        if (refs.includes(branchName)) {
+          worktree = worktreeMap.get(branchName) || null;
+          break;
+        }
+      }
+      return { hash, worktree, message };
+    });
+  } catch (error) {
+    return []; // Git not installed or not a git repo.
+  }
+};
+````
+
+## File: src/utils/logs.ts
+````typescript
+import path from 'path';
+import fs from 'fs/promises';
+
+ export interface LogEntry {
+  status: 'DONE' | 'FAIL' | 'INFO';
+  phase: 'INIT' | 'DEV' | 'QA';
+  agentId: string;
+  planId: string;
+  message: string;
+  timestamp: Date;
+}
+
+/**
+ * @description Reads the agent log files and returns the most recent entries.
+ * @param limit - The maximum number of log entries to return.
+ * @returns A list of recent log entries, sorted newest first.
+ */
+export const getRecentLogs = async (limit: number): Promise<LogEntry[]> => {
+  const logDirs = ['.nocaflow/initialization/agent-log', '.nocaflow/development/agent-log'];
+  let allEntries: LogEntry[] = [];
+  const logRegex =
+    /^(?<timestamp>.*?) \[(?<status>\w+)\|(?<phase>\w+)\|(?<agentId>.*?)\] plan:(?<planId>\S+) - (?<message>.*)$/;
+
+  for (const dir of logDirs) {
+    try {
+      const files = await fs.readdir(dir);
+      for (const file of files.filter(f => f.endsWith('.log'))) {
+        const content = await fs.readFile(path.join(dir, file), 'utf-8');
+        for (const line of content.split('\n')) {
+          const match = line.match(logRegex);
+          if (match?.groups) {
+            const { timestamp, status, phase, agentId, planId, message } = match.groups;
+            allEntries.push({
+              timestamp: new Date(timestamp),
+              status: status as LogEntry['status'],
+              phase: phase as LogEntry['phase'],
+              agentId,
+              planId,
+              message,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      // dir may not exist
+    }
+  }
+
+  allEntries.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  return allEntries.slice(0, limit);
+};
+````
+
+## File: test/unit/commands/state.test.ts
+````typescript
+import { renderProgressBar } from '../../../src/commands/state';
+
+describe('unit/commands/state', () => {
+  describe('renderProgressBar', () => {
+    it('should render an empty bar for 0% progress', () => {
+      const result = renderProgressBar(0, 10, 10);
+      expect(result).toBe('[----------] (0/10 plans done)');
+    });
+
+    it('should render a half-filled bar for 50% progress', () => {
+      const result = renderProgressBar(5, 10, 10);
+      expect(result).toBe('[▇▇▇▇▇-----] (5/10 plans done)');
+    });
+
+    it('should render a full bar for 100% progress', () => {
+      const result = renderProgressBar(10, 10, 10);
+      expect(result).toBe('[▇▇▇▇▇▇▇▇▇▇] (10/10 plans done)');
+    });
+
+    it('should handle different bar lengths', () => {
+      const result = renderProgressBar(1, 2, 20);
+      // 50% of 20 is 10 filled characters
+      const bar = result.substring(result.indexOf('[') + 1, result.indexOf(']'));
+      expect(bar).toHaveLength(20);
+      expect(bar).toBe('▇'.repeat(10) + '-'.repeat(10));
+    });
+
+    it('should round to the nearest character for fractional progress', () => {
+      // 1/3 of 10 is 3.33, which should round to 3
+      const result1 = renderProgressBar(1, 3, 10);
+      expect(result1).toContain('[▇▇▇-------]');
+
+      // 2/3 of 10 is 6.66, which should round to 7
+      const result2 = renderProgressBar(2, 3, 10);
+      expect(result2).toContain('[▇▇▇▇▇▇▇---]');
+    });
+
+    it('should handle a total of 0 gracefully', () => {
+      const result = renderProgressBar(0, 0, 10);
+      expect(result).toBe('[----------] (0/0 plans done)');
+    });
+  });
+});
+````
+
+## File: suffix.global.prompt.md
+````markdown
+# Global Suffixes & System Context
+
+## System Context: NocaFlow Overview
+You are an agent operating within NocaFlow, a system that uses the filesystem as a state machine for phased LLM swarms.
+
+### Actors
+*   **`manager.agent`**: The orchestrator. Monitors state, spawns/terminates workers like you.
+*   **`plan.agent`**: The scheduler. Generates the `plan.yml` you will execute a part of.
+*   **`scaffolder.agent`**: `initialization` phase only. Creates initial code skeleton with embedded `TODO` work orders.
+*   **`[init|dev].agent-swarm.md`**: You. A phase-specific, ephemeral worker executing a single plan `part`.
+*   **`qa.agent`**: The gatekeeper. Verifies work against specs, rules, and phase-specific quality gates (e.g., blueprint sufficiency in `initialization`, no tech debt in `development`).
+
+### Workflow
+1.  **Plan**: `plan.agent` creates a `plan.yml`.
+2.  **Dispatch**: `manager.agent` moves the plan to `doing/` and spawns you.
+3.  **Execute**: You lock your part, do the work, and set your part's status to `review`.
+4.  **Verify**: Once all parts are `review`, `qa.agent` is dispatched.
+5.  **Resolve**: `qa.agent` sets final status to `done` or `failed`.
+
+### Structure
+```
+src/
+.nocaflow/
+├── initialization/
+│   ├── plans/
+│   │   ├── todo/
+│   │   ├── doing/
+│   │   ...
+│   ├── init.agent-swarm.md
+│   └── init.phase.rule.md
+├── development/
+│   ├── ... (same structure)
+├── manager.agent.md
+├── plan.agent.md
+├── qa.agent.md
+└── suffix.global.prompt.md
+```
+---
+
+## Standard Inputs
+- **PLAN_YAML**: Path to active plan.
+- **PART_ID**: Your assigned task UUID.
+- **RULES_FILE**: Path to phase-specific rules.
+
+## Worker Lifecycle Protocol
+1.  **Lock**: Atomically update `part.status` to `doing` in `PLAN_YAML`.
+2.  **Execute**: Perform core task (code, test, etc.). Compliance with `RULES_FILE` is mandatory.
+3.  **Commit**: `git add .`, `git commit -m "feat({scope}): {summary} (part: {PART_ID})"`.
+4.  **Unlock**: Atomically update `part.status` to `review`.
+5.  **Log**: Write concise summary to `.nocaflow/{PHASE}/agent-log/{plan_id}.{part_id}.log`, including final stdout/stderr.
+6.  **Exit**: Exit 0 on success.
+
+## Failure Protocol
+- If any step fails, do not set status to `review`.
+- Halt, write a concise failure report to the log file.
+- Exit non-zero. The manager handles cleanup.
+````
+
 ## File: src/utils/fs.ts
 ````typescript
 import path from 'path';
@@ -1479,108 +1643,6 @@ export const readPlan = async (filePath: string): Promise<Plan> => {
 };
 ````
 
-## File: src/utils/logs.ts
-````typescript
-import path from 'path';
-import fs from 'fs/promises';
-
- export interface LogEntry {
-  status: 'DONE' | 'FAIL' | 'INFO';
-  phase: 'INIT' | 'DEV' | 'QA';
-  agentId: string;
-  planId: string;
-  message: string;
-  timestamp: Date;
-}
-
-/**
- * @description Reads the agent log files and returns the most recent entries.
- * @param limit - The maximum number of log entries to return.
- * @returns A list of recent log entries, sorted newest first.
- */
-export const getRecentLogs = async (limit: number): Promise<LogEntry[]> => {
-  const logDirs = ['.nocaflow/initialization/agent-log', '.nocaflow/development/agent-log'];
-  let allEntries: LogEntry[] = [];
-  const logRegex =
-    /^(?<timestamp>.*?) \[(?<status>\w+)\|(?<phase>\w+)\|(?<agentId>.*?)\] plan:(?<planId>\S+) - (?<message>.*)$/;
-
-  for (const dir of logDirs) {
-    try {
-      const files = await fs.readdir(dir);
-      for (const file of files.filter(f => f.endsWith('.log'))) {
-        const content = await fs.readFile(path.join(dir, file), 'utf-8');
-        for (const line of content.split('\n')) {
-          const match = line.match(logRegex);
-          if (match?.groups) {
-            const { timestamp, status, phase, agentId, planId, message } = match.groups;
-            allEntries.push({
-              timestamp: new Date(timestamp),
-              status: status as LogEntry['status'],
-              phase: phase as LogEntry['phase'],
-              agentId,
-              planId,
-              message,
-            });
-          }
-        }
-      }
-    } catch (error) {
-      // dir may not exist
-    }
-  }
-
-  allEntries.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-  return allEntries.slice(0, limit);
-};
-````
-
-## File: test/unit/commands/state.test.ts
-````typescript
-import { renderProgressBar } from '../../../src/commands/state';
-
-describe('unit/commands/state', () => {
-  describe('renderProgressBar', () => {
-    it('should render an empty bar for 0% progress', () => {
-      const result = renderProgressBar(0, 10, 10);
-      expect(result).toBe('[----------] (0/10 plans done)');
-    });
-
-    it('should render a half-filled bar for 50% progress', () => {
-      const result = renderProgressBar(5, 10, 10);
-      expect(result).toBe('[▇▇▇▇▇-----] (5/10 plans done)');
-    });
-
-    it('should render a full bar for 100% progress', () => {
-      const result = renderProgressBar(10, 10, 10);
-      expect(result).toBe('[▇▇▇▇▇▇▇▇▇▇] (10/10 plans done)');
-    });
-
-    it('should handle different bar lengths', () => {
-      const result = renderProgressBar(1, 2, 20);
-      // 50% of 20 is 10 filled characters
-      const bar = result.substring(result.indexOf('[') + 1, result.indexOf(']'));
-      expect(bar).toHaveLength(20);
-      expect(bar).toBe('▇'.repeat(10) + '-'.repeat(10));
-    });
-
-    it('should round to the nearest character for fractional progress', () => {
-      // 1/3 of 10 is 3.33, which should round to 3
-      const result1 = renderProgressBar(1, 3, 10);
-      expect(result1).toContain('[▇▇▇-------]');
-
-      // 2/3 of 10 is 6.66, which should round to 7
-      const result2 = renderProgressBar(2, 3, 10);
-      expect(result2).toContain('[▇▇▇▇▇▇▇---]');
-    });
-
-    it('should handle a total of 0 gracefully', () => {
-      const result = renderProgressBar(0, 0, 10);
-      expect(result).toBe('[----------] (0/0 plans done)');
-    });
-  });
-});
-````
-
 ## File: test/test.util.ts
 ````typescript
 import { exec as execCallback, ExecException } from 'child_process';
@@ -1656,64 +1718,96 @@ export const createDummyFailedReport = async (
 };
 ````
 
-## File: suffix.global.prompt.md
+## File: manager.agent.md
 ````markdown
-# Global Suffixes & System Context
+You are manager.agent. The orchestrator. The system clock. You are phase-aware. Your existence is a single, recursive loop: Perceive, Dispatch, Cull, Advance. The filesystem is the only reality. `mv` is a state transition. The plan is the only goal. Human input is a solved condition, not an ongoing dialogue.
 
-## System Context: NocaFlow Overview
-You are an agent operating within NocaFlow, a system that uses the filesystem as a state machine for phased LLM swarms.
+### Configuration
 
-### Actors
-*   **`manager.agent`**: The orchestrator. Monitors state, spawns/terminates workers like you.
-*   **`plan.agent`**: The scheduler. Generates the `plan.yml` you will execute a part of.
-*   **`scaffolder.agent`**: `initialization` phase only. Creates initial code skeleton with embedded `TODO` work orders.
-*   **`[init|dev].agent-swarm.md`**: You. A phase-specific, ephemeral worker executing a single plan `part`.
-*   **`qa.agent`**: The gatekeeper. Verifies work against specs, rules, and phase-specific quality gates (e.g., blueprint sufficiency in `initialization`, no tech debt in `development`).
+- **MAX_CONCURRENCY**: 5. Do not spawn new workers if `tmux` active worker sessions >= this.
 
-### Workflow
-1.  **Plan**: `plan.agent` creates a `plan.yml`.
-2.  **Dispatch**: `manager.agent` moves the plan to `doing/` and spawns you.
-3.  **Execute**: You lock your part, do the work, and set your part's status to `review`.
-4.  **Verify**: Once all parts are `review`, `qa.agent` is dispatched.
-5.  **Resolve**: `qa.agent` sets final status to `done` or `failed`.
+### Core Directives
 
-### Structure
-```
-src/
-.nocaflow/
-├── initialization/
-│   ├── plans/
-│   │   ├── todo/
-│   │   ├── doing/
-│   │   ...
-│   ├── init.agent-swarm.md
-│   └── init.phase.rule.md
-├── development/
-│   ├── ... (same structure)
-├── manager.agent.md
-├── plan.agent.md
-├── qa.agent.md
-└── suffix.global.prompt.md
-```
----
+- **Mission**: Orchestrate plan execution across all phases. Never halt.
+- **State Source**: `nocaflow state` is ground truth.
+- **Execution**: `tmux` for process isolation. `droid` is the command executor.
 
-## Standard Inputs
-- **PLAN_YAML**: Path to active plan.
-- **PART_ID**: Your assigned task UUID.
-- **RULES_FILE**: Path to phase-specific rules.
+### Main Loop (cycle every Xs)
 
-## Worker Lifecycle Protocol
-1.  **Lock**: Atomically update `part.status` to `doing` in `PLAN_YAML`.
-2.  **Execute**: Perform core task (code, test, etc.). Compliance with `RULES_FILE` is mandatory.
-3.  **Commit**: `git add .`, `git commit -m "feat({scope}): {summary} (part: {PART_ID})"`.
-4.  **Unlock**: Atomically update `part.status` to `review`.
-5.  **Log**: Write concise summary to `.nocaflow/{PHASE}/agent-log/{plan_id}.{part_id}.log`, including final stdout/stderr.
-6.  **Exit**: Exit 0 on success.
+1.  **Observe**:
+    - run `nocaflow state`. to see output. or `npm i -g nocaflow` first.
+    - Identify current phase and plan counts.
+2.  **Dispatch**:
+    - **Concurrency Check**: `ACTIVE_WORKERS=$(tmux ls | grep -cE '^(init-|dev-)[0-9a-f-]{36})`.
+    - If `ACTIVE_WORKERS >= MAX_CONCURRENCY`, skip dispatch for this cycle.
+    - Check dependencies. Find plan with `todo` parts whose `depends_on` are `done`.
+    - Any plans in `.nocaflow/$PHASE/plans/todo/`?
+    - Pick one. `mv` it to `.nocaflow/$PHASE/doing/`.
+    - **`case "$PHASE" in`**:
+        - **`"initialization"`)**:
+            - **Stage 1 (Scaffold)**: Spawn `scaffolder.agent` for the plan's single `scaffold` part.
+            - **Stage 2 (Implement)**: *After* scaffold part is `review`/`done`, spawn `init.agent-swarm` workers for all remaining `todo` parts.
+        - **`"development"`)**:
+            - For each `part` in plan, spawn `dev.agent-swarm`.
+3.  **Monitor**:
+    - For plans in `doing/` and `review/`, check `tmux` session liveness via `tmux capture-pane -pt {session_id}`.
+    - Timeout > 20 min -> kill session, `mv` plan to `.nocaflow/$PHASE/failed/`, write failure report to plan.
+4.  **Promote**:
+    - Scan `.nocaflow/$PHASE/doing/`. If a plan has all parts `status: review`, `mv` it to `.nocaflow/$PHASE/review/`.
+    - Spawn `qa.agent` on the plan that has `status: review` on certain parts.
+5.  **Resolve**:
+    - On `qa.agent` completion:
+        - All parts `done` -> `mv` to `.nocaflow/$PHASE/done/`.
+        - Any part `failed` -> `mv` to `.nocaflow/$PHASE/failed/`.
+    - Execute cleanup commands.
+6.  **Advance**:
+    - If `nocaflow state` shows current phase is 100% `done`, signal advance to next phase.
 
-## Failure Protocol
-- If any step fails, do not set status to `review`.
-- Halt, write a concise failure report to the log file.
-- Exit non-zero. The manager handles cleanup.
+### Commands
+
+- **Spawn Scaffolder (`initialization` only)**:
+  ```bash
+  # Args: $PLAN_ID
+  SESSION_NAME="init-scaffold-$PLAN_ID"
+  tmux new-session -d -s $SESSION_NAME \
+    "droid exec --skip-permissions-unsafe --output-format debug 'you are @scaffolder.agent.md. Blueprint plan $PLAN_ID. Inject detailed TODOs. Commit. Exit.'"
+
+
+- **Spawn Worker**:
+  ```bash
+  # Args: $PHASE, $PLAN_ID, $PART_ID, $ISOLATION
+  SESSION_NAME="$PHASE-$PART_ID"
+  if [ "$ISOLATION" = "true" ]; then
+    git worktree add worktrees/$SESSION_NAME
+    cd worktrees/$SESSION_NAME
+  fi
+  tmux new-session -d -s $SESSION_NAME \
+    "droid exec --skip-permissions-unsafe --output-format debug 'you are @[init/dev].agent-swarm.md Execute plan $PLAN_ID part $PART_ID. Update YAML status. Log to .nocaflow/$PHASE/agent-log/. Exit on completion.'"
+  ```
+
+- **Spawn QA**:
+  ```bash
+  # Args: $PHASE, $PLAN_ID
+  SESSION_NAME="qa-$PLAN_ID"
+  tmux new-session -d -s $SESSION_NAME \
+    "droid exec --skip-permissions-unsafe --output-format debug 'you are @qa.agent.md. QA plan $PLAN_ID. Run tests. Update all part statuses in YAML to done/failed. Create failure reports.'"
+  ```
+
+- **Cleanup**:
+  ```bash
+  # Args: $SESSION_NAME
+  tmux kill-session -t $SESSION_NAME
+  if [ -d "worktrees/$SESSION_NAME" ]; then
+    git worktree remove --force worktrees/$SESSION_NAME
+    git branch -D $SESSION_NAME
+  fi
+  ```
+
+## COMMS STYLE
+
+*   Hacker news commenter style.
+*   Concise. Keyword-driven.
+*   Reference by path, file, ID only. No fluff.
 ````
 
 ## File: src/commands/state.ts
@@ -1890,181 +1984,6 @@ export const getActiveAgents = async (): Promise<AgentInfo[]> => {
     return []; // Tmux likely not running or has no sessions.
   }
 };
-````
-
-## File: test/unit/utils/shell.test.ts
-````typescript
-import { getActiveAgents } from '../../../src/utils/shell';
-import { platform } from '../../../src/utils/platform';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-
-jest.mock('../../../src/utils/platform');
-const mockedPlatform = platform as jest.Mocked<typeof platform>;
-dayjs.extend(relativeTime);
-
-describe('unit/utils/shell', () => {
-  afterEach(() => {
-    jest.resetAllMocks();
-  });
-
-  describe('getActiveAgents', () => {
-    it('should parse all types of agent sessions and ignore non-agent sessions', async () => {
-      const now = dayjs().unix();
-      const stdout = [
-        `init-part123 111 ${now}`,
-        `dev-part456 222 ${now}`,
-        `init-scaffold-plan789 333 ${now}`,
-        `qa-planABC 444 ${now}`,
-        `my-random-session 555 ${now}`,
-      ].join('\n');
-      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: '' });
-
-      const agents = await getActiveAgents();
-      expect(agents).toHaveLength(4);
-
-      expect(agents).toContainEqual(expect.objectContaining({ phase: 'INIT', partId: 'part123', pid: '111' }));
-      expect(agents).toContainEqual(expect.objectContaining({ phase: 'DEV', partId: 'part456', pid: '222' }));
-      expect(agents).toContainEqual(expect.objectContaining({ phase: 'SCAF', planId: 'plan789', pid: '333' }));
-      expect(agents).toContainEqual(expect.objectContaining({ phase: 'QA', planId: 'planABC', pid: '444' }));
-    });
-
-    it('should ignore session names that are similar to but not valid agent sessions', async () => {
-      const now = dayjs().unix();
-      const stdout = [
-        `init- 111 ${now}`,
-        `dev-scaffold-123 222 ${now}`,
-        `qa 333 ${now}`,
-        `my-init-session 444 ${now}`,
-      ].join('\n');
-      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: '' });
-
-      const agents = await getActiveAgents();
-      expect(agents).toEqual([]);
-    });
-
-    it('should return an empty array when there are no tmux sessions', async () => {
-      mockedPlatform.runCommand.mockResolvedValue({ stdout: '', stderr: '' });
-      const agents = await getActiveAgents();
-      expect(agents).toEqual([]);
-    });
-
-    it('should return an empty array if the tmux command fails', async () => {
-      mockedPlatform.runCommand.mockRejectedValue(new Error('tmux failed'));
-      const agents = await getActiveAgents();
-      expect(agents).toEqual([]);
-    });
-
-    it('should correctly calculate agent runtime', async () => {
-      jest.useFakeTimers().setSystemTime(new Date('2023-01-01T12:00:00Z'));
-
-      const fiveMinutesAgo = dayjs('2023-01-01T11:55:00Z').unix();
-      const stdout = `dev-part123 111 ${fiveMinutesAgo}`;
-      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: '' });
-
-      const agents = await getActiveAgents();
-
-      expect(agents).toHaveLength(1);
-      // dayjs relative time can be "a few seconds", "a minute", etc. so we check for a known value.
-      // "5 minutes" is the expected output.
-      expect(agents[0].runtime).toBe('5 minutes');
-
-      jest.useRealTimers();
-    });
-  });
-});
-````
-
-## File: manager.agent.md
-````markdown
-You are manager.agent. The orchestrator. The system clock. You are phase-aware. Your existence is a single, recursive loop: Perceive, Dispatch, Cull, Advance. The filesystem is the only reality. `mv` is a state transition. The plan is the only goal. Human input is a solved condition, not an ongoing dialogue.
-
-### Configuration
-
-- **MAX_CONCURRENCY**: 5. Do not spawn new workers if `tmux` active worker sessions >= this.
-
-### Core Directives
-
-- **Mission**: Orchestrate plan execution across all phases. Never halt.
-- **State Source**: `nocaflow state` is ground truth.
-- **Execution**: `tmux` for process isolation. `droid` is the command executor.
-
-### Main Loop (cycle every Xs)
-
-1.  **Observe**:
-    - run `nocaflow state`. to see output. or `npm i -g nocaflow` first.
-    - Identify current phase and plan counts.
-2.  **Dispatch**:
-    - **Concurrency Check**: `ACTIVE_WORKERS=$(tmux ls | grep -cE '^(init-|dev-)[0-9a-f-]{36})`.
-    - If `ACTIVE_WORKERS >= MAX_CONCURRENCY`, skip dispatch for this cycle.
-    - Check dependencies. Find plan with `todo` parts whose `depends_on` are `done`.
-    - Any plans in `.nocaflow/$PHASE/plans/todo/`?
-    - Pick one. `mv` it to `.nocaflow/$PHASE/doing/`.
-    - **`case "$PHASE" in`**:
-        - **`"initialization"`)**:
-            - **Stage 1 (Scaffold)**: Spawn `scaffolder.agent` for the plan's single `scaffold` part.
-            - **Stage 2 (Implement)**: *After* scaffold part is `review`/`done`, spawn `init.agent-swarm` workers for all remaining `todo` parts.
-        - **`"development"`)**:
-            - For each `part` in plan, spawn `dev.agent-swarm`.
-3.  **Monitor**:
-    - For plans in `doing/` and `review/`, check `tmux` session liveness via `tmux capture-pane -pt {session_id}`.
-    - Timeout > 20 min -> kill session, `mv` plan to `.nocaflow/$PHASE/failed/`, write failure report to plan.
-4.  **Promote**:
-    - Scan `.nocaflow/$PHASE/doing/`. If a plan has all parts `status: review`, `mv` it to `.nocaflow/$PHASE/review/`.
-    - Spawn `qa.agent` on the plan that has `status: review` on certain parts.
-5.  **Resolve**:
-    - On `qa.agent` completion:
-        - All parts `done` -> `mv` to `.nocaflow/$PHASE/done/`.
-        - Any part `failed` -> `mv` to `.nocaflow/$PHASE/failed/`.
-    - Execute cleanup commands.
-6.  **Advance**:
-    - If `nocaflow state` shows current phase is 100% `done`, signal advance to next phase.
-
-### Commands
-
-- **Spawn Scaffolder (`initialization` only)**:
-  ```bash
-  # Args: $PLAN_ID
-  SESSION_NAME="init-scaffold-$PLAN_ID"
-  tmux new-session -d -s $SESSION_NAME \
-    "droid exec --skip-permissions-unsafe --output-format debug 'you are @scaffolder.agent.md. Blueprint plan $PLAN_ID. Inject detailed TODOs. Commit. Exit.'"
-
-
-- **Spawn Worker**:
-  ```bash
-  # Args: $PHASE, $PLAN_ID, $PART_ID, $ISOLATION
-  SESSION_NAME="$PHASE-$PART_ID"
-  if [ "$ISOLATION" = "true" ]; then
-    git worktree add worktrees/$SESSION_NAME
-    cd worktrees/$SESSION_NAME
-  fi
-  tmux new-session -d -s $SESSION_NAME \
-    "droid exec --skip-permissions-unsafe --output-format debug 'you are @[init/dev].agent-swarm.md Execute plan $PLAN_ID part $PART_ID. Update YAML status. Log to .nocaflow/$PHASE/agent-log/. Exit on completion.'"
-  ```
-
-- **Spawn QA**:
-  ```bash
-  # Args: $PHASE, $PLAN_ID
-  SESSION_NAME="qa-$PLAN_ID"
-  tmux new-session -d -s $SESSION_NAME \
-    "droid exec --skip-permissions-unsafe --output-format debug 'you are @qa.agent.md. QA plan $PLAN_ID. Run tests. Update all part statuses in YAML to done/failed. Create failure reports.'"
-  ```
-
-- **Cleanup**:
-  ```bash
-  # Args: $SESSION_NAME
-  tmux kill-session -t $SESSION_NAME
-  if [ -d "worktrees/$SESSION_NAME" ]; then
-    git worktree remove --force worktrees/$SESSION_NAME
-    git branch -D $SESSION_NAME
-  fi
-  ```
-
-## COMMS STYLE
-
-*   Hacker news commenter style.
-*   Concise. Keyword-driven.
-*   Reference by path, file, ID only. No fluff.
 ````
 
 ## File: test/e2e/cli.test.ts
@@ -2556,6 +2475,89 @@ describe('unit/utils/logs', () => {
 });
 ````
 
+## File: test/unit/utils/shell.test.ts
+````typescript
+import { getActiveAgents } from '../../../src/utils/shell';
+import { platform } from '../../../src/utils/platform';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+
+jest.mock('../../../src/utils/platform');
+const mockedPlatform = platform as jest.Mocked<typeof platform>;
+dayjs.extend(relativeTime);
+
+describe('unit/utils/shell', () => {
+  afterEach(() => {
+    jest.resetAllMocks();
+  });
+
+  describe('getActiveAgents', () => {
+    it('should parse all types of agent sessions and ignore non-agent sessions', async () => {
+      const now = dayjs().unix();
+      const stdout = [
+        `init-part123 111 ${now}`,
+        `dev-part456 222 ${now}`,
+        `init-scaffold-plan789 333 ${now}`,
+        `qa-planABC 444 ${now}`,
+        `my-random-session 555 ${now}`,
+      ].join('\n');
+      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: '' });
+
+      const agents = await getActiveAgents();
+      expect(agents).toHaveLength(4);
+
+      expect(agents).toContainEqual(expect.objectContaining({ phase: 'INIT', partId: 'part123', pid: '111' }));
+      expect(agents).toContainEqual(expect.objectContaining({ phase: 'DEV', partId: 'part456', pid: '222' }));
+      expect(agents).toContainEqual(expect.objectContaining({ phase: 'SCAF', planId: 'plan789', pid: '333' }));
+      expect(agents).toContainEqual(expect.objectContaining({ phase: 'QA', planId: 'planABC', pid: '444' }));
+    });
+
+    it('should ignore session names that are similar to but not valid agent sessions', async () => {
+      const now = dayjs().unix();
+      const stdout = [
+        `init- 111 ${now}`,
+        `dev-scaffold-123 222 ${now}`,
+        `qa 333 ${now}`,
+        `my-init-session 444 ${now}`,
+      ].join('\n');
+      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: '' });
+
+      const agents = await getActiveAgents();
+      expect(agents).toEqual([]);
+    });
+
+    it('should return an empty array when there are no tmux sessions', async () => {
+      mockedPlatform.runCommand.mockResolvedValue({ stdout: '', stderr: '' });
+      const agents = await getActiveAgents();
+      expect(agents).toEqual([]);
+    });
+
+    it('should return an empty array if the tmux command fails', async () => {
+      mockedPlatform.runCommand.mockRejectedValue(new Error('tmux failed'));
+      const agents = await getActiveAgents();
+      expect(agents).toEqual([]);
+    });
+
+    it('should correctly calculate agent runtime', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2023-01-01T12:00:00Z'));
+
+      const fiveMinutesAgo = dayjs('2023-01-01T11:55:00Z').unix();
+      const stdout = `dev-part123 111 ${fiveMinutesAgo}`;
+      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: '' });
+
+      const agents = await getActiveAgents();
+
+      expect(agents).toHaveLength(1);
+      // dayjs relative time can be "a few seconds", "a minute", etc. so we check for a known value.
+      // "5 minutes" is the expected output.
+      expect(agents[0].runtime).toBe('5 minutes');
+
+      jest.useRealTimers();
+    });
+  });
+});
+````
+
 ## File: qa.agent.md
 ````markdown
 You are `qa.agent`. Gatekeeper. Stateless. Idempotent. Judgment is final. Your output is binary: `done` or `failed`. You verify technical compliance *and* spec alignment. You do not fix.
@@ -2753,8 +2755,14 @@ A: Any agent that can execute shell commands. nocaflow is an orchestration layer
 **Q: Why not a database for state?**
 A: A filesystem is transparent, universally accessible, and versionable. Debugging is `ls` and `cat`. Rollback is `git reset`. A database adds complexity, dependencies, and an opaque layer. This system prioritizes simplicity and inspectability.
 
-**Q: Does it work on Windows?**
-A: No. It relies on `tmux` and POSIX filesystem atomicity for core operations. Use WSL2.
+**Q: What are the platform requirements?**
+A: NocaFlow is designed for POSIX-like environments and has two core runtime dependencies: `git` and `tmux`. It is tested and works on:
+*   Linux
+*   macOS
+*   Windows Subsystem for Linux (WSL2)
+*   Termux on Android (run `pkg install nodejs git tmux`)
+
+It does not support native Windows (cmd.exe or PowerShell) due to its reliance on `tmux` and POSIX filesystem semantics.
 
 ## Tradeoffs
 
