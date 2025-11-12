@@ -1,18 +1,15 @@
 import { getActiveAgents } from '../../../src/utils/shell';
-import { exec } from 'child_process';
+import { platform } from '../../../src/utils/platform';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
-// Note: This is an exception to the "no mock" rule. `tmux` is an external system
-// dependency, not internal application logic. Mocking `exec` is the only reliable
-// way to test the parsing logic in a CI environment without requiring `tmux` to be running.
-jest.mock('child_process');
-const mockedExec = exec as jest.Mock;
+jest.mock('../../../src/utils/platform');
+const mockedPlatform = platform as jest.Mocked<typeof platform>;
 dayjs.extend(relativeTime);
 
 describe('unit/utils/shell', () => {
   afterEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
   });
 
   describe('getActiveAgents', () => {
@@ -25,7 +22,7 @@ describe('unit/utils/shell', () => {
         `qa-planABC 444 ${now}`,
         `my-random-session 555 ${now}`,
       ].join('\n');
-      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout, stderr: '' }));
+      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: '' });
 
       const agents = await getActiveAgents();
       expect(agents).toHaveLength(4);
@@ -44,20 +41,20 @@ describe('unit/utils/shell', () => {
         `qa 333 ${now}`,
         `my-init-session 444 ${now}`,
       ].join('\n');
-      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout, stderr: '' }));
+      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: '' });
 
       const agents = await getActiveAgents();
       expect(agents).toEqual([]);
     });
 
     it('should return an empty array when there are no tmux sessions', async () => {
-      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout: '', stderr: '' }));
+      mockedPlatform.runCommand.mockResolvedValue({ stdout: '', stderr: '' });
       const agents = await getActiveAgents();
       expect(agents).toEqual([]);
     });
 
     it('should return an empty array if the tmux command fails', async () => {
-      mockedExec.mockImplementation((_cmd, callback) => callback(new Error('tmux failed'), { stdout: '', stderr: '' }));
+      mockedPlatform.runCommand.mockRejectedValue(new Error('tmux failed'));
       const agents = await getActiveAgents();
       expect(agents).toEqual([]);
     });
@@ -67,7 +64,7 @@ describe('unit/utils/shell', () => {
 
       const fiveMinutesAgo = dayjs('2023-01-01T11:55:00Z').unix();
       const stdout = `dev-part123 111 ${fiveMinutesAgo}`;
-      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout, stderr: '' }));
+      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: '' });
 
       const agents = await getActiveAgents();
 
