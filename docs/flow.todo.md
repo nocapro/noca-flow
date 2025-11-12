@@ -6,7 +6,7 @@
 
 
 
-=== DOING
+=== DONE
 
 Lets make codebase production ready by implementing embeeded blueprint todos, the only quality is passing tests and aligned with specs
 
