@@ -152,8 +152,14 @@ A: Any agent that can execute shell commands. nocaflow is an orchestration layer
 **Q: Why not a database for state?**
 A: A filesystem is transparent, universally accessible, and versionable. Debugging is `ls` and `cat`. Rollback is `git reset`. A database adds complexity, dependencies, and an opaque layer. This system prioritizes simplicity and inspectability.
 
-**Q: Does it work on Windows?**
-A: No. It relies on `tmux` and POSIX filesystem atomicity for core operations. Use WSL2.
+**Q: What are the platform requirements?**
+A: NocaFlow is designed for POSIX-like environments and has two core runtime dependencies: `git` and `tmux`. It is tested and works on:
+*   Linux
+*   macOS
+*   Windows Subsystem for Linux (WSL2)
+*   Termux on Android (run `pkg install nodejs git tmux`)
+
+It does not support native Windows (cmd.exe or PowerShell) due to its reliance on `tmux` and POSIX filesystem semantics.
 
 ## Tradeoffs
 

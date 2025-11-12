@@ -1,0 +1,427 @@
+uuid: d2d23c89-a960-4927-a9a3-5c08cd0a8301
+projectId: noca-flow
+createdAt: '2025-11-12T04:06:38.703Z'
+gitCommitMsg: >-
+  feat(platform): introduce platform abstraction layer
+
+  This commit introduces a platform abstraction layer to centralize all direct
+  interactions with the host system, such as running shell commands and
+  accessing temporary directories.
+
+  - A new `src/utils/platform.ts` module defines a `Platform` interface
+    and a default `posixPlatform` implementation.
+  - This implementation respects `TMPDIR`, `TEMP`, and `TMP` environment
+    variables, improving compatibility with environments like Termux.
+  - `git.ts`, `shell.ts`, and `test.util.ts` have been refactored to
+    use this new abstraction instead of directly depending on Node.js
+    modules like `child_process` and `os`.
+
+  This change decouples application logic from the host environment, improving
+  portability and making the codebase more robust and easier to test.
+promptSummary: >-
+  The user asked me to execute Part 1 of a plan to introduce a platform
+  abstraction layer for better multi-environment compatibility.
+reasoning:
+  - >-
+    Executing Part 1 of the plan to introduce a platform abstraction layer. This
+    will centralize all environment interactions, making the system more
+    portable and easier to test.
+  - >-
+    First, I'll create the new platform module. This file will define the
+    `Platform` interface and provide a default implementation for POSIX-like
+    systems, handling shell command execution and resolving temporary directory
+    paths in a way that is compatible with environments like Termux.
+  - >-
+    Next, I'll refactor `src/utils/shell.ts` to use the new platform module
+    instead of directly calling `child_process.exec`. This is the first step in
+    decoupling our application logic from the underlying environment.
+  - >-
+    Similarly, I'll refactor `src/utils/git.ts` to use the platform abstraction
+    for running `git` commands. This removes another direct dependency on
+    `child_process`.
+  - >-
+    Finally, I will update the test utility for creating temporary directories.
+    Using `platform.getTmpDir()` ensures that our test setup logic is consistent
+    with the application's environment handling.
+operations:
+  - type: write
+    path: src/utils/platform.ts
+    content: |-
+      import { exec as execCallback, ExecException } from 'child_process';
+      import { promisify } from 'util';
+      import os from 'os';
+
+      const exec = promisify(execCallback);
+
+      export interface CommandResult {
+        stdout: string;
+        stderr: string;
+      }
+
+      export interface Platform {
+        runCommand(command: string): Promise<CommandResult>;
+        getTmpDir(): string;
+      }
+
+      const runCommand = async (command: string): Promise<CommandResult> => {
+        try {
+          const { stdout, stderr } = await exec(command);
+          return { stdout, stderr };
+        } catch (error) {
+          // exec throws an error for non-zero exit codes.
+          // We want to capture stdout/stderr and the code, not crash.
+          const err = error as ExecException & CommandResult;
+          return {
+            stdout: err.stdout,
+            stderr: err.stderr,
+          };
+        }
+      };
+
+      const getTmpDir = (): string => {
+        // Respect common environment variables for temp directories.
+        // This is crucial for environments like Termux.
+        return process.env.TMPDIR || process.env.TEMP || process.env.TMP || os.tmpdir();
+      };
+
+
+      export const posixPlatform: Platform = {
+        runCommand,
+        getTmpDir,
+      };
+
+      // Export a singleton instance for the application to use.
+      export const platform: Platform = posixPlatform;
+    patchStrategy: replace
+  - type: write
+    path: src/utils/shell.ts
+    content: >+
+      --- src/utils/shell.ts
+
+      +++ src/utils/shell.ts
+
+      @@ -1,5 +1,5 @@
+
+      -import { promisify } from 'util';
+
+      -import { exec as execCallback } from 'child_process';
+       import dayjs from 'dayjs';
+       import relativeTime from 'dayjs/plugin/relativeTime';
+      +import { platform } from './platform';
+       
+       export interface AgentInfo {
+         phase: 'INIT' | 'DEV' | 'QA' | 'SCAF';
+      @@ -11,15 +11,14 @@
+         pid: string;
+       }
+       
+      -const exec = promisify(execCallback);
+       dayjs.extend(relativeTime);
+       
+       /**
+        * @description Lists active tmux sessions and parses them to find agent info.
+        * @returns A list of active agents.
+        */
+       export const getActiveAgents = async (): Promise<AgentInfo[]> => {
+         try {
+      -    const { stdout } = await exec(`tmux ls -F "#{session_name}
+      #{pane_pid} #{session_activity}"`);
+
+      +    const { stdout } = await platform.runCommand(`tmux ls -F
+      "#{session_name} #{pane_pid} #{session_activity}"`);
+           if (!stdout) return [];
+       
+           const lines = stdout.trim().split('\n');
+
+    patchStrategy: standard-diff
+  - type: write
+    path: src/utils/git.ts
+    content: >+
+      --- src/utils/git.ts
+
+      +++ src/utils/git.ts
+
+      @@ -1,5 +1,4 @@
+
+      -import { promisify } from 'util';
+
+      -import { exec as execCallback } from 'child_process';
+
+      +import { platform } from './platform';
+       
+       export interface GitCommit {
+         hash: string;
+      @@ -7,8 +6,6 @@
+         message: string;
+       }
+       
+      -const exec = promisify(execCallback);
+
+      -
+       /**
+        * @description Executes 'git log' to get recent commit history across all worktrees.
+        * @param limit - The maximum number of commits to return.
+      @@ -18,7 +15,7 @@
+         const getWorktreeMap = async (): Promise<Map<string, string>> => {
+           const map = new Map<string, string>();
+           try {
+      -      const { stdout } = await exec('git worktree list --porcelain');
+
+      +      const { stdout } = await platform.runCommand('git worktree list
+      --porcelain');
+             const entries = stdout.trim().split('\n\n');
+             for (const entry of entries) {
+               const branchMatch = entry.match(/^branch refs\/heads\/(.*)/m);
+      @@ -36,7 +33,7 @@
+       
+         try {
+           const worktreeMap = await getWorktreeMap();
+      -    const { stdout: logOutput } = await exec(`git log --all -n ${limit}
+      --pretty=format:"%H|%D|%s"`);
+
+      +    const { stdout: logOutput } = await platform.runCommand(`git log
+      --all -n ${limit} --pretty=format:"%H|%D|%s"`);
+           if (!logOutput) return [];
+       
+           return logOutput.trim().split('\n').map(line => {
+
+    patchStrategy: standard-diff
+  - type: write
+    path: test/test.util.ts
+    content: >+
+      --- test/test.util.ts
+
+      +++ test/test.util.ts
+
+      @@ -2,8 +2,8 @@
+       import { promisify } from 'util';
+       import fs from 'fs/promises';
+       import path from 'path';
+      -import os from 'os';
+
+      +import { platform } from '../src/utils/platform';
+       
+       const promisedExec = promisify(execCallback);
+       
+      @@ -29,7 +29,7 @@
+         cleanup: () => Promise<void>;
+       }> => {
+         const originalCwd = process.cwd();
+      -  const testDir = await fs.mkdtemp(path.join(os.tmpdir(),
+      'nocaflow-test-'));
+
+      +  const testDir = await fs.mkdtemp(path.join(platform.getTmpDir(),
+      'nocaflow-test-'));
+         process.chdir(testDir);
+       
+         const cleanup = async (): Promise<void> => {
+
+    patchStrategy: standard-diff
+snapshot:
+  src/utils/platform.ts: null
+  src/utils/git.ts: |-
+    import { promisify } from 'util';
+    import { exec as execCallback } from 'child_process';
+
+    export interface GitCommit {
+      hash: string;
+      worktree: string | null;
+      message: string;
+    }
+
+    const exec = promisify(execCallback);
+
+    /**
+     * @description Executes 'git log' to get recent commit history across all worktrees.
+     * @param limit - The maximum number of commits to return.
+     * @returns A list of recent git commits.
+     */
+    export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
+      const getWorktreeMap = async (): Promise<Map<string, string>> => {
+        const map = new Map<string, string>();
+        try {
+          const { stdout } = await exec('git worktree list --porcelain');
+          const entries = stdout.trim().split('\n\n');
+          for (const entry of entries) {
+            const branchMatch = entry.match(/^branch refs\/heads\/(.*)/m);
+            if (branchMatch) {
+              const branchName = branchMatch[1];
+              // Assuming worktree branch name is the worktree name we want to display
+              map.set(branchName, branchName);
+            }
+          }
+        } catch (error) {
+          // Not a git repo or no worktrees, map will be empty.
+        }
+        return map;
+      };
+
+      try {
+        const worktreeMap = await getWorktreeMap();
+        const { stdout: logOutput } = await exec(`git log --all -n ${limit} --pretty=format:"%H|%D|%s"`);
+        if (!logOutput) return [];
+
+        return logOutput.trim().split('\n').map(line => {
+          const parts = line.split('|');
+          const hash = parts[0] || '';
+          const refs = parts[1] || '';
+          const message = parts.slice(2).join('|'); // Robustly handle '|' in commit message
+          
+          let worktree: string | null = null;
+          for (const branchName of worktreeMap.keys()) {
+            if (refs.includes(branchName)) {
+              worktree = worktreeMap.get(branchName) || null;
+              break;
+            }
+          }
+          return { hash, worktree, message };
+        });
+      } catch (error) {
+        return []; // Git not installed or not a git repo.
+      }
+    };
+  test/test.util.ts: |-
+    import { exec as execCallback, ExecException } from 'child_process';
+    import { promisify } from 'util';
+    import fs from 'fs/promises';
+    import path from 'path';
+    import os from 'os';
+
+    const promisedExec = promisify(execCallback);
+
+    export const runCli = async (
+      args: string,
+    ): Promise<{ stdout: string; stderr: string; code: number }> => {
+      const cliPath = path.join(__dirname, '..', 'dist', 'cli.js');
+      try {
+        const { stdout, stderr } = await promisedExec(`node ${cliPath} ${args}`);
+        return { stdout, stderr, code: 0 };
+      } catch (error) {
+        const err = error as ExecException & { stdout: string; stderr: string };
+        return {
+          stdout: err.stdout,
+          stderr: err.stderr,
+          code: err.code || 1,
+        };
+      }
+    };
+
+    export const setupTestDirectory = async (): Promise<{
+      testDir: string;
+      cleanup: () => Promise<void>;
+    }> => {
+      const originalCwd = process.cwd();
+      const testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'nocaflow-test-'));
+      process.chdir(testDir);
+
+      const cleanup = async (): Promise<void> => {
+        process.chdir(originalCwd);
+        await fs.rm(testDir, { recursive: true, force: true });
+      };
+
+      return { testDir, cleanup };
+    };
+
+    export const initGitRepo = async (): Promise<void> => {
+      await promisedExec('git init');
+      await promisedExec('git config user.email "test@example.com"');
+      await promisedExec('git config user.name "Test User"');
+      await promisedExec('git commit --allow-empty -m "Initial commit"');
+    };
+
+    export const createDummyPlanFile = async (
+      phase: 'initialization' | 'development',
+      status: 'todo' | 'doing' | 'done' | 'review' | 'failed',
+      fileName: string,
+    ): Promise<void> => {
+      const dirPath = path.join('.nocaflow', phase, 'plans', status);
+      await fs.mkdir(dirPath, { recursive: true });
+      await fs.writeFile(path.join(dirPath, fileName), '# dummy plan');
+    };
+
+    export const createDummyFailedReport = async (
+      phase: 'initialization' | 'development',
+      planId: string,
+      partId: string,
+      summary: string,
+    ): Promise<string> => {
+      const reportDir = path.join('.nocaflow', phase, 'plans', 'failed', 'report');
+      await fs.mkdir(reportDir, { recursive: true });
+      const reportPath = path.join(reportDir, `${planId}.${partId}.report.md`);
+      const content = `## Summary\n\n${summary}`;
+      await fs.writeFile(reportPath, content);
+      return reportPath;
+    };
+  src/utils/shell.ts: |-
+    import { promisify } from 'util';
+    import { exec as execCallback } from 'child_process';
+    import dayjs from 'dayjs';
+    import relativeTime from 'dayjs/plugin/relativeTime';
+
+    export interface AgentInfo {
+      phase: 'INIT' | 'DEV' | 'QA' | 'SCAF';
+      id: string; // part_id, plan_id for QA/Scaffold
+      planId: string;
+      partId: string; // Can be 'scaffold' or 'qa'
+      runtime: string;
+      pid: string;
+    }
+
+    const exec = promisify(execCallback);
+    dayjs.extend(relativeTime);
+
+    /**
+     * @description Lists active tmux sessions and parses them to find agent info.
+     * @returns A list of active agents.
+     */
+    export const getActiveAgents = async (): Promise<AgentInfo[]> => {
+      try {
+        const { stdout } = await exec(`tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`);
+        if (!stdout) return [];
+
+        const lines = stdout.trim().split('\n');
+        const agents: AgentInfo[] = [];
+
+        for (const line of lines) {
+          const [sessionName, pid, activity] = line.split(' ');
+          const runtime = dayjs().to(dayjs.unix(parseInt(activity, 10)), true);
+
+          let match;
+          if ((match = sessionName.match(/^(init|dev)-(.+)/))) {
+            const phase = match[1].toUpperCase() as 'INIT' | 'DEV';
+            const partId = match[2];
+            agents.push({
+              phase,
+              id: partId,
+              planId: 'unknown', // Not available from session name
+              partId: partId,
+              runtime,
+              pid,
+            });
+          } else if ((match = sessionName.match(/^init-scaffold-(.+)/))) {
+            const planId = match[1];
+            agents.push({
+              phase: 'SCAF',
+              id: planId,
+              planId,
+              partId: 'scaffold',
+              runtime,
+              pid,
+            });
+          } else if ((match = sessionName.match(/^qa-(.+)/))) {
+            const planId = match[1];
+            agents.push({ phase: 'QA', id: planId, planId, partId: 'qa', runtime, pid });
+          }
+        }
+        return agents;
+      } catch (error) {
+        return []; // Tmux likely not running or has no sessions.
+      }
+    };
+approved: true
+linesAdded: null
+linesRemoved: null
+linesDifference: null
+gitCommittedAt: null
+status: committed
+id: 25

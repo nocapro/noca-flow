@@ -2,7 +2,6 @@ import path from 'path';
 import fs from 'fs/promises';
 import yaml from 'js-yaml';
 import dayjs from 'dayjs';
-import { YAMLException } from 'js-yaml';
 import { Plan } from '../models/plan';
 
 export interface PhaseStats {
@@ -99,7 +98,7 @@ export const readPlan = async (filePath: string): Promise<Plan> => {
     const fileContent = await fs.readFile(filePath, 'utf-8');
     const plan = yaml.load(fileContent) as Plan;
     return plan;
-  } catch (error: any) {
+  } catch (error) {
     // Let the caller handle the error. They might want to know if it's a
     // file not found vs. a parsing error.
     throw error;

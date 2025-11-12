@@ -1,0 +1,326 @@
+uuid: f19d1469-d4c3-4c91-a185-30310246a48d
+projectId: noca-flow
+createdAt: '2025-11-12T04:09:28.905Z'
+gitCommitMsg: >-
+  test: refactor tests to use platform abstraction
+
+  Refactors `shell.test.ts` to mock the new `Platform` module instead of
+  `child_process` directly. This results in cleaner, more robust tests that are
+  decoupled from Node.js internals.
+
+  Adds a new test suite, `platform.test.ts`, to provide dedicated unit test
+  coverage for the `Platform` module's command execution and temp directory
+  logic. This centralizes the mocking of external dependencies like
+  `child_process` and `os`.
+promptSummary: >-
+  User requested execution of Part 2 of the plan, which involves refactoring
+  tests to use the new platform abstraction and creating unit tests for the
+  platform module itself.
+reasoning:
+  - >-
+    Executing Part 2 of the plan. This involves refactoring existing tests to
+    use the new `Platform` abstraction and creating new tests for the `Platform`
+    module itself. This will make our tests cleaner and more robust.
+  - >-
+    First, I'll refactor `test/unit/utils/shell.test.ts`. The goal is to stop
+    mocking Node's built-in `child_process` module directly and instead mock our
+    new, purpose-built `platform` module. This makes the test less brittle and
+    more focused on the logic within `getActiveAgents`.
+  - >-
+    Next, as per the plan, I will create a new unit test file specifically for
+    our `platform` module. This is where we'll isolate the testing of direct
+    interactions with `child_process` and `os`, ensuring our abstraction works
+    as expected.
+operations:
+  - type: write
+    path: test/unit/utils/shell.test.ts
+    content: >+
+      --- test/unit/utils/shell.test.ts
+
+      +++ test/unit/utils/shell.test.ts
+
+      @@ -1,18 +1,15 @@
+       import { getActiveAgents } from '../../../src/utils/shell';
+      -import { exec } from 'child_process';
+
+      +import { platform } from '../../../src/utils/platform';
+       import dayjs from 'dayjs';
+       import relativeTime from 'dayjs/plugin/relativeTime';
+       
+      -// Note: This is an exception to the "no mock" rule. `tmux` is an
+      external system
+
+      -// dependency, not internal application logic. Mocking `exec` is the only
+      reliable
+
+      -// way to test the parsing logic in a CI environment without requiring
+      `tmux` to be running.
+
+      -jest.mock('child_process');
+
+      -const mockedExec = exec as jest.Mock;
+
+      +jest.mock('../../../src/utils/platform');
+
+      +const mockedPlatform = platform as jest.Mocked<typeof platform>;
+       dayjs.extend(relativeTime);
+       
+       describe('unit/utils/shell', () => {
+         afterEach(() => {
+      -    jest.clearAllMocks();
+
+      +    jest.resetAllMocks();
+         });
+       
+         describe('getActiveAgents', () => {
+      @@ -25,7 +22,7 @@
+               `qa-planABC 444 ${now}`,
+               `my-random-session 555 ${now}`,
+             ].join('\n');
+      -      mockedExec.mockImplementation((_cmd, callback) => callback(null, {
+      stdout, stderr: '' }));
+
+      +      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: ''
+      });
+       
+             const agents = await getActiveAgents();
+             expect(agents).toHaveLength(4);
+      @@ -44,20 +41,20 @@
+               `qa 333 ${now}`,
+               `my-init-session 444 ${now}`,
+             ].join('\n');
+      -      mockedExec.mockImplementation((_cmd, callback) => callback(null, {
+      stdout, stderr: '' }));
+
+      +      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: ''
+      });
+       
+             const agents = await getActiveAgents();
+             expect(agents).toEqual([]);
+           });
+       
+           it('should return an empty array when there are no tmux sessions', async () => {
+      -      mockedExec.mockImplementation((_cmd, callback) => callback(null, {
+      stdout: '', stderr: '' }));
+
+      +      mockedPlatform.runCommand.mockResolvedValue({ stdout: '', stderr:
+      '' });
+             const agents = await getActiveAgents();
+             expect(agents).toEqual([]);
+           });
+       
+           it('should return an empty array if the tmux command fails', async () => {
+      -      mockedExec.mockImplementation((_cmd, callback) => callback(new
+      Error('tmux failed'), { stdout: '', stderr: '' }));
+
+      +      mockedPlatform.runCommand.mockRejectedValue(new Error('tmux
+      failed'));
+             const agents = await getActiveAgents();
+             expect(agents).toEqual([]);
+           });
+      @@ -67,7 +64,7 @@
+       
+             const fiveMinutesAgo = dayjs('2023-01-01T11:55:00Z').unix();
+             const stdout = `dev-part123 111 ${fiveMinutesAgo}`;
+      -      mockedExec.mockImplementation((_cmd, callback) => callback(null, {
+      stdout, stderr: '' }));
+
+      +      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: ''
+      });
+       
+             const agents = await getActiveAgents();
+       
+
+    patchStrategy: standard-diff
+  - type: write
+    path: test/unit/utils/platform.test.ts
+    content: |-
+      import { posixPlatform } from '../../../src/utils/platform';
+      import { exec as execCallback, ExecException } from 'child_process';
+      import os from 'os';
+
+      jest.mock('child_process');
+      const mockedExec = execCallback as jest.Mock;
+
+      jest.mock('os');
+      const mockedOs = os as jest.Mocked<typeof os>;
+
+      describe('unit/utils/platform', () => {
+        afterEach(() => {
+          jest.resetAllMocks();
+          // Clean up environment variables
+          delete process.env.TMPDIR;
+          delete process.env.TEMP;
+          delete process.env.TMP;
+        });
+
+        describe('runCommand', () => {
+          it('should resolve with stdout and stderr on successful execution', async () => {
+            const command = 'ls -l';
+            const expectedStdout = 'total 0';
+            const expectedStderr = '';
+            mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout: expectedStdout, stderr: expectedStderr }));
+            
+            const result = await posixPlatform.runCommand(command);
+            
+            expect(mockedExec).toHaveBeenCalledWith(command, expect.any(Function));
+            expect(result.stdout).toBe(expectedStdout);
+            expect(result.stderr).toBe(expectedStderr);
+          });
+
+          it('should capture stdout and stderr even when the command fails (non-zero exit code)', async () => {
+            const command = 'git status';
+            const expectedStdout = '';
+            const expectedStderr = 'fatal: not a git repository';
+            const error: ExecException & { stdout: string; stderr: string } = {
+              name: 'Error',
+              message: 'Command failed',
+              code: 128,
+              stdout: expectedStdout,
+              stderr: expectedStderr,
+            };
+            mockedExec.mockImplementation((_cmd, callback) => callback(error, { stdout: expectedStdout, stderr: expectedStderr }));
+            
+            const result = await posixPlatform.runCommand(command);
+
+            expect(result.stdout).toBe(expectedStdout);
+            expect(result.stderr).toBe(expectedStderr);
+          });
+        });
+
+        describe('getTmpDir', () => {
+          it('should prioritize TMPDIR environment variable', () => {
+            process.env.TMPDIR = '/tmp/tmpdir';
+            process.env.TEMP = '/tmp/temp';
+            mockedOs.tmpdir.mockReturnValue('/tmp/os');
+            
+            expect(posixPlatform.getTmpDir()).toBe('/tmp/tmpdir');
+          });
+
+          it('should fall back to TEMP if TMPDIR is not set', () => {
+            process.env.TEMP = '/tmp/temp';
+            mockedOs.tmpdir.mockReturnValue('/tmp/os');
+
+            expect(posixPlatform.getTmpDir()).toBe('/tmp/temp');
+          });
+
+          it('should fall back to TMP if TEMP is not set', () => {
+            process.env.TMP = '/tmp/tmp';
+            mockedOs.tmpdir.mockReturnValue('/tmp/os');
+
+            expect(posixPlatform.getTmpDir()).toBe('/tmp/tmp');
+          });
+
+          it('should fall back to os.tmpdir() as a last resort', () => {
+            mockedOs.tmpdir.mockReturnValue('/tmp/os-fallback');
+            
+            expect(posixPlatform.getTmpDir()).toBe('/tmp/os-fallback');
+          });
+        });
+      });
+    patchStrategy: replace
+snapshot:
+  test/unit/utils/platform.test.ts: null
+  test/unit/utils/shell.test.ts: >-
+    import { getActiveAgents } from '../../../src/utils/shell';
+
+    import { exec } from 'child_process';
+
+    import dayjs from 'dayjs';
+
+    import relativeTime from 'dayjs/plugin/relativeTime';
+
+
+    // Note: This is an exception to the "no mock" rule. `tmux` is an external
+    system
+
+    // dependency, not internal application logic. Mocking `exec` is the only
+    reliable
+
+    // way to test the parsing logic in a CI environment without requiring
+    `tmux` to be running.
+
+    jest.mock('child_process');
+
+    const mockedExec = exec as jest.Mock;
+
+    dayjs.extend(relativeTime);
+
+
+    describe('unit/utils/shell', () => {
+      afterEach(() => {
+        jest.clearAllMocks();
+      });
+
+      describe('getActiveAgents', () => {
+        it('should parse all types of agent sessions and ignore non-agent sessions', async () => {
+          const now = dayjs().unix();
+          const stdout = [
+            `init-part123 111 ${now}`,
+            `dev-part456 222 ${now}`,
+            `init-scaffold-plan789 333 ${now}`,
+            `qa-planABC 444 ${now}`,
+            `my-random-session 555 ${now}`,
+          ].join('\n');
+          mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout, stderr: '' }));
+
+          const agents = await getActiveAgents();
+          expect(agents).toHaveLength(4);
+
+          expect(agents).toContainEqual(expect.objectContaining({ phase: 'INIT', partId: 'part123', pid: '111' }));
+          expect(agents).toContainEqual(expect.objectContaining({ phase: 'DEV', partId: 'part456', pid: '222' }));
+          expect(agents).toContainEqual(expect.objectContaining({ phase: 'SCAF', planId: 'plan789', pid: '333' }));
+          expect(agents).toContainEqual(expect.objectContaining({ phase: 'QA', planId: 'planABC', pid: '444' }));
+        });
+
+        it('should ignore session names that are similar to but not valid agent sessions', async () => {
+          const now = dayjs().unix();
+          const stdout = [
+            `init- 111 ${now}`,
+            `dev-scaffold-123 222 ${now}`,
+            `qa 333 ${now}`,
+            `my-init-session 444 ${now}`,
+          ].join('\n');
+          mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout, stderr: '' }));
+
+          const agents = await getActiveAgents();
+          expect(agents).toEqual([]);
+        });
+
+        it('should return an empty array when there are no tmux sessions', async () => {
+          mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout: '', stderr: '' }));
+          const agents = await getActiveAgents();
+          expect(agents).toEqual([]);
+        });
+
+        it('should return an empty array if the tmux command fails', async () => {
+          mockedExec.mockImplementation((_cmd, callback) => callback(new Error('tmux failed'), { stdout: '', stderr: '' }));
+          const agents = await getActiveAgents();
+          expect(agents).toEqual([]);
+        });
+
+        it('should correctly calculate agent runtime', async () => {
+          jest.useFakeTimers().setSystemTime(new Date('2023-01-01T12:00:00Z'));
+
+          const fiveMinutesAgo = dayjs('2023-01-01T11:55:00Z').unix();
+          const stdout = `dev-part123 111 ${fiveMinutesAgo}`;
+          mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout, stderr: '' }));
+
+          const agents = await getActiveAgents();
+
+          expect(agents).toHaveLength(1);
+          // dayjs relative time can be "a few seconds", "a minute", etc. so we check for a known value.
+          // "5 minutes" is the expected output.
+          expect(agents[0].runtime).toBe('5 minutes');
+
+          jest.useRealTimers();
+        });
+      });
+    });
+approved: true
+linesAdded: null
+linesRemoved: null
+linesDifference: null
+gitCommittedAt: null
+status: committed
+id: 26

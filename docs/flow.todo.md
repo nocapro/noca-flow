@@ -1,10 +1,23 @@
 
 
+fix eslint problems
+
+
+===
+
+implement multi env compability. don't forget termux env
+
+===
+
+
+Implement eslint
 
 
 
 
+=== DONE 
 
+Lets make codebase production ready by implementing embeeded blueprint todos/placeholders/mock etc, the only quality is test cases compliance and aligned with specs
 
 === DONE
 

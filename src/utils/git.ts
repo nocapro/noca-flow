@@ -1,13 +1,10 @@
-import { promisify } from 'util';
-import { exec as execCallback } from 'child_process';
+import { platform } from './platform';
 
 export interface GitCommit {
   hash: string;
   worktree: string | null;
   message: string;
 }
-
-const exec = promisify(execCallback);
 
 /**
  * @description Executes 'git log' to get recent commit history across all worktrees.
@@ -18,7 +15,7 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
   const getWorktreeMap = async (): Promise<Map<string, string>> => {
     const map = new Map<string, string>();
     try {
-      const { stdout } = await exec('git worktree list --porcelain');
+      const { stdout } = await platform.runCommand('git worktree list --porcelain');
       const entries = stdout.trim().split('\n\n');
       for (const entry of entries) {
         const branchMatch = entry.match(/^branch refs\/heads\/(.*)/m);
@@ -36,7 +33,7 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
 
   try {
     const worktreeMap = await getWorktreeMap();
-    const { stdout: logOutput } = await exec(`git log --all -n ${limit} --pretty=format:"%H|%D|%s"`);
+    const { stdout: logOutput } = await platform.runCommand(`git log --all -n ${limit} --pretty=format:"%H|%D|%s"`);
     if (!logOutput) return [];
 
     return logOutput.trim().split('\n').map(line => {

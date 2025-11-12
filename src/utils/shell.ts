@@ -1,8 +1,6 @@
-import { promisify } from 'util';
-import { exec as execCallback } from 'child_process';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { Plan, PlanPart } from '../models/plan';
+import { platform } from './platform';
 
 export interface AgentInfo {
   phase: 'INIT' | 'DEV' | 'QA' | 'SCAF';
@@ -13,7 +11,6 @@ export interface AgentInfo {
   pid: string;
 }
 
-const exec = promisify(execCallback);
 dayjs.extend(relativeTime);
 
 /**
@@ -22,7 +19,7 @@ dayjs.extend(relativeTime);
  */
 export const getActiveAgents = async (): Promise<AgentInfo[]> => {
   try {
-    const { stdout } = await exec(`tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`);
+    const { stdout } = await platform.runCommand(`tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`);
     if (!stdout) return [];
 
     const lines = stdout.trim().split('\n');
