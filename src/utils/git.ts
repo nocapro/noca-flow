@@ -38,7 +38,7 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
     const worktreeMap = await getWorktreeMap();
     // Use non-printable characters as delimiters for robustness.
     // \x1f (unit separator) separates fields, \x00 (null) separates records.
-    const { stdout: logOutput } = await platform.runCommand(`git log --all -n ${limit} --pretty=format:'%H%x1f%D%x1f%B%x00'`);
+    const { stdout: logOutput } = await platform.runCommand(`git log --all -n ${limit} --pretty=format:'%H%x1f%D%x1f%B%n%x00'`);
     if (!logOutput) return [];
 
     // Split by null byte and filter out any trailing empty string.
@@ -46,8 +46,10 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
       const parts = line.split('\x1f');
       const hash = parts[0] || '';
       const refs = parts[1] || '';
-      const message = (parts[2] || '').trim();
-      
+      // Process the message to convert literal \n sequences to actual newlines
+      const rawMessage = (parts[2] || '').trim();
+      const message = rawMessage.replace(/\\n/g, '\n');
+
       let worktree: string | null = null;
       for (const branchName of worktreeMap.keys()) {
         if (refs.includes(branchName)) {
