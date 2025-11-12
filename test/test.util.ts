@@ -16,7 +16,18 @@ const promisedExec = promisify(execCallback);
 export const runCli = async (
   args: string,
 ): Promise<{ stdout: string; stderr: string; code: number }> => {
-  throw new Error('Not implemented');
+  const cliPath = path.join(__dirname, '..', 'dist', 'cli.js');
+  try {
+    const { stdout, stderr } = await promisedExec(`node ${cliPath} ${args}`);
+    return { stdout, stderr, code: 0 };
+  } catch (error) {
+    const err = error as ExecException & { stdout: string; stderr: string };
+    return {
+      stdout: err.stdout,
+      stderr: err.stderr,
+      code: err.code || 1,
+    };
+  }
 };
 
 // TODO: part-test-util-setup-dir - Implement a utility to create an isolated test directory.
@@ -30,7 +41,16 @@ export const setupTestDirectory = async (): Promise<{
   testDir: string;
   cleanup: () => Promise<void>;
 }> => {
-  throw new Error('Not implemented');
+  const originalCwd = process.cwd();
+  const testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'nocaflow-test-'));
+  process.chdir(testDir);
+
+  const cleanup = async (): Promise<void> => {
+    process.chdir(originalCwd);
+    await fs.rm(testDir, { recursive: true, force: true });
+  };
+
+  return { testDir, cleanup };
 };
 
 // TODO: part-test-util-git-init - Implement a utility to initialize a git repository for testing.
@@ -43,7 +63,10 @@ export const setupTestDirectory = async (): Promise<{
 //    - `git config user.name "Test User"`
 //    - `git commit --allow-empty -m "Initial commit"`
 export const initGitRepo = async (): Promise<void> => {
-  throw new Error('Not implemented');
+  await promisedExec('git init');
+  await promisedExec('git config user.email "test@example.com"');
+  await promisedExec('git config user.name "Test User"');
+  await promisedExec('git commit --allow-empty -m "Initial commit"');
 };
 
 // TODO: part-test-util-create-plan - Implement a utility to create a dummy plan file for testing stats.
@@ -58,7 +81,9 @@ export const createDummyPlanFile = async (
   status: 'todo' | 'doing' | 'done' | 'review' | 'failed',
   fileName: string,
 ): Promise<void> => {
-  throw new Error('Not implemented');
+  const dirPath = path.join('.nocaflow', phase, 'plans', status);
+  await fs.mkdir(dirPath, { recursive: true });
+  await fs.writeFile(path.join(dirPath, fileName), '# dummy plan');
 };
 
 // TODO: part-test-util-create-report - Implement a utility to create a dummy failed report file.
@@ -74,5 +99,10 @@ export const createDummyFailedReport = async (
   partId: string,
   summary: string,
 ): Promise<string> => {
-  throw new Error('Not implemented');
+  const reportDir = path.join('.nocaflow', phase, 'plans', 'failed', 'report');
+  await fs.mkdir(reportDir, { recursive: true });
+  const reportPath = path.join(reportDir, `${planId}.${partId}.report.md`);
+  const content = `## Summary\n\n${summary}`;
+  await fs.writeFile(reportPath, content);
+  return reportPath;
 };

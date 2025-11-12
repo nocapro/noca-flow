@@ -1,0 +1,361 @@
+uuid: d166986c-0e70-4f59-a2e6-a8a493a3832d
+projectId: noca-flow
+createdAt: '2025-11-12T02:38:41.736Z'
+gitCommitMsg: >-
+  feat(test): implement full suite of test utilities
+
+  This commit implements the five core testing utilities required for the
+  integration and E2E test suites as outlined in Part 1 of the master plan.
+
+  - `runCli`: Executes the compiled CLI, capturing stdout, stderr, and exit
+  codes. - `setupTestDirectory`: Creates and manages isolated temporary
+  directories for tests. - `initGitRepo`: Initializes a git repository with a
+  default configuration. - `createDummyPlanFile`: Creates mock plan files for
+  testing filesystem stats. - `createDummyFailedReport`: Creates mock failure
+  reports for testing state reporting.
+
+  These utilities are foundational for all subsequent testing efforts.
+promptSummary: >-
+  I was asked to execute Part 1 of the plan, which involved implementing all the
+  functions in the test utility file (`test/test.util.ts`).
+reasoning:
+  - >-
+    Part 1: Forge Test Utilities. Let's build the workshop. I'll implement all
+    the testing utilities in `test/test.util.ts`. This includes functions for
+    running the CLI, managing temporary test directories, initializing Git
+    repositories, and creating dummy plan and report files. This foundation is
+    critical for all subsequent tests.
+operations:
+  - type: write
+    path: test/test.util.ts
+    content: >-
+      import { exec as execCallback, ExecException } from 'child_process';
+
+      import { promisify } from 'util';
+
+      import fs from 'fs/promises';
+
+      import path from 'path';
+
+      import os from 'os';
+
+
+      const promisedExec = promisify(execCallback);
+
+
+      // TODO: part-test-util-run-cli - Implement a utility to run the compiled
+      CLI.
+
+      // INSTRUCTIONS:
+
+      // 1. Create a function `runCli(args: string)` that returns a promise.
+
+      // 2. It should execute the compiled CLI from the `dist` folder.
+
+      // 3. The command should be `node ${path.join(__dirname, '..', 'dist',
+      'cli.js')} ${args}`.
+
+      // 4. It should return an object `{ stdout: string, stderr: string, code:
+      number }`.
+
+      // 5. Handle non-zero exit codes gracefully by catching the error from
+      `exec` and extracting details from it.
+
+      export const runCli = async (
+        args: string,
+      ): Promise<{ stdout: string; stderr: string; code: number }> => {
+        const cliPath = path.join(__dirname, '..', 'dist', 'cli.js');
+        try {
+          const { stdout, stderr } = await promisedExec(`node ${cliPath} ${args}`);
+          return { stdout, stderr, code: 0 };
+        } catch (error) {
+          const err = error as ExecException & { stdout: string; stderr: string };
+          return {
+            stdout: err.stdout,
+            stderr: err.stderr,
+            code: err.code || 1,
+          };
+        }
+      };
+
+
+      // TODO: part-test-util-setup-dir - Implement a utility to create an
+      isolated test directory.
+
+      // INSTRUCTIONS:
+
+      // 1. Create a function `setupTestDirectory()` that returns a promise
+      resolving to an object.
+
+      // 2. The function should create a unique temporary directory using
+      `fs.mkdtemp` in `os.tmpdir()`.
+
+      // 3. It should store the original `process.cwd()` and then
+      `process.chdir()` into the new temp directory.
+
+      // 4. The returned object should contain `testDir: string` (the path to
+      the temp dir) and `cleanup: () => Promise<void>`.
+
+      // 5. The `cleanup` function should `process.chdir()` back to the original
+      directory and remove the temp directory recursively.
+
+      export const setupTestDirectory = async (): Promise<{
+        testDir: string;
+        cleanup: () => Promise<void>;
+      }> => {
+        const originalCwd = process.cwd();
+        const testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'nocaflow-test-'));
+        process.chdir(testDir);
+
+        const cleanup = async (): Promise<void> => {
+          process.chdir(originalCwd);
+          await fs.rm(testDir, { recursive: true, force: true });
+        };
+
+        return { testDir, cleanup };
+      };
+
+
+      // TODO: part-test-util-git-init - Implement a utility to initialize a git
+      repository for testing.
+
+      // INSTRUCTIONS:
+
+      // 1. Create an async function `initGitRepo()`.
+
+      // 2. It should execute the necessary `git` commands using `promisedExec`.
+
+      // 3. Commands to run:
+
+      //    - `git init`
+
+      //    - `git config user.email "test@example.com"`
+
+      //    - `git config user.name "Test User"`
+
+      //    - `git commit --allow-empty -m "Initial commit"`
+
+      export const initGitRepo = async (): Promise<void> => {
+        await promisedExec('git init');
+        await promisedExec('git config user.email "test@example.com"');
+        await promisedExec('git config user.name "Test User"');
+        await promisedExec('git commit --allow-empty -m "Initial commit"');
+      };
+
+
+      // TODO: part-test-util-create-plan - Implement a utility to create a
+      dummy plan file for testing stats.
+
+      // INSTRUCTIONS:
+
+      // 1. Create an async function `createDummyPlanFile(phase:
+      'initialization' | 'development', status: 'todo' | 'doing' | 'done' |
+      'review' | 'failed', fileName: string)`.
+
+      // 2. The function should create the necessary directory structure inside
+      the current test directory.
+
+      //    - e.g., `.nocaflow/${phase}/plans/${status}/`
+
+      // 3. It should write a minimal, empty YAML file to that path.
+
+      //    - e.g., `fs.writeFile(path.join(..., fileName), '# dummy plan')`.
+
+      export const createDummyPlanFile = async (
+        phase: 'initialization' | 'development',
+        status: 'todo' | 'doing' | 'done' | 'review' | 'failed',
+        fileName: string,
+      ): Promise<void> => {
+        const dirPath = path.join('.nocaflow', phase, 'plans', status);
+        await fs.mkdir(dirPath, { recursive: true });
+        await fs.writeFile(path.join(dirPath, fileName), '# dummy plan');
+      };
+
+
+      // TODO: part-test-util-create-report - Implement a utility to create a
+      dummy failed report file.
+
+      // INSTRUCTIONS:
+
+      // 1. Create an async function `createDummyFailedReport(phase:
+      'initialization' | 'development', planId: string, partId: string, summary:
+      string)`.
+
+      // 2. It should create the report directory:
+      `.nocaflow/${phase}/plans/failed/report/`.
+
+      // 3. It should create a markdown file named
+      `${planId}.${partId}.report.md`.
+
+      // 4. The file content should be `## Summary\n\n${summary}`.
+
+      // 5. The function should return the full path to the created file.
+
+      export const createDummyFailedReport = async (
+        phase: 'initialization' | 'development',
+        planId: string,
+        partId: string,
+        summary: string,
+      ): Promise<string> => {
+        const reportDir = path.join('.nocaflow', phase, 'plans', 'failed', 'report');
+        await fs.mkdir(reportDir, { recursive: true });
+        const reportPath = path.join(reportDir, `${planId}.${partId}.report.md`);
+        const content = `## Summary\n\n${summary}`;
+        await fs.writeFile(reportPath, content);
+        return reportPath;
+      };
+    patchStrategy: replace
+snapshot:
+  test/test.util.ts: >-
+    import { exec as execCallback, ExecException } from 'child_process';
+
+    import { promisify } from 'util';
+
+    import fs from 'fs/promises';
+
+    import path from 'path';
+
+    import os from 'os';
+
+
+    const promisedExec = promisify(execCallback);
+
+
+    // TODO: part-test-util-run-cli - Implement a utility to run the compiled
+    CLI.
+
+    // INSTRUCTIONS:
+
+    // 1. Create a function `runCli(args: string)` that returns a promise.
+
+    // 2. It should execute the compiled CLI from the `dist` folder.
+
+    // 3. The command should be `node ${path.join(__dirname, '..', 'dist',
+    'cli.js')} ${args}`.
+
+    // 4. It should return an object `{ stdout: string, stderr: string, code:
+    number }`.
+
+    // 5. Handle non-zero exit codes gracefully by catching the error from
+    `exec` and extracting details from it.
+
+    export const runCli = async (
+      args: string,
+    ): Promise<{ stdout: string; stderr: string; code: number }> => {
+      throw new Error('Not implemented');
+    };
+
+
+    // TODO: part-test-util-setup-dir - Implement a utility to create an
+    isolated test directory.
+
+    // INSTRUCTIONS:
+
+    // 1. Create a function `setupTestDirectory()` that returns a promise
+    resolving to an object.
+
+    // 2. The function should create a unique temporary directory using
+    `fs.mkdtemp` in `os.tmpdir()`.
+
+    // 3. It should store the original `process.cwd()` and then
+    `process.chdir()` into the new temp directory.
+
+    // 4. The returned object should contain `testDir: string` (the path to the
+    temp dir) and `cleanup: () => Promise<void>`.
+
+    // 5. The `cleanup` function should `process.chdir()` back to the original
+    directory and remove the temp directory recursively.
+
+    export const setupTestDirectory = async (): Promise<{
+      testDir: string;
+      cleanup: () => Promise<void>;
+    }> => {
+      throw new Error('Not implemented');
+    };
+
+
+    // TODO: part-test-util-git-init - Implement a utility to initialize a git
+    repository for testing.
+
+    // INSTRUCTIONS:
+
+    // 1. Create an async function `initGitRepo()`.
+
+    // 2. It should execute the necessary `git` commands using `promisedExec`.
+
+    // 3. Commands to run:
+
+    //    - `git init`
+
+    //    - `git config user.email "test@example.com"`
+
+    //    - `git config user.name "Test User"`
+
+    //    - `git commit --allow-empty -m "Initial commit"`
+
+    export const initGitRepo = async (): Promise<void> => {
+      throw new Error('Not implemented');
+    };
+
+
+    // TODO: part-test-util-create-plan - Implement a utility to create a dummy
+    plan file for testing stats.
+
+    // INSTRUCTIONS:
+
+    // 1. Create an async function `createDummyPlanFile(phase: 'initialization'
+    | 'development', status: 'todo' | 'doing' | 'done' | 'review' | 'failed',
+    fileName: string)`.
+
+    // 2. The function should create the necessary directory structure inside
+    the current test directory.
+
+    //    - e.g., `.nocaflow/${phase}/plans/${status}/`
+
+    // 3. It should write a minimal, empty YAML file to that path.
+
+    //    - e.g., `fs.writeFile(path.join(..., fileName), '# dummy plan')`.
+
+    export const createDummyPlanFile = async (
+      phase: 'initialization' | 'development',
+      status: 'todo' | 'doing' | 'done' | 'review' | 'failed',
+      fileName: string,
+    ): Promise<void> => {
+      throw new Error('Not implemented');
+    };
+
+
+    // TODO: part-test-util-create-report - Implement a utility to create a
+    dummy failed report file.
+
+    // INSTRUCTIONS:
+
+    // 1. Create an async function `createDummyFailedReport(phase:
+    'initialization' | 'development', planId: string, partId: string, summary:
+    string)`.
+
+    // 2. It should create the report directory:
+    `.nocaflow/${phase}/plans/failed/report/`.
+
+    // 3. It should create a markdown file named
+    `${planId}.${partId}.report.md`.
+
+    // 4. The file content should be `## Summary\n\n${summary}`.
+
+    // 5. The function should return the full path to the created file.
+
+    export const createDummyFailedReport = async (
+      phase: 'initialization' | 'development',
+      planId: string,
+      partId: string,
+      summary: string,
+    ): Promise<string> => {
+      throw new Error('Not implemented');
+    };
+approved: true
+linesAdded: null
+linesRemoved: null
+linesDifference: null
+gitCommittedAt: null
+status: committed
+id: 17

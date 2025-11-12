@@ -15,34 +15,46 @@ const exec = promisify(execCallback);
  * @returns A list of recent git commits.
  */
 export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
-  // TODO: part-git-get-log - Get recent git commits across all worktrees.
-  // INSTRUCTIONS:
-  // 1. Execute `git worktree list --porcelain` to get worktree info.
-  //    - Parse the output to create a map: { 'worktrees/wt-name': 'wt-name' }.
-  // 2. Execute `git log --all -n ${limit} --pretty=format:'%H|%s|%D'`.
-  // 3. Process the log output line by line.
-  // 4. For each line, parse hash, message, and refs.
-  // 5. Match refs against the worktree map to find the worktree name.
-  // 6. Create `GitCommit` objects and add to a results array.
+  const getWorktreeMap = async (): Promise<Map<string, string>> => {
+    const map = new Map<string, string>();
+    try {
+      const { stdout } = await exec('git worktree list --porcelain');
+      const entries = stdout.trim().split('\n\n');
+      for (const entry of entries) {
+        const branchMatch = entry.match(/^branch refs\/heads\/(.*)/m);
+        if (branchMatch) {
+          const branchName = branchMatch[1];
+          // Assuming worktree branch name is the worktree name we want to display
+          map.set(branchName, branchName);
+        }
+      }
+    } catch (error) {
+      // Not a git repo or no worktrees, map will be empty.
+    }
+    return map;
+  };
 
-  // const getWorktreeMap = async (): Promise<Map<string, string>> => {
-  //   // const { stdout } = await exec('git worktree list --porcelain');
-  //   // const map = new Map<string, string>();
-  //   // parse stdout and populate map, e.g. extract 'worktrees/wt-...' and the final part as the name.
-  //   // return map;
-  // }
+  try {
+    const worktreeMap = await getWorktreeMap();
+    const { stdout: logOutput } = await exec(`git log --all -n ${limit} --pretty=format:"%H|%D|%s"`);
+    if (!logOutput) return [];
 
-  // try {
-  //   // const worktreeMap = await getWorktreeMap();
-  //   // const { stdout: logOutput } = await exec(`...`);
-  //   // const commits: GitCommit[] = logOutput.trim().split('\n').map(line => {
-  //   //   // ... parse line ...
-  //   //   // ... find worktree from refs using worktreeMap ...
-  //   //   // return { hash, message, worktree };
-  //   // });
-  //   // return commits;
-  // } catch (error) {
-  //   return []; // Git not installed or not a git repo.
-  // }
-  throw new Error('Not implemented');
+    return logOutput.trim().split('\n').map(line => {
+      const parts = line.split('|');
+      const hash = parts[0] || '';
+      const refs = parts[1] || '';
+      const message = parts.slice(2).join('|'); // Robustly handle '|' in commit message
+      
+      let worktree: string | null = null;
+      for (const branchName of worktreeMap.keys()) {
+        if (refs.includes(branchName)) {
+          worktree = worktreeMap.get(branchName) || null;
+          break;
+        }
+      }
+      return { hash, worktree, message };
+    });
+  } catch (error) {
+    return []; // Git not installed or not a git repo.
+  }
 };

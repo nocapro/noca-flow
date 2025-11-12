@@ -3,47 +3,41 @@ import { renderProgressBar } from '../../../src/commands/state';
 describe('unit/commands/state', () => {
   describe('renderProgressBar', () => {
     it('should render an empty bar for 0% progress', () => {
-      // TODO: part-unit-progress-bar-0 - Test rendering for 0% progress.
-      // INSTRUCTIONS:
-      // 1. Call `renderProgressBar(0, 10)`.
-      // 2. Assert the output string is correct for an empty bar, e.g., `[----------] (0/10 plans done)`.
+      const result = renderProgressBar(0, 10, 10);
+      expect(result).toBe('[----------] (0/10 plans done)');
     });
 
     it('should render a half-filled bar for 50% progress', () => {
-      // TODO: part-unit-progress-bar-50 - Test rendering for 50% progress.
-      // INSTRUCTIONS:
-      // 1. Call `renderProgressBar(5, 10)`.
-      // 2. Assert the output string is correct for a half-filled bar, e.g., `[▇▇▇▇▇-----] (5/10 plans done)`.
+      const result = renderProgressBar(5, 10, 10);
+      expect(result).toBe('[▇▇▇▇▇-----] (5/10 plans done)');
     });
 
     it('should render a full bar for 100% progress', () => {
-      // TODO: part-unit-progress-bar-100 - Test rendering for 100% progress.
-      // INSTRUCTIONS:
-      // 1. Call `renderProgressBar(10, 10)`.
-      // 2. Assert the output string is correct for a full bar, e.g., `[▇▇▇▇▇▇▇▇▇▇] (10/10 plans done)`.
+      const result = renderProgressBar(10, 10, 10);
+      expect(result).toBe('[▇▇▇▇▇▇▇▇▇▇] (10/10 plans done)');
     });
 
     it('should handle different bar lengths', () => {
-      // TODO: part-unit-progress-bar-length - Test that the length parameter is respected.
-      // INSTRUCTIONS:
-      // 1. Call `renderProgressBar(1, 2, 20)` to specify a bar length of 20.
-      // 2. Assert the bar part of the string has 20 characters (`[▇...-...]`).
+      const result = renderProgressBar(1, 2, 20);
+      // 50% of 20 is 10 filled characters
+      const bar = result.substring(result.indexOf('[') + 1, result.indexOf(']'));
+      expect(bar).toHaveLength(20);
+      expect(bar).toBe('▇'.repeat(10) + '-'.repeat(10));
     });
 
     it('should round to the nearest character for fractional progress', () => {
-      // TODO: part-unit-progress-bar-rounding - Test rounding logic.
-      // INSTRUCTIONS:
-      // 1. Call `renderProgressBar(1, 3, 10)`.
-      // 2. 33.3% of 10 should round to 3 filled characters.
-      // 3. Assert the output string reflects this, e.g., `[▇▇▇-------] (1/3 plans done)`.
+      // 1/3 of 10 is 3.33, which should round to 3
+      const result1 = renderProgressBar(1, 3, 10);
+      expect(result1).toContain('[▇▇▇-------]');
+
+      // 2/3 of 10 is 6.66, which should round to 7
+      const result2 = renderProgressBar(2, 3, 10);
+      expect(result2).toContain('[▇▇▇▇▇▇▇---]');
     });
 
     it('should handle a total of 0 gracefully', () => {
-      // TODO: part-unit-progress-bar-zero - Test the edge case where the total is 0.
-      // INSTRUCTIONS:
-      // 1. Call `renderProgressBar(0, 0)`.
-      // 2. Assert it does not throw a "division by zero" error.
-      // 3. Assert the output shows an empty bar with a (0/0) count.
+      const result = renderProgressBar(0, 0, 10);
+      expect(result).toBe('[----------] (0/0 plans done)');
     });
   });
 });
