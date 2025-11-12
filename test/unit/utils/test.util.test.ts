@@ -12,7 +12,7 @@ import path from 'path';
 
 // Mock child_process for most tests, but we'll need the real one for initGitRepo.
 jest.mock('child_process');
-const mockedExec = execCallback as jest.Mock;
+const mockedExec = execCallback as unknown as jest.Mock;
 const { exec: actualExec } = jest.requireActual('child_process');
 const promisedActualExec = promisify(actualExec);
 

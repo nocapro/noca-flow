@@ -10,7 +10,7 @@
     "start": "node dist/cli.js",
     "build": "tsc",
     "dev": "ts-node src/cli.ts",
-    "test": "jest",
+    "test": "NVM_DIR=\"$HOME/.nvm\" && [ -s \"$NVM_DIR/nvm.sh\" ] && \\. \"$NVM_DIR/nvm.sh\" && nvm use 24.11.1 && jest",
     "lint": "eslint 'src/**/*.ts' 'test/**/*.ts'"
   },
   "keywords": [
