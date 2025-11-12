@@ -1,0 +1,514 @@
+uuid: 4a2b9d8c-0f6a-4c1e-8b5d-7e9f3a1b0c4e
+projectId: noca-flow
+createdAt: '2025-11-12T15:42:19.965Z'
+gitCommitMsg: >-
+  fix(tests): resolve all failing unit, integration, and e2e tests
+
+  This commit addresses multiple failures across the test suite to bring the
+  project back to a stable state.
+
+  - `fix(shell)`: Tightened the regex in `getActiveAgents` to prevent false
+  positives when parsing tmux session names for agents (e.g.,
+  `dev-scaffold-123`). - `fix(git)`: Hardened `getGitLog` by using non-printable
+  delimiters (`\x1f`, `\x00`) and parsing the full commit body (`%B`), making it
+  robust against multiline messages and special characters. - `fix(e2e)`:
+  Stabilized the E2E test suite by disabling ANSI color output via
+  `FORCE_COLOR=0` in the test runner. Corrected assertions to check `stderr`
+  instead of `stdout` for warnings and yargs help/error messages.
+promptSummary: >-
+  The user wants to fix all failing tests based on the provided test output.
+  This involves fixing regex logic, improving git log parsing, and stabilizing
+  E2E tests by disabling color and correcting assertions.
+reasoning:
+  - >-
+    Here are the patches to resolve the failing test suites. I've addressed the
+    issues in `shell.ts`, `git.ts`, and the E2E tests as outlined in the plan.
+  - >-
+    First, I'll fix the overly permissive regex in `src/utils/shell.ts` to
+    correctly identify agent sessions, which resolves the failure in
+    `test/unit/utils/shell.test.ts`.
+  - >-
+    Next, I'll harden the git log parser in `src/utils/git.ts` to handle
+    complex, multiline commit messages by using non-printable delimiters. This
+    fixes the failure in `test/integration/utils/git.test.ts`.
+  - >-
+    To stabilize the E2E tests, I'll update the `runCli` test utility in
+    `test/test.util.ts` to disable colorized output, which makes string
+    assertions reliable.
+  - >-
+    Finally, I'll correct the assertions in `test/e2e/cli.test.ts`. The test for
+    the `init` command warning was incorrectly checking `stdout` instead of
+    `stderr`, and the same was true for the test checking the output when no
+    command is provided. These changes will fix the remaining E2E failures.
+operations:
+  - type: write
+    path: src/utils/shell.ts
+    content: >+
+      --- src/utils/shell.ts
+
+      +++ src/utils/shell.ts
+
+      @@ -37,7 +37,7 @@
+             } else if ((match = sessionName.match(/^qa-(.+)/))) {
+               const planId = match[1];
+               agents.push({ phase: 'QA', id: planId, planId, partId: 'qa', runtime, pid });
+      -      } else if ((match = sessionName.match(/^(init|dev)-(.+)/))) {
+
+      +      } else if ((match =
+      sessionName.match(/^(init|dev)-(?!scaffold-|qa-)(.+)/))) {
+               const phase = match[1].toUpperCase() as 'INIT' | 'DEV';
+               const partId = match[2];
+               agents.push({
+
+    patchStrategy: standard-diff
+  - type: write
+    path: src/utils/git.ts
+    content: >+
+      --- src/utils/git.ts
+
+      +++ src/utils/git.ts
+
+      @@ -34,17 +34,17 @@
+       
+         try {
+           const worktreeMap = await getWorktreeMap();
+      -    const { stdout: logOutput } = await platform.runCommand(`git log
+      --all -n ${limit} --pretty=format:"%H|%D|%s"`);
+
+      +    // Use non-printable characters as delimiters for robustness.
+
+      +    // \x1f (unit separator) separates fields, \x00 (null) separates
+      records.
+
+      +    const { stdout: logOutput } = await platform.runCommand(`git log
+      --all -n ${limit} --pretty=format:'%H%x1f%D%x1f%B%x00'`);
+           if (!logOutput) return [];
+       
+      -    return logOutput.trim().split('\n').map(line => {
+
+      -      const parts = line.split('|');
+
+      +    // Split by null byte and filter out any trailing empty string.
+
+      +    return logOutput.split('\x00').filter(Boolean).map(line => {
+
+      +      const parts = line.split('\x1f');
+             const hash = parts[0] || '';
+             const refs = parts[1] || '';
+      -      const message = parts.slice(2).join('|'); // Robustly handle '|' in
+      commit message
+
+      +      const message = (parts[2] || '').trim();
+             
+             let worktree: string | null = null;
+             for (const branchName of worktreeMap.keys()) {
+
+    patchStrategy: standard-diff
+  - type: write
+    path: test/test.util.ts
+    content: >+
+      --- test/test.util.ts
+
+      +++ test/test.util.ts
+
+      @@ -8,7 +8,7 @@
+       ): Promise<{ stdout: string; stderr: string; code: number }> => {
+         const cliPath = path.join(__dirname, '..', 'dist', 'cli.js');
+         try {
+      -    const { stdout, stderr } = await promisedExec(`node ${cliPath}
+      ${args}`);
+
+      +    const { stdout, stderr } = await promisedExec(`FORCE_COLOR=0 node
+      ${cliPath} ${args}`);
+           return { stdout, stderr, code: 0 };
+         } catch (error) {
+           const err = error as ExecException & { stdout: string; stderr: string };
+
+    patchStrategy: standard-diff
+  - type: write
+    path: test/e2e/cli.test.ts
+    content: >+
+      --- test/e2e/cli.test.ts
+
+      +++ test/e2e/cli.test.ts
+
+      @@ -46,9 +46,9 @@
+       
+           it('should show a warning if the project is already initialized', async () => {
+             await fs.mkdir('.nocaflow'); // Manually create the directory
+      -      const { stdout, code } = await runCli('init');
+
+      +      const { stderr, code } = await runCli('init');
+       
+      -      expect(stdout).toContain('directory already exists. Initialization
+      skipped.');
+
+      +      expect(stderr).toContain("Warning: '.nocaflow' directory already
+      exists. Initialization skipped.");
+             expect(code).toBe(0); // Graceful exit on warning
+           });
+         });
+      @@ -98,11 +98,11 @@
+       
+         describe('no command', () => {
+           it('should display help when no command is provided', async () => {
+      -      const { stdout } = await runCli('');
+
+      -      expect(stdout).toContain('Commands:');
+
+      -      expect(stdout).toContain('init');
+
+      -      expect(stdout).toContain('state');
+
+      -      expect(stdout).toContain('You need at least one command before
+      moving on');
+
+      +      const { stderr } = await runCli('');
+
+      +      expect(stderr).toContain('Commands:');
+
+      +      expect(stderr).toContain('init');
+
+      +      expect(stderr).toContain('state');
+
+      +      expect(stderr).toContain('You need at least one command before
+      moving on');
+           });
+       
+           it('should display help when --help flag is used', async () => {
+
+    patchStrategy: standard-diff
+snapshot:
+  test/e2e/cli.test.ts: >-
+    import { runCli, setupTestDirectory, createDummyPlanFile,
+    createDummyFailedReport, initGitRepo } from '../test.util';
+
+    import fs from 'fs/promises';
+
+    import { exec as execCallback } from 'child_process';
+
+    import path from 'path';
+
+    import { promisify } from 'util';
+
+
+    const promisedExec = promisify(execCallback);
+
+
+
+    describe('e2e/cli', () => {
+      let cleanup: () => Promise<void>;
+      let testDir: string;
+
+      beforeAll(async () => {
+        try {
+          await promisedExec('npm run build');
+        } catch (e) {
+          console.error('Failed to build project for E2E tests:', e);
+          process.exit(1);
+        }
+      }, 60000);
+
+      beforeEach(async () => {
+        const { cleanup: c, testDir: td } = await setupTestDirectory();
+        cleanup = c;
+        testDir = td;
+      });
+
+      afterEach(async () => {
+        if (cleanup) {
+          await cleanup();
+        }
+      });
+
+      describe('init command', () => {
+        it('should initialize a new project structure', async () => {
+          const { stdout, code } = await runCli('init');
+
+          expect(stdout).toContain('nocaflow project initialized successfully');
+          expect(code).toBe(0);
+
+          const expectedFile = path.join(testDir, '.nocaflow/initialization/plans/todo/.gitkeep');
+          await expect(fs.access(expectedFile)).resolves.toBeUndefined();
+        });
+
+        it('should show a warning if the project is already initialized', async () => {
+          await fs.mkdir('.nocaflow'); // Manually create the directory
+          const { stdout, code } = await runCli('init');
+
+          expect(stdout).toContain('directory already exists. Initialization skipped.');
+          expect(code).toBe(0); // Graceful exit on warning
+        });
+      });
+
+      describe('state command', () => {
+        it('should display the project state in an initialized directory', async () => {
+          await runCli('init');
+          await createDummyPlanFile('initialization', 'todo', 'plan1.yml');
+
+          const { stdout, code } = await runCli('state');
+
+          expect(stdout).toContain('== nocaflow State');
+          expect(stdout).toContain('Phase Progress');
+          expect(stdout).toContain('Current Phase: initialization');
+          expect(stdout).toContain('todo: 1');
+          expect(code).toBe(0);
+        });
+
+        it('should display a complex state with active agents and failed reports', async () => {
+          await runCli('init');
+          await initGitRepo();
+          await createDummyPlanFile('initialization', 'doing', 'p1.yml');
+          await createDummyPlanFile('development', 'done', 'p2.yml');
+          await createDummyFailedReport('initialization', 'f01', 'pA', 'Test failure');
+
+          const { stdout, code } = await runCli('state');
+
+          expect(code).toBe(0);
+          expect(stdout).toContain('Active Agents (tmux)');
+          expect(stdout).toContain('Stalled / Failed');
+          expect(stdout).toContain('plan:f01 part:pA - "Test failure"');
+          expect(stdout).toContain('Recent Git Commits');
+          expect(stdout).toContain('Initial commit');
+        });
+
+        it('should show a zero-state when run in a non-initialized directory', async () => {
+          const { stdout, stderr, code } = await runCli('state');
+          
+          expect(stderr).toBe('');
+          expect(code).toBe(0);
+          expect(stdout).toContain('Current Phase: initialization');
+          expect(stdout).toContain('(0/0 plans done)');
+          expect(stdout).toContain('No active agents.');
+          expect(stdout).toContain('No recent activity.');
+          expect(stdout).toContain('No failed reports in the last 24 hours.');
+        });
+      });
+
+      describe('no command', () => {
+        it('should display help when no command is provided', async () => {
+          const { stdout } = await runCli('');
+          expect(stdout).toContain('Commands:');
+          expect(stdout).toContain('init');
+          expect(stdout).toContain('state');
+          expect(stdout).toContain('You need at least one command before moving on');
+        });
+
+        it('should display help when --help flag is used', async () => {
+          const generalHelp = await runCli('--help');
+          expect(generalHelp.stdout).toContain('Show help');
+
+          const stateHelp = await runCli('state --help');
+          expect(stateHelp.stdout).toContain('Display the current state of the nocaflow project');
+        });
+
+        it('should show an error for an unknown command', async () => {
+          const { stderr } = await runCli('nonexistent-command');
+          expect(stderr).toContain('Unknown argument: nonexistent-command');
+        });
+      });
+    });
+  src/utils/shell.ts: |-
+    import dayjs from 'dayjs';
+    import relativeTime from 'dayjs/plugin/relativeTime';
+    import { platform } from './platform';
+
+    export interface AgentInfo {
+      phase: 'INIT' | 'DEV' | 'QA' | 'SCAF';
+      id: string; // part_id, plan_id for QA/Scaffold
+      planId: string;
+      partId: string; // Can be 'scaffold' or 'qa'
+      runtime: string;
+      pid: string;
+    }
+
+    dayjs.extend(relativeTime);
+
+    /**
+     * @description Lists active tmux sessions and parses them to find agent info.
+     * @returns A list of active agents.
+     */
+    export const getActiveAgents = async (): Promise<AgentInfo[]> => {
+      try {
+        const { stdout } = await platform.runCommand(`tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`);
+        if (!stdout) return [];
+
+        const lines = stdout.trim().split('\n');
+        const agents: AgentInfo[] = [];
+
+        for (const line of lines) {
+          const [sessionName, pid, activity] = line.split(' ');
+          const runtime = dayjs().to(dayjs.unix(parseInt(activity, 10)), true);
+
+          let match;
+          if ((match = sessionName.match(/^init-scaffold-(.+)/))) {
+            const planId = match[1];
+            agents.push({
+              phase: 'SCAF',
+              id: planId,
+              planId,
+              partId: 'scaffold',
+              runtime,
+              pid,
+            });
+          } else if ((match = sessionName.match(/^qa-(.+)/))) {
+            const planId = match[1];
+            agents.push({ phase: 'QA', id: planId, planId, partId: 'qa', runtime, pid });
+          } else if ((match = sessionName.match(/^(init|dev)-(.+)/))) {
+            const phase = match[1].toUpperCase() as 'INIT' | 'DEV';
+            const partId = match[2];
+            agents.push({
+              phase,
+              id: partId,
+              planId: 'unknown', // Not available from session name
+              partId: partId,
+              runtime,
+              pid,
+            });
+          }
+        }
+        return agents;
+      } catch (error) {
+        return []; // Tmux likely not running or has no sessions.
+      }
+    };
+  src/utils/git.ts: |-
+    import { platform } from './platform';
+
+    export interface GitCommit {
+      hash: string;
+      worktree: string | null;
+      message: string;
+    }
+
+    /**
+     * @description Executes 'git log' to get recent commit history across all worktrees.
+     * @param limit - The maximum number of commits to return.
+     * @returns A list of recent git commits.
+     */
+    export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
+      const getWorktreeMap = async (): Promise<Map<string, string>> => {
+        const map = new Map<string, string>();
+        try {
+          const { stdout } = await platform.runCommand('git worktree list --porcelain');
+          const entries = stdout.trim().split('\n\n');
+          for (const entry of entries) {
+            const branchMatch = entry.match(/^branch refs\/heads\/(.*)/m);
+            if (branchMatch) {
+              const branchName = branchMatch[1];
+              // Do not treat the main/master branch as a worktree indicator
+              if (branchName !== 'main' && branchName !== 'master') {
+                // Assuming worktree branch name is the worktree name we want to display
+                map.set(branchName, branchName);
+              }
+            }
+          }
+        } catch (error) {
+          // Not a git repo or no worktrees, map will be empty.
+        }
+        return map;
+      };
+
+      try {
+        const worktreeMap = await getWorktreeMap();
+        const { stdout: logOutput } = await platform.runCommand(`git log --all -n ${limit} --pretty=format:"%H|%D|%s"`);
+        if (!logOutput) return [];
+
+        return logOutput.trim().split('\n').map(line => {
+          const parts = line.split('|');
+          const hash = parts[0] || '';
+          const refs = parts[1] || '';
+          const message = parts.slice(2).join('|'); // Robustly handle '|' in commit message
+          
+          let worktree: string | null = null;
+          for (const branchName of worktreeMap.keys()) {
+            if (refs.includes(branchName)) {
+              worktree = worktreeMap.get(branchName) || null;
+              break;
+            }
+          }
+          return { hash, worktree, message };
+        });
+      } catch (error) {
+        return []; // Git not installed or not a git repo.
+      }
+    };
+  test/test.util.ts: |-
+    import { exec as execCallback, ExecException } from 'child_process';
+    import { promisify } from 'util';
+    import fs from 'fs/promises';
+    import path from 'path';
+    import { platform } from '../src/utils/platform';
+
+    const promisedExec = promisify(execCallback);
+
+    export const runCli = async (
+      args: string,
+    ): Promise<{ stdout: string; stderr: string; code: number }> => {
+      const cliPath = path.join(__dirname, '..', 'dist', 'cli.js');
+      try {
+        const { stdout, stderr } = await promisedExec(`node ${cliPath} ${args}`);
+        return { stdout, stderr, code: 0 };
+      } catch (error) {
+        const err = error as ExecException & { stdout: string; stderr: string };
+        return {
+          stdout: err.stdout,
+          stderr: err.stderr,
+          code: err.code || 1,
+        };
+      }
+    };
+
+    export const setupTestDirectory = async (): Promise<{
+      testDir: string;
+      cleanup: () => Promise<void>;
+    }> => {
+      const originalCwd = process.cwd();
+      const testDir = await fs.mkdtemp(path.join(platform.getTmpDir(), 'nocaflow-test-'));
+      process.chdir(testDir);
+
+      const cleanup = async (): Promise<void> => {
+        process.chdir(originalCwd);
+        await fs.rm(testDir, { recursive: true, force: true });
+      };
+
+      return { testDir, cleanup };
+    };
+
+    export const initGitRepo = async (): Promise<void> => {
+      await promisedExec('git init');
+      await promisedExec('git config user.email "test@example.com"');
+      await promisedExec('git config user.name "Test User"');
+      await promisedExec('git commit --allow-empty -m "Initial commit"');
+    };
+
+    export const createDummyPlanFile = async (
+      phase: 'initialization' | 'development',
+      status: 'todo' | 'doing' | 'done' | 'review' | 'failed',
+      fileName: string,
+    ): Promise<void> => {
+      const dirPath = path.join('.nocaflow', phase, 'plans', status);
+      await fs.mkdir(dirPath, { recursive: true });
+      await fs.writeFile(path.join(dirPath, fileName), '# dummy plan');
+    };
+
+    export const createDummyFailedReport = async (
+      phase: 'initialization' | 'development',
+      planId: string,
+      partId: string,
+      summary: string,
+    ): Promise<string> => {
+      const reportDir = path.join('.nocaflow', phase, 'plans', 'failed', 'report');
+      await fs.mkdir(reportDir, { recursive: true });
+      const reportPath = path.join(reportDir, `${planId}.${partId}.report.md`);
+      const content = `## Summary\n\n${summary}`;
+      await fs.writeFile(reportPath, content);
+      return path.resolve(reportPath);
+    };
+approved: true
+linesAdded: null
+linesRemoved: null
+linesDifference: null
+gitCommittedAt: null
+status: committed
+id: 30

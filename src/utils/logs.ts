@@ -17,7 +17,7 @@ import fs from 'fs/promises';
  */
 export const getRecentLogs = async (limit: number): Promise<LogEntry[]> => {
   const logDirs = ['.nocaflow/initialization/agent-log', '.nocaflow/development/agent-log'];
-  let allEntries: LogEntry[] = [];
+  const allEntries: LogEntry[] = [];
   const logRegex =
     /^(?<timestamp>.*?) \[(?<status>\w+)\|(?<phase>\w+)\|(?<agentId>.*?)\] plan:(?<planId>\S+) - (?<message>.*)$/;
 

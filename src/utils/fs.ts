@@ -17,7 +17,7 @@ export interface PhaseStats {
 
 export interface FailedReport {
   planId: string;
-  partId: string;
+  partId: string | undefined;
   reason: string;
   reportPath: string;
 }
@@ -77,7 +77,10 @@ export const getFailedReports = async (hours: number): Promise<FailedReport[]> =
           const content = await fs.readFile(filePath, 'utf-8');
           const summaryMatch = content.match(/## Summary\s*\n\s*([\s\S]*?)(?=\n##|$)/);
           const reason = summaryMatch ? summaryMatch[1].trim() : 'Could not parse summary.';
-          const [planId, partId] = file.split('.').slice(0, 2);
+          const parts = file.split('.');
+          const planId = parts[0] || '';
+          const partId =
+            parts.length >= 4 && parts[parts.length - 2] === 'report' ? parts[1] : undefined;
           reports.push({ planId, partId, reason, reportPath: filePath });
         }
       }
@@ -94,13 +97,7 @@ export const getFailedReports = async (hours: number): Promise<FailedReport[]> =
  * @returns The parsed Plan object.
  */
 export const readPlan = async (filePath: string): Promise<Plan> => {
-  try {
-    const fileContent = await fs.readFile(filePath, 'utf-8');
-    const plan = yaml.load(fileContent) as Plan;
-    return plan;
-  } catch (error) {
-    // Let the caller handle the error. They might want to know if it's a
-    // file not found vs. a parsing error.
-    throw error;
-  }
+  const fileContent = await fs.readFile(filePath, 'utf-8');
+  const plan = yaml.load(fileContent) as Plan;
+  return plan;
 };

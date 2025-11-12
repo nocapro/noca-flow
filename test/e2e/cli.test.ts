@@ -12,14 +12,13 @@ describe('e2e/cli', () => {
   let testDir: string;
 
   beforeAll(async () => {
-    jest.setTimeout(30000); // Give tsc time to build
     try {
       await promisedExec('npm run build');
     } catch (e) {
       console.error('Failed to build project for E2E tests:', e);
       process.exit(1);
     }
-  });
+  }, 60000);
 
   beforeEach(async () => {
     const { cleanup: c, testDir: td } = await setupTestDirectory();
@@ -28,7 +27,9 @@ describe('e2e/cli', () => {
   });
 
   afterEach(async () => {
-    await cleanup();
+    if (cleanup) {
+      await cleanup();
+    }
   });
 
   describe('init command', () => {
@@ -44,9 +45,9 @@ describe('e2e/cli', () => {
 
     it('should show a warning if the project is already initialized', async () => {
       await fs.mkdir('.nocaflow'); // Manually create the directory
-      const { stdout, code } = await runCli('init');
+      const { stderr, code } = await runCli('init');
 
-      expect(stdout).toContain('directory already exists. Initialization skipped.');
+      expect(stderr).toContain("Warning: '.nocaflow' directory already exists. Initialization skipped.");
       expect(code).toBe(0); // Graceful exit on warning
     });
   });
@@ -97,11 +98,11 @@ describe('e2e/cli', () => {
 
   describe('no command', () => {
     it('should display help when no command is provided', async () => {
-      const { stdout } = await runCli('');
-      expect(stdout).toContain('Commands:');
-      expect(stdout).toContain('init');
-      expect(stdout).toContain('state');
-      expect(stdout).toContain('You need at least one command before moving on');
+      const { stderr } = await runCli('');
+      expect(stderr).toContain('Commands:');
+      expect(stderr).toContain('init');
+      expect(stderr).toContain('state');
+      expect(stderr).toContain('You need at least one command before moving on');
     });
 
     it('should display help when --help flag is used', async () => {

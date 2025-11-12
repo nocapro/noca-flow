@@ -30,18 +30,7 @@ export const getActiveAgents = async (): Promise<AgentInfo[]> => {
       const runtime = dayjs().to(dayjs.unix(parseInt(activity, 10)), true);
 
       let match;
-      if ((match = sessionName.match(/^(init|dev)-(.+)/))) {
-        const phase = match[1].toUpperCase() as 'INIT' | 'DEV';
-        const partId = match[2];
-        agents.push({
-          phase,
-          id: partId,
-          planId: 'unknown', // Not available from session name
-          partId: partId,
-          runtime,
-          pid,
-        });
-      } else if ((match = sessionName.match(/^init-scaffold-(.+)/))) {
+      if ((match = sessionName.match(/^init-scaffold-(.+)/))) {
         const planId = match[1];
         agents.push({
           phase: 'SCAF',
@@ -54,6 +43,17 @@ export const getActiveAgents = async (): Promise<AgentInfo[]> => {
       } else if ((match = sessionName.match(/^qa-(.+)/))) {
         const planId = match[1];
         agents.push({ phase: 'QA', id: planId, planId, partId: 'qa', runtime, pid });
+      } else if ((match = sessionName.match(/^(init|dev)-(?!scaffold-|qa-)(.+)/))) {
+        const phase = match[1].toUpperCase() as 'INIT' | 'DEV';
+        const partId = match[2];
+        agents.push({
+          phase,
+          id: partId,
+          planId: 'unknown', // Not available from session name
+          partId: partId,
+          runtime,
+          pid,
+        });
       }
     }
     return agents;

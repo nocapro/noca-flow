@@ -79,7 +79,7 @@ describe('integration/utils/git', () => {
 
   it('should handle commit messages with special characters', async () => {
     const complexMessage = `feat: handle '|' "quotes" and 'apostrophes'\n\nwith a body.`;
-    await promisedExec(`git commit --allow-empty -m "${complexMessage}"`);
+    await promisedExec(`git commit --allow-empty -m ${JSON.stringify(complexMessage)}`);
 
     const log = await getGitLog(1);
 

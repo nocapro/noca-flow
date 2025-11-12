@@ -30,7 +30,7 @@ export const renderProgressBar = (current: number, total: number, length: number
 /**
  * @description Displays the full state report to the console.
  */
-export const handleStateCommand = async (_argv: {}): Promise<void> => {
+export const handleStateCommand = async (_argv: Record<string, unknown>): Promise<void> => {
   const phaseStats: PhaseStats = await getPhaseStats();
   const activeAgents: AgentInfo[] = await getActiveAgents();
   const recentLogs: LogEntry[] = await getRecentLogs(5);
