@@ -21,8 +21,11 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
         const branchMatch = entry.match(/^branch refs\/heads\/(.*)/m);
         if (branchMatch) {
           const branchName = branchMatch[1];
-          // Assuming worktree branch name is the worktree name we want to display
-          map.set(branchName, branchName);
+          // Do not treat the main/master branch as a worktree indicator
+          if (branchName !== 'main' && branchName !== 'master') {
+            // Assuming worktree branch name is the worktree name we want to display
+            map.set(branchName, branchName);
+          }
         }
       }
     } catch (error) {
@@ -33,14 +36,17 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
 
   try {
     const worktreeMap = await getWorktreeMap();
-    const { stdout: logOutput } = await platform.runCommand(`git log --all -n ${limit} --pretty=format:"%H|%D|%s"`);
+    // Use non-printable characters as delimiters for robustness.
+    // \x1f (unit separator) separates fields, \x00 (null) separates records.
+    const { stdout: logOutput } = await platform.runCommand(`git log --all -n ${limit} --pretty=format:'%H%x1f%D%x1f%B%x00'`);
     if (!logOutput) return [];
 
-    return logOutput.trim().split('\n').map(line => {
-      const parts = line.split('|');
+    // Split by null byte and filter out any trailing empty string.
+    return logOutput.split('\x00').filter(Boolean).map(line => {
+      const parts = line.split('\x1f');
       const hash = parts[0] || '';
       const refs = parts[1] || '';
-      const message = parts.slice(2).join('|'); // Robustly handle '|' in commit message
+      const message = (parts[2] || '').trim();
       
       let worktree: string | null = null;
       for (const branchName of worktreeMap.keys()) {

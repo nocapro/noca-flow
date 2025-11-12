@@ -11,7 +11,7 @@ export const runCli = async (
 ): Promise<{ stdout: string; stderr: string; code: number }> => {
   const cliPath = path.join(__dirname, '..', 'dist', 'cli.js');
   try {
-    const { stdout, stderr } = await promisedExec(`node ${cliPath} ${args}`);
+    const { stdout, stderr } = await promisedExec(`FORCE_COLOR=0 node ${cliPath} ${args}`);
     return { stdout, stderr, code: 0 };
   } catch (error) {
     const err = error as ExecException & { stdout: string; stderr: string };
@@ -67,5 +67,5 @@ export const createDummyFailedReport = async (
   const reportPath = path.join(reportDir, `${planId}.${partId}.report.md`);
   const content = `## Summary\n\n${summary}`;
   await fs.writeFile(reportPath, content);
-  return reportPath;
+  return path.resolve(reportPath);
 };

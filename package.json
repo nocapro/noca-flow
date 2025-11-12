@@ -8,10 +8,10 @@
   },
   "scripts": {
     "start": "node dist/cli.js",
-    "build": "tsc",
-    "dev": "ts-node src/cli.ts",
-    "test": "NVM_DIR=\"$HOME/.nvm\" && [ -s \"$NVM_DIR/nvm.sh\" ] && \\. \"$NVM_DIR/nvm.sh\" && nvm use 24.11.1 && jest",
-    "lint": "eslint 'src/**/*.ts' 'test/**/*.ts'"
+    "build": "node node_modules/typescript/lib/tsc.js",
+    "dev": "node node_modules/ts-node/dist/bin.js src/cli.ts",
+    "test": "node node_modules/jest/bin/jest.js",
+    "lint": "node node_modules/eslint/bin/eslint.js 'src/**/*.ts' 'test/**/*.ts'"
   },
   "keywords": [
     "llm",

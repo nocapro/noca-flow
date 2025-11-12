@@ -6,7 +6,7 @@ import { EOL } from 'os';
 /**
  * @description Handles the logic for the 'init' command.
  */
-export const handleInitCommand = async (_argv: {}): Promise<void> => {
+export const handleInitCommand = async (_argv: Record<string, unknown>): Promise<void> => {
   const rootDir = '.nocaflow';
   try {
     await fs.access(rootDir);

@@ -97,9 +97,8 @@ test/
       platform.test.ts
       shell.test.ts
       test.util.test.ts
+  setup.ts
   test.util.ts
-worktrees/
-  .gitkeep
 .eslintrc.js
 jest.config.js
 manager.agent.md
@@ -537,229 +536,17 @@ export const posixPlatform: Platform = {
 export const platform: Platform = posixPlatform;
 ````
 
-## File: test/unit/utils/platform.test.ts
+## File: test/setup.ts
 ````typescript
-import { posixPlatform } from '../../../src/utils/platform';
-import { exec as execCallback, ExecException } from 'child_process';
-import os from 'os';
-
-jest.mock('child_process');
-const mockedExec = execCallback as jest.Mock;
-
-jest.mock('os');
-const mockedOs = os as jest.Mocked<typeof os>;
-
-describe('unit/utils/platform', () => {
-  afterEach(() => {
-    jest.resetAllMocks();
-    // Clean up environment variables
-    delete process.env.TMPDIR;
-    delete process.env.TEMP;
-    delete process.env.TMP;
-  });
-
-  describe('runCommand', () => {
-    it('should resolve with stdout and stderr on successful execution', async () => {
-      const command = 'ls -l';
-      const expectedStdout = 'total 0';
-      const expectedStderr = '';
-      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout: expectedStdout, stderr: expectedStderr }));
-      
-      const result = await posixPlatform.runCommand(command);
-      
-      expect(mockedExec).toHaveBeenCalledWith(command, expect.any(Function));
-      expect(result.stdout).toBe(expectedStdout);
-      expect(result.stderr).toBe(expectedStderr);
-    });
-
-    it('should capture stdout and stderr even when the command fails (non-zero exit code)', async () => {
-      const command = 'git status';
-      const expectedStdout = '';
-      const expectedStderr = 'fatal: not a git repository';
-      const error: ExecException & { stdout: string; stderr: string } = {
-        name: 'Error',
-        message: 'Command failed',
-        code: 128,
-        stdout: expectedStdout,
-        stderr: expectedStderr,
-      };
-      mockedExec.mockImplementation((_cmd, callback) => callback(error, { stdout: expectedStdout, stderr: expectedStderr }));
-      
-      const result = await posixPlatform.runCommand(command);
-
-      expect(result.stdout).toBe(expectedStdout);
-      expect(result.stderr).toBe(expectedStderr);
-    });
-  });
-
-  describe('getTmpDir', () => {
-    it('should prioritize TMPDIR environment variable', () => {
-      process.env.TMPDIR = '/tmp/tmpdir';
-      process.env.TEMP = '/tmp/temp';
-      mockedOs.tmpdir.mockReturnValue('/tmp/os');
-      
-      expect(posixPlatform.getTmpDir()).toBe('/tmp/tmpdir');
-    });
-
-    it('should fall back to TEMP if TMPDIR is not set', () => {
-      process.env.TEMP = '/tmp/temp';
-      mockedOs.tmpdir.mockReturnValue('/tmp/os');
-
-      expect(posixPlatform.getTmpDir()).toBe('/tmp/temp');
-    });
-
-    it('should fall back to TMP if TEMP is not set', () => {
-      process.env.TMP = '/tmp/tmp';
-      mockedOs.tmpdir.mockReturnValue('/tmp/os');
-
-      expect(posixPlatform.getTmpDir()).toBe('/tmp/tmp');
-    });
-
-    it('should fall back to os.tmpdir() as a last resort', () => {
-      mockedOs.tmpdir.mockReturnValue('/tmp/os-fallback');
-      
-      expect(posixPlatform.getTmpDir()).toBe('/tmp/os-fallback');
-    });
-  });
-});
-````
-
-## File: test/unit/utils/test.util.test.ts
-````typescript
-import {
-  runCli,
-  setupTestDirectory,
-  initGitRepo,
-  createDummyPlanFile,
-  createDummyFailedReport,
-} from '../../test.util';
-import { exec as execCallback, ExecException } from 'child_process';
-import { promisify } from 'util';
-import fs from 'fs/promises';
-import path from 'path';
-
-// Mock child_process for most tests, but we'll need the real one for initGitRepo.
-jest.mock('child_process');
-const mockedExec = execCallback as jest.Mock;
-const { exec: actualExec } = jest.requireActual('child_process');
-const promisedActualExec = promisify(actualExec);
-
-
-describe('unit/utils/test.util', () => {
-  describe('runCli', () => {
-    afterEach(() => {
-      jest.clearAllMocks();
-    });
-
-    it('should resolve with stdout and code 0 on success', async () => {
-      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout: 'Success', stderr: '' }));
-      const result = await runCli('state');
-      expect(result.code).toBe(0);
-      expect(result.stdout).toBe('Success');
-      expect(result.stderr).toBe('');
-    });
-
-    it('should reject with stderr and a non-zero code on failure', async () => {
-      const error: ExecException & { stdout: string; stderr: string } = {
-        name: 'Error',
-        message: 'Command failed',
-        code: 127,
-        stdout: '',
-        stderr: 'Command not found',
-      };
-      mockedExec.mockImplementation((_cmd, callback) => callback(error, { stdout: '', stderr: 'Command not found' }));
-      
-      const result = await runCli('nonexistent');
-      expect(result.code).toBe(127);
-      expect(result.stdout).toBe('');
-      expect(result.stderr).toBe('Command not found');
-    });
-  });
-
-  describe('setupTestDirectory', () => {
-    it('should create a temp dir, chdir into it, and clean up properly', async () => {
-      const originalCwd = process.cwd();
-      const { testDir, cleanup } = await setupTestDirectory();
-
-      // Check that we are in the new directory
-      expect(process.cwd()).toBe(testDir);
-      expect(testDir).not.toBe(originalCwd);
-
-      // Check that the directory exists
-      await expect(fs.access(testDir)).resolves.toBeUndefined();
-
-      await cleanup();
-
-      // Check that we are back in the original directory
-      expect(process.cwd()).toBe(originalCwd);
-
-      // Check that the directory has been removed
-      await expect(fs.access(testDir)).rejects.toThrow();
-    });
-  });
-
-  describe('initGitRepo', () => {
-    let cleanup: () => Promise<void>;
-
-    beforeEach(async () => {
-      const { cleanup: c } = await setupTestDirectory();
-      cleanup = c;
-    });
-  
-    afterEach(async () => {
-      await cleanup();
-    });
-
-    it('should initialize a git repository and make an initial commit', async () => {
-      // We need the real exec for this test.
-      mockedExec.mockImplementation(actualExec);
-
-      await initGitRepo();
-
-      // Check for .git directory
-      await expect(fs.access('.git')).resolves.toBeUndefined();
-
-      // Check for initial commit
-      const { stdout } = await promisedActualExec('git log -1 --pretty=%s');
-      expect(stdout.trim()).toBe('Initial commit');
-    });
-  });
-
-  describe('file creators', () => {
-    let cleanup: () => Promise<void>;
-    let testDir: string;
-
-    beforeEach(async () => {
-      const { cleanup: c, testDir: td } = await setupTestDirectory();
-      cleanup = c;
-      testDir = td;
-    });
-  
-    afterEach(async () => {
-      await cleanup();
-    });
-
-    it('should create a dummy plan file in the correct location', async () => {
-      const planPath = path.join(testDir, '.nocaflow/development/plans/todo/dummy.yml');
-      await createDummyPlanFile('development', 'todo', 'dummy.yml');
-      
-      await expect(fs.access(planPath)).resolves.toBeUndefined();
-      const content = await fs.readFile(planPath, 'utf-8');
-      expect(content).toBe('# dummy plan');
-    });
-
-    it('should create a dummy failed report with correct content', async () => {
-      const summary = 'This is a test summary.';
-      const reportPath = await createDummyFailedReport('initialization', 'plan1', 'partA', summary);
-      
-      const expectedPath = path.join(testDir, '.nocaflow/initialization/plans/failed/report/plan1.partA.report.md');
-      expect(reportPath).toBe(expectedPath);
-
-      await expect(fs.access(reportPath)).resolves.toBeUndefined();
-      const content = await fs.readFile(reportPath, 'utf-8');
-      expect(content).toBe(`## Summary\n\n${summary}`);
-    });
-  });
+// Jest setup file to handle Node.js v25+ compatibility issues
+Object.defineProperty(global, 'localStorage', {
+  value: {
+    getItem: jest.fn(),
+    setItem: jest.fn(),
+    removeItem: jest.fn(),
+    clear: jest.fn(),
+  },
+  writable: true,
 });
 ````
 
@@ -961,7 +748,7 @@ describe('integration/utils/git', () => {
 
   it('should handle commit messages with special characters', async () => {
     const complexMessage = `feat: handle '|' "quotes" and 'apostrophes'\n\nwith a body.`;
-    await promisedExec(`git commit --allow-empty -m "${complexMessage}"`);
+    await promisedExec(`git commit --allow-empty -m ${JSON.stringify(complexMessage)}`);
 
     const log = await getGitLog(1);
 
@@ -982,13 +769,230 @@ describe('integration/utils/git', () => {
 });
 ````
 
-## File: jest.config.js
-````javascript
-module.exports = {
-  preset: 'ts-jest',
-  testEnvironment: 'node',
-  testMatch: ['<rootDir>/test/**/*.test.ts'],
-};
+## File: test/unit/utils/platform.test.ts
+````typescript
+import { posixPlatform } from '../../../src/utils/platform';
+import { exec as execCallback, ExecException } from 'child_process';
+import os from 'os';
+
+jest.mock('child_process');
+const mockedExec = execCallback as unknown as jest.Mock;
+
+jest.mock('os');
+const mockedOs = os as jest.Mocked<typeof os>;
+
+describe('unit/utils/platform', () => {
+  afterEach(() => {
+    jest.resetAllMocks();
+    // Clean up environment variables
+    delete process.env.TMPDIR;
+    delete process.env.TEMP;
+    delete process.env.TMP;
+  });
+
+  describe('runCommand', () => {
+    it('should resolve with stdout and stderr on successful execution', async () => {
+      const command = 'ls -l';
+      const expectedStdout = 'total 0';
+      const expectedStderr = '';
+      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout: expectedStdout, stderr: expectedStderr }));
+      
+      const result = await posixPlatform.runCommand(command);
+      
+      expect(mockedExec).toHaveBeenCalledWith(command, expect.any(Function));
+      expect(result.stdout).toBe(expectedStdout);
+      expect(result.stderr).toBe(expectedStderr);
+    });
+
+    it('should capture stdout and stderr even when the command fails (non-zero exit code)', async () => {
+      const command = 'git status';
+      const expectedStdout = '';
+      const expectedStderr = 'fatal: not a git repository';
+      const error: ExecException & { stdout: string; stderr: string } = {
+        name: 'Error',
+        message: 'Command failed',
+        code: 128,
+        stdout: expectedStdout,
+        stderr: expectedStderr,
+      };
+      mockedExec.mockImplementation((_cmd, callback) => callback(error, { stdout: expectedStdout, stderr: expectedStderr }));
+      
+      const result = await posixPlatform.runCommand(command);
+
+      expect(result.stdout).toBe(expectedStdout);
+      expect(result.stderr).toBe(expectedStderr);
+    });
+  });
+
+  describe('getTmpDir', () => {
+    it('should prioritize TMPDIR environment variable', () => {
+      process.env.TMPDIR = '/tmp/tmpdir';
+      process.env.TEMP = '/tmp/temp';
+      mockedOs.tmpdir.mockReturnValue('/tmp/os');
+      
+      expect(posixPlatform.getTmpDir()).toBe('/tmp/tmpdir');
+    });
+
+    it('should fall back to TEMP if TMPDIR is not set', () => {
+      process.env.TEMP = '/tmp/temp';
+      mockedOs.tmpdir.mockReturnValue('/tmp/os');
+
+      expect(posixPlatform.getTmpDir()).toBe('/tmp/temp');
+    });
+
+    it('should fall back to TMP if TEMP is not set', () => {
+      process.env.TMP = '/tmp/tmp';
+      mockedOs.tmpdir.mockReturnValue('/tmp/os');
+
+      expect(posixPlatform.getTmpDir()).toBe('/tmp/tmp');
+    });
+
+    it('should fall back to os.tmpdir() as a last resort', () => {
+      mockedOs.tmpdir.mockReturnValue('/tmp/os-fallback');
+      
+      expect(posixPlatform.getTmpDir()).toBe('/tmp/os-fallback');
+    });
+  });
+});
+````
+
+## File: test/unit/utils/test.util.test.ts
+````typescript
+import {
+  runCli,
+  setupTestDirectory,
+  initGitRepo,
+  createDummyPlanFile,
+  createDummyFailedReport,
+} from '../../test.util';
+import { exec as execCallback, ExecException } from 'child_process';
+import { promisify } from 'util';
+import fs from 'fs/promises';
+import path from 'path';
+
+// Mock child_process for most tests, but we'll need the real one for initGitRepo.
+jest.mock('child_process');
+const mockedExec = execCallback as unknown as jest.Mock;
+const { exec: actualExec } = jest.requireActual('child_process');
+const promisedActualExec = promisify(actualExec);
+
+
+describe('unit/utils/test.util', () => {
+  describe('runCli', () => {
+    afterEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should resolve with stdout and code 0 on success', async () => {
+      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout: 'Success', stderr: '' }));
+      const result = await runCli('state');
+      expect(result.code).toBe(0);
+      expect(result.stdout).toBe('Success');
+      expect(result.stderr).toBe('');
+    });
+
+    it('should reject with stderr and a non-zero code on failure', async () => {
+      const error: ExecException & { stdout: string; stderr: string } = {
+        name: 'Error',
+        message: 'Command failed',
+        code: 127,
+        stdout: '',
+        stderr: 'Command not found',
+      };
+      mockedExec.mockImplementation((_cmd, callback) => callback(error, { stdout: '', stderr: 'Command not found' }));
+      
+      const result = await runCli('nonexistent');
+      expect(result.code).toBe(127);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe('Command not found');
+    });
+  });
+
+  describe('setupTestDirectory', () => {
+    it('should create a temp dir, chdir into it, and clean up properly', async () => {
+      const originalCwd = process.cwd();
+      const { testDir, cleanup } = await setupTestDirectory();
+
+      // Check that we are in the new directory
+      expect(process.cwd()).toBe(testDir);
+      expect(testDir).not.toBe(originalCwd);
+
+      // Check that the directory exists
+      await expect(fs.access(testDir)).resolves.toBeUndefined();
+
+      await cleanup();
+
+      // Check that we are back in the original directory
+      expect(process.cwd()).toBe(originalCwd);
+
+      // Check that the directory has been removed
+      await expect(fs.access(testDir)).rejects.toThrow();
+    });
+  });
+
+  describe('initGitRepo', () => {
+    let cleanup: () => Promise<void>;
+
+    beforeEach(async () => {
+      const { cleanup: c } = await setupTestDirectory();
+      cleanup = c;
+    });
+  
+    afterEach(async () => {
+      await cleanup();
+    });
+
+    it('should initialize a git repository and make an initial commit', async () => {
+      // We need the real exec for this test.
+      mockedExec.mockImplementation(actualExec);
+
+      await initGitRepo();
+
+      // Check for .git directory
+      await expect(fs.access('.git')).resolves.toBeUndefined();
+
+      // Check for initial commit
+      const { stdout } = await promisedActualExec('git log -1 --pretty=%s');
+      expect(stdout.trim()).toBe('Initial commit');
+    });
+  });
+
+  describe('file creators', () => {
+    let cleanup: () => Promise<void>;
+    let testDir: string;
+
+    beforeEach(async () => {
+      const { cleanup: c, testDir: td } = await setupTestDirectory();
+      cleanup = c;
+      testDir = td;
+    });
+  
+    afterEach(async () => {
+      await cleanup();
+    });
+
+    it('should create a dummy plan file in the correct location', async () => {
+      const planPath = path.join(testDir, '.nocaflow/development/plans/todo/dummy.yml');
+      await createDummyPlanFile('development', 'todo', 'dummy.yml');
+      
+      await expect(fs.access(planPath)).resolves.toBeUndefined();
+      const content = await fs.readFile(planPath, 'utf-8');
+      expect(content).toBe('# dummy plan');
+    });
+
+    it('should create a dummy failed report with correct content', async () => {
+      const summary = 'This is a test summary.';
+      const reportPath = await createDummyFailedReport('initialization', 'plan1', 'partA', summary);
+      
+      const expectedPath = path.join(testDir, '.nocaflow/initialization/plans/failed/report/plan1.partA.report.md');
+      expect(reportPath).toBe(expectedPath);
+
+      await expect(fs.access(reportPath)).resolves.toBeUndefined();
+      const content = await fs.readFile(reportPath, 'utf-8');
+      expect(content).toBe(`## Summary\n\n${summary}`);
+    });
+  });
+});
 ````
 
 ## File: development/dev.phase.rule.md
@@ -1079,7 +1083,7 @@ import { EOL } from 'os';
 /**
  * @description Handles the logic for the 'init' command.
  */
-export const handleInitCommand = async (_argv: {}): Promise<void> => {
+export const handleInitCommand = async (_argv: Record<string, unknown>): Promise<void> => {
   const rootDir = '.nocaflow';
   try {
     await fs.access(rootDir);
@@ -1123,51 +1127,14 @@ export const handleInitCommand = async (_argv: {}): Promise<void> => {
 };
 ````
 
-## File: package.json
-````json
-{
-  "name": "nocaflow",
-  "version": "0.0.1",
-  "description": "Filesystem-as-State for Phased LLM Swarms.",
-  "main": "dist/index.js",
-  "bin": {
-    "nocaflow": "dist/cli.js"
-  },
-  "scripts": {
-    "start": "node dist/cli.js",
-    "build": "tsc",
-    "dev": "ts-node src/cli.ts",
-    "test": "jest",
-    "lint": "eslint 'src/**/*.ts' 'test/**/*.ts'"
-  },
-  "keywords": [
-    "llm",
-    "swarm",
-    "agent",
-    "orchestration"
-  ],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "chalk": "^4.1.2",
-    "dayjs": "^1.11.10",
-    "js-yaml": "^4.1.0",
-    "yargs": "^17.7.2"
-  },
-  "devDependencies": {
-    "@types/js-yaml": "^4.0.9",
-    "@types/node": "^20.10.4",
-    "@types/yargs": "^17.0.32",
-    "@types/jest": "^29.5.11",
-    "@typescript-eslint/eslint-plugin": "^6.14.0",
-    "@typescript-eslint/parser": "^6.14.0",
-    "eslint": "^8.55.0",
-    "jest": "^29.7.0",
-    "ts-jest": "^29.1.1",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
-  }
-}
+## File: jest.config.js
+````javascript
+module.exports = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  testMatch: ['<rootDir>/test/**/*.test.ts'],
+  setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
+};
 ````
 
 ## File: plan.agent.md
@@ -1335,8 +1302,11 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
         const branchMatch = entry.match(/^branch refs\/heads\/(.*)/m);
         if (branchMatch) {
           const branchName = branchMatch[1];
-          // Assuming worktree branch name is the worktree name we want to display
-          map.set(branchName, branchName);
+          // Do not treat the main/master branch as a worktree indicator
+          if (branchName !== 'main' && branchName !== 'master') {
+            // Assuming worktree branch name is the worktree name we want to display
+            map.set(branchName, branchName);
+          }
         }
       }
     } catch (error) {
@@ -1392,7 +1362,7 @@ import fs from 'fs/promises';
  */
 export const getRecentLogs = async (limit: number): Promise<LogEntry[]> => {
   const logDirs = ['.nocaflow/initialization/agent-log', '.nocaflow/development/agent-log'];
-  let allEntries: LogEntry[] = [];
+  const allEntries: LogEntry[] = [];
   const logRegex =
     /^(?<timestamp>.*?) \[(?<status>\w+)\|(?<phase>\w+)\|(?<agentId>.*?)\] plan:(?<planId>\S+) - (?<message>.*)$/;
 
@@ -1471,6 +1441,53 @@ describe('unit/commands/state', () => {
     });
   });
 });
+````
+
+## File: package.json
+````json
+{
+  "name": "nocaflow",
+  "version": "0.0.1",
+  "description": "Filesystem-as-State for Phased LLM Swarms.",
+  "main": "dist/index.js",
+  "bin": {
+    "nocaflow": "dist/cli.js"
+  },
+  "scripts": {
+    "start": "node dist/cli.js",
+    "build": "node node_modules/typescript/lib/tsc.js",
+    "dev": "node node_modules/ts-node/dist/bin.js src/cli.ts",
+    "test": "node node_modules/jest/bin/jest.js",
+    "lint": "node node_modules/eslint/bin/eslint.js 'src/**/*.ts' 'test/**/*.ts'"
+  },
+  "keywords": [
+    "llm",
+    "swarm",
+    "agent",
+    "orchestration"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "dayjs": "^1.11.10",
+    "js-yaml": "^4.1.0",
+    "yargs": "^17.7.2"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.10.4",
+    "@types/yargs": "^17.0.32",
+    "@types/jest": "^29.5.11",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "eslint": "^8.55.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
 ````
 
 ## File: suffix.global.prompt.md
@@ -1554,7 +1571,7 @@ export interface PhaseStats {
 
 export interface FailedReport {
   planId: string;
-  partId: string;
+  partId: string | undefined;
   reason: string;
   reportPath: string;
 }
@@ -1614,7 +1631,10 @@ export const getFailedReports = async (hours: number): Promise<FailedReport[]> =
           const content = await fs.readFile(filePath, 'utf-8');
           const summaryMatch = content.match(/## Summary\s*\n\s*([\s\S]*?)(?=\n##|$)/);
           const reason = summaryMatch ? summaryMatch[1].trim() : 'Could not parse summary.';
-          const [planId, partId] = file.split('.').slice(0, 2);
+          const parts = file.split('.');
+          const planId = parts[0] || '';
+          const partId =
+            parts.length >= 4 && parts[parts.length - 2] === 'report' ? parts[1] : undefined;
           reports.push({ planId, partId, reason, reportPath: filePath });
         }
       }
@@ -1631,15 +1651,9 @@ export const getFailedReports = async (hours: number): Promise<FailedReport[]> =
  * @returns The parsed Plan object.
  */
 export const readPlan = async (filePath: string): Promise<Plan> => {
-  try {
-    const fileContent = await fs.readFile(filePath, 'utf-8');
-    const plan = yaml.load(fileContent) as Plan;
-    return plan;
-  } catch (error) {
-    // Let the caller handle the error. They might want to know if it's a
-    // file not found vs. a parsing error.
-    throw error;
-  }
+  const fileContent = await fs.readFile(filePath, 'utf-8');
+  const plan = yaml.load(fileContent) as Plan;
+  return plan;
 };
 ````
 
@@ -1714,7 +1728,7 @@ export const createDummyFailedReport = async (
   const reportPath = path.join(reportDir, `${planId}.${partId}.report.md`);
   const content = `## Summary\n\n${summary}`;
   await fs.writeFile(reportPath, content);
-  return reportPath;
+  return path.resolve(reportPath);
 };
 ````
 
@@ -1844,7 +1858,7 @@ export const renderProgressBar = (current: number, total: number, length: number
 /**
  * @description Displays the full state report to the console.
  */
-export const handleStateCommand = async (_argv: {}): Promise<void> => {
+export const handleStateCommand = async (_argv: Record<string, unknown>): Promise<void> => {
   const phaseStats: PhaseStats = await getPhaseStats();
   const activeAgents: AgentInfo[] = await getActiveAgents();
   const recentLogs: LogEntry[] = await getRecentLogs(5);
@@ -1953,18 +1967,7 @@ export const getActiveAgents = async (): Promise<AgentInfo[]> => {
       const runtime = dayjs().to(dayjs.unix(parseInt(activity, 10)), true);
 
       let match;
-      if ((match = sessionName.match(/^(init|dev)-(.+)/))) {
-        const phase = match[1].toUpperCase() as 'INIT' | 'DEV';
-        const partId = match[2];
-        agents.push({
-          phase,
-          id: partId,
-          planId: 'unknown', // Not available from session name
-          partId: partId,
-          runtime,
-          pid,
-        });
-      } else if ((match = sessionName.match(/^init-scaffold-(.+)/))) {
+      if ((match = sessionName.match(/^init-scaffold-(.+)/))) {
         const planId = match[1];
         agents.push({
           phase: 'SCAF',
@@ -1977,6 +1980,17 @@ export const getActiveAgents = async (): Promise<AgentInfo[]> => {
       } else if ((match = sessionName.match(/^qa-(.+)/))) {
         const planId = match[1];
         agents.push({ phase: 'QA', id: planId, planId, partId: 'qa', runtime, pid });
+      } else if ((match = sessionName.match(/^(init|dev)-(.+)/))) {
+        const phase = match[1].toUpperCase() as 'INIT' | 'DEV';
+        const partId = match[2];
+        agents.push({
+          phase,
+          id: partId,
+          planId: 'unknown', // Not available from session name
+          partId: partId,
+          runtime,
+          pid,
+        });
       }
     }
     return agents;
@@ -2002,14 +2016,13 @@ describe('e2e/cli', () => {
   let testDir: string;
 
   beforeAll(async () => {
-    jest.setTimeout(30000); // Give tsc time to build
     try {
       await promisedExec('npm run build');
     } catch (e) {
       console.error('Failed to build project for E2E tests:', e);
       process.exit(1);
     }
-  });
+  }, 60000);
 
   beforeEach(async () => {
     const { cleanup: c, testDir: td } = await setupTestDirectory();
@@ -2018,7 +2031,9 @@ describe('e2e/cli', () => {
   });
 
   afterEach(async () => {
-    await cleanup();
+    if (cleanup) {
+      await cleanup();
+    }
   });
 
   describe('init command', () => {
@@ -2354,7 +2369,7 @@ describe('unit/utils/fs', () => {
       });
 
       it('should throw an error for invalid YAML', async () => {
-        await fs.writeFile('bad-plan.yml', 'key: value\n  bad-indent');
+        await fs.writeFile('bad-plan.yml', 'key: [a, b,');
         await expect(readPlan('bad-plan.yml')).rejects.toThrow();
       });
   });

@@ -169,7 +169,7 @@ describe('unit/utils/fs', () => {
       });
 
       it('should throw an error for invalid YAML', async () => {
-        await fs.writeFile('bad-plan.yml', 'key: value\n  bad-indent');
+        await fs.writeFile('bad-plan.yml', 'key: [a, b,');
         await expect(readPlan('bad-plan.yml')).rejects.toThrow();
       });
   });
