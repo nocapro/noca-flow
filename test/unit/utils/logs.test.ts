@@ -7,80 +7,104 @@ describe('unit/utils/logs', () => {
   let cleanup: () => Promise<void>;
 
   beforeEach(async () => {
-    // TODO: part-unit-logs-setup - Set up a clean directory for each test.
-    // INSTRUCTIONS:
-    // 1. Use `setupTestDirectory()` to create a temporary, isolated directory.
     const { cleanup: c } = await setupTestDirectory();
     cleanup = c;
   });
 
   afterEach(async () => {
-    // TODO: part-unit-logs-cleanup - Clean up the temporary directory.
-    // INSTRUCTIONS:
-    // 1. Call the `cleanup()` function.
     await cleanup();
   });
 
   it('should aggregate logs from all phase directories', async () => {
-    // TODO: part-unit-logs-aggregate - Test reading from both initialization and development log dirs.
-    // INSTRUCTIONS:
-    // 1. Create log directories for both phases, e.g., `.nocaflow/initialization/agent-log`.
-    // 2. Create a log file in each directory with valid log entries.
-    // 3. Call `getRecentLogs(10)`.
-    // 4. Assert that the result contains log entries from both files.
+    const initLogDir = '.nocaflow/initialization/agent-log';
+    const devLogDir = '.nocaflow/development/agent-log';
+    await fs.mkdir(initLogDir, { recursive: true });
+    await fs.mkdir(devLogDir, { recursive: true });
+
+    const log1 = `2023-01-01T10:00:00.000Z [DONE|INIT|agent1] plan:planA - Init log`;
+    const log2 = `2023-01-01T11:00:00.000Z [INFO|DEV|agent2] plan:planB - Dev log`;
+    await fs.writeFile(path.join(initLogDir, 'init.log'), log1);
+    await fs.writeFile(path.join(devLogDir, 'dev.log'), log2);
+
+    const logs = await getRecentLogs(10);
+    expect(logs).toHaveLength(2);
+    expect(logs.some(l => l.message === 'Init log')).toBe(true);
+    expect(logs.some(l => l.message === 'Dev log')).toBe(true);
   });
 
   it('should return the correct number of recent, sorted log entries', async () => {
-    // TODO: part-unit-logs-limit-sort - Test the limit and sorting logic.
-    // INSTRUCTIONS:
-    // 1. Create a single log file.
-    // 2. Write several (e.g., 10) valid log entries with timestamps that are *out of order*.
-    // 3. Call `getRecentLogs(5)`.
-    // 4. Assert that the result array has a length of 5.
-    // 5. Assert that the entries in the array are sorted by timestamp in descending order.
+    const logDir = '.nocaflow/initialization/agent-log';
+    await fs.mkdir(logDir, { recursive: true });
+    const logContent = [
+      `2023-01-01T10:00:00.000Z [DONE|INIT|a] plan:p1 - msg1`,
+      `2023-01-01T12:00:00.000Z [DONE|INIT|b] plan:p2 - msg3`,
+      `2023-01-01T11:00:00.000Z [DONE|INIT|c] plan:p3 - msg2`,
+      `2023-01-01T14:00:00.000Z [DONE|INIT|d] plan:p4 - msg5`,
+      `2023-01-01T13:00:00.000Z [DONE|INIT|e] plan:p5 - msg4`,
+    ].join('\n');
+    await fs.writeFile(path.join(logDir, 'test.log'), logContent);
+
+    const logs = await getRecentLogs(3);
+    expect(logs).toHaveLength(3);
+    expect(logs[0].message).toBe('msg5');
+    expect(logs[1].message).toBe('msg4');
+    expect(logs[2].message).toBe('msg3');
   });
 
   it('should correctly parse valid log lines and skip invalid ones', async () => {
-    // TODO: part-unit-logs-parse - Test the parsing logic for valid and invalid lines.
-    // INSTRUCTIONS:
-    // 1. Create a log file containing a mix of correctly formatted and malformed log lines.
-    // 2. Call `getRecentLogs(10)`.
-    // 3. Assert that the result only contains entries corresponding to the valid lines.
+    const logDir = '.nocaflow/initialization/agent-log';
+    await fs.mkdir(logDir, { recursive: true });
+    const logContent = [
+      `2023-01-01T10:00:00.000Z [DONE|INIT|agent1] plan:planA - Valid message`,
+      `This is a malformed line`,
+      `2023-01-01T11:00:00.000Z [FAIL|QA|qa-agent] plan:planB - Another valid one`,
+      `[FAIL|QA|qa-agent] plan:planB - Missing timestamp`,
+    ].join('\n');
+    await fs.writeFile(path.join(logDir, 'mixed.log'), logContent);
+
+    const logs = await getRecentLogs(10);
+    expect(logs).toHaveLength(2);
+    expect(logs[0].message).toBe('Another valid one');
+    expect(logs[1].message).toBe('Valid message');
   });
 
   it('should correctly parse log lines with varied content', async () => {
-    // TODO: part-unit-logs-parse-varied - Test the regex against varied but valid content.
-    // INSTRUCTIONS:
-    // 1. Create a log file with entries having:
-    //    - agentId with dashes or special characters (e.g., `scaffolder-123`).
-    //    - planId with dots or dashes.
-    //    - message content with special characters.
-    // 2. Call `getRecentLogs(10)`.
-    // 3. Assert that all entries are parsed correctly with their full, un-truncated content.
+    const logDir = '.nocaflow/development/agent-log';
+    await fs.mkdir(logDir, { recursive: true });
+    const logContent = `2023-01-01T10:00:00.000Z [INFO|DEV|agent-with-dashes_123] plan:plan.id.with.dots - Message with | and other chars`;
+    await fs.writeFile(path.join(logDir, 'varied.log'), logContent);
+
+    const logs = await getRecentLogs(1);
+    expect(logs).toHaveLength(1);
+    expect(logs[0].agentId).toBe('agent-with-dashes_123');
+    expect(logs[0].planId).toBe('plan.id.with.dots');
+    expect(logs[0].message).toBe('Message with | and other chars');
   });
 
   it('should handle empty log files gracefully', async () => {
-    // TODO: part-unit-logs-empty-file - Test behavior with empty log files.
-    // INSTRUCTIONS:
-    // 1. Create a log directory and an empty `agent.log` file inside it.
-    // 2. Call `getRecentLogs(5)`.
-    // 3. Assert that the result is an empty array and no error was thrown.
+    const logDir = '.nocaflow/initialization/agent-log';
+    await fs.mkdir(logDir, { recursive: true });
+    await fs.writeFile(path.join(logDir, 'empty.log'), '');
+
+    const logs = await getRecentLogs(5);
+    expect(logs).toEqual([]);
   });
 
   it('should return an empty array if log directories are missing', async () => {
-    // TODO: part-unit-logs-no-dir - Test behavior when log directories do not exist.
-    // INSTRUCTIONS:
-    // 1. Do not create any `.nocaflow` directories.
-    // 2. Call `getRecentLogs(5)`.
-    // 3. Assert that the result is an empty array.
+    const logs = await getRecentLogs(5);
+    expect(logs).toEqual([]);
   });
 
   it('should ignore files that do not end with .log', async () => {
-    // TODO: part-unit-logs-ignore-files - Test that non-log files are not read.
-    // INSTRUCTIONS:
-    // 1. Create a log directory.
-    // 2. Create `agent.log` with one entry and `agent.log.bak` with another entry.
-    // 3. Call `getRecentLogs(5)`.
-    // 4. Assert that the result contains only one entry (from `agent.log`).
+    const logDir = '.nocaflow/initialization/agent-log';
+    await fs.mkdir(logDir, { recursive: true });
+    const logContent = `2023-01-01T10:00:00.000Z [DONE|INIT|agent1] plan:planA - Real log`;
+    const bakContent = `2023-01-01T11:00:00.000Z [DONE|INIT|agent2] plan:planB - Backup log`;
+    await fs.writeFile(path.join(logDir, 'agent.log'), logContent);
+    await fs.writeFile(path.join(logDir, 'agent.log.bak'), bakContent);
+
+    const logs = await getRecentLogs(5);
+    expect(logs).toHaveLength(1);
+    expect(logs[0].message).toBe('Real log');
   });
 });

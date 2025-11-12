@@ -9,73 +9,92 @@ const promisedExec = promisify(exec);
 
 describe('integration/utils/git', () => {
   let cleanup: () => Promise<void>;
+  let testDir: string;
 
   beforeEach(async () => {
-    // TODO: part-int-git-setup - Set up a clean directory and initialize a git repo.
-    // INSTRUCTIONS:
-    // 1. Use `setupTestDirectory()` to create a temporary, isolated directory.
-    // 2. Use `initGitRepo()` to initialize a git repository inside it.
-    const { cleanup: c } = await setupTestDirectory();
+    const { cleanup: c, testDir: td } = await setupTestDirectory();
     cleanup = c;
+    testDir = td;
     await initGitRepo();
   });
 
   afterEach(async () => {
-    // TODO: part-int-git-cleanup - Clean up the temporary directory.
-    // INSTRUCTIONS:
-    // 1. Call the `cleanup()` function.
     await cleanup();
   });
 
   it('should parse commits with worktree information', async () => {
-    // TODO: part-int-git-worktree - Test parsing of commits from a git worktree.
-    // INSTRUCTIONS:
-    // 1. Create a new worktree using `git worktree add ../my-feature-wt`.
-    // 2. In the new worktree directory, create a file and commit it with a specific message.
-    // 3. Call `getGitLog(5)`.
-    // 4. Find the commit from the worktree in the results.
-    // 5. Assert that its `worktree` property is `my-feature-wt` (or similar).
+    const worktreeName = 'my-feature-wt';
+    const worktreePath = path.join(testDir, '..', worktreeName);
+    await promisedExec(`git worktree add ${worktreePath}`);
+
+    const originalCwd = process.cwd();
+    process.chdir(worktreePath);
+    await fs.writeFile('feature.txt', 'data');
+    await promisedExec('git add .');
+    await promisedExec('git commit -m "feat: commit from worktree"');
+    process.chdir(originalCwd);
+
+    const log = await getGitLog(5);
+    const wtCommit = log.find(c => c.message === 'feat: commit from worktree');
+
+    expect(wtCommit).toBeDefined();
+    expect(wtCommit?.worktree).toBe(worktreeName);
+
+    // Cleanup worktree
+    await promisedExec(`git worktree remove ${worktreeName}`);
   });
 
   it('should handle commits not associated with a worktree', async () => {
-    // TODO: part-int-git-mainline - Test parsing of commits not in a worktree.
-    // INSTRUCTIONS:
-    // 1. In the main worktree, create a file and commit it.
-    // 2. Call `getGitLog(5)`.
-    // 3. Find the new commit in the results.
-    // 4. Assert that its `worktree` property is `null`.
+    await fs.writeFile('main.txt', 'data');
+    await promisedExec('git add .');
+    await promisedExec('git commit -m "feat: commit from main"');
+
+    const log = await getGitLog(5);
+    const mainCommit = log.find(c => c.message === 'feat: commit from main');
+
+    expect(mainCommit).toBeDefined();
+    expect(mainCommit?.worktree).toBeNull();
   });
 
   it('should respect the commit limit', async () => {
-    // TODO: part-int-git-limit - Test that the `limit` parameter is respected.
-    // INSTRUCTIONS:
-    // 1. Create more commits than the limit (e.g., 5 commits).
-    // 2. Call `getGitLog(3)`.
-    // 3. Assert that the length of the returned array is exactly 3.
+    for (let i = 0; i < 5; i++) {
+      await promisedExec(`git commit --allow-empty -m "commit ${i + 1}"`);
+    }
+
+    const log = await getGitLog(3);
+    expect(log).toHaveLength(3);
   });
 
   it('should return an empty array for a repository with no commits', async () => {
-    // TODO: part-int-git-no-commits - Test behavior with a fresh repo.
-    // INSTRUCTIONS:
-    // 1. Use a separate setup that only calls `git init` but does not create an initial commit.
-    // 2. Call `getGitLog(5)`.
-    // 3. Assert that the result is an empty array.
+    // Need a separate setup that doesn't create an initial commit.
+    await cleanup();
+    const { cleanup: c2 } = await setupTestDirectory();
+    await promisedExec('git init');
+
+    const log = await getGitLog(5);
+    expect(log).toEqual([]);
+
+    await c2(); // Use the new cleanup function
   });
 
   it('should handle commit messages with special characters', async () => {
-    // TODO: part-int-git-special-chars - Test parsing of complex commit messages.
-    // INSTRUCTIONS:
-    // 1. Create a commit with a message containing characters like `|`, `'`, `"`, and newlines.
-    // 2. Call `getGitLog(1)`.
-    // 3. Assert that the `message` property of the returned commit object is the full, unmodified commit message.
+    const complexMessage = `feat: handle '|' "quotes" and 'apostrophes'\n\nwith a body.`;
+    await promisedExec(`git commit --allow-empty -m "${complexMessage}"`);
+
+    const log = await getGitLog(1);
+
+    expect(log).toHaveLength(1);
+    expect(log[0].message).toBe(complexMessage);
   });
 
   it('should return an empty array if not in a git repository', async () => {
-    // TODO: part-int-git-no-repo - Test behavior when run outside a git repository.
-    // INSTRUCTIONS:
-    // 1. This test needs a separate setup. Use `setupTestDirectory` but DO NOT call `initGitRepo`.
-    // 2. Call `getGitLog(5)`.
-    // 3. Assert that the result is an empty array.
-    // 4. Remember to call the cleanup function.
+    // This requires a non-git directory.
+    await cleanup(); // Get rid of the git repo from beforeEach
+    const { cleanup: c2 } = await setupTestDirectory();
+
+    const log = await getGitLog(5);
+    expect(log).toEqual([]);
+
+    await c2(); // Use the new cleanup function
   });
 });

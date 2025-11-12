@@ -17,48 +17,66 @@ describe('unit/utils/shell', () => {
 
   describe('getActiveAgents', () => {
     it('should parse all types of agent sessions and ignore non-agent sessions', async () => {
-      // TODO: part-unit-shell-parse-all - Test parsing of various valid tmux session names.
-      // INSTRUCTIONS:
-      // 1. Define a mock `stdout` string from `tmux ls` containing lines for init, dev, scaffold, and qa agents, plus a non-agent session.
-      // 2. Mock `mockedExec` to return this `stdout` string.
-      // 3. Call `getActiveAgents()`.
-      // 4. Assert that the result array contains the correct number of agents (ignoring the non-agent session).
-      // 5. Assert that each agent object has correctly parsed details (phase, planId, etc.).
+      const now = dayjs().unix();
+      const stdout = [
+        `init-part123 111 ${now}`,
+        `dev-part456 222 ${now}`,
+        `init-scaffold-plan789 333 ${now}`,
+        `qa-planABC 444 ${now}`,
+        `my-random-session 555 ${now}`,
+      ].join('\n');
+      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout, stderr: '' }));
+
+      const agents = await getActiveAgents();
+      expect(agents).toHaveLength(4);
+
+      expect(agents).toContainEqual(expect.objectContaining({ phase: 'INIT', partId: 'part123', pid: '111' }));
+      expect(agents).toContainEqual(expect.objectContaining({ phase: 'DEV', partId: 'part456', pid: '222' }));
+      expect(agents).toContainEqual(expect.objectContaining({ phase: 'SCAF', planId: 'plan789', pid: '333' }));
+      expect(agents).toContainEqual(expect.objectContaining({ phase: 'QA', planId: 'planABC', pid: '444' }));
     });
 
     it('should ignore session names that are similar to but not valid agent sessions', async () => {
-      // TODO: part-unit-shell-parse-similar - Test that tricky but invalid names are ignored.
-      // INSTRUCTIONS:
-      // 1. Define mock `stdout` with sessions like `init-`, `dev-scaffold-123`, `qa`, `my-init-session`.
-      // 2. Mock `mockedExec` to return this stdout.
-      // 3. Call `getActiveAgents()`.
-      // 4. Assert that the result is an empty array.
+      const now = dayjs().unix();
+      const stdout = [
+        `init- 111 ${now}`,
+        `dev-scaffold-123 222 ${now}`,
+        `qa 333 ${now}`,
+        `my-init-session 444 ${now}`,
+      ].join('\n');
+      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout, stderr: '' }));
+
+      const agents = await getActiveAgents();
+      expect(agents).toEqual([]);
     });
 
     it('should return an empty array when there are no tmux sessions', async () => {
-      // TODO: part-unit-shell-parse-empty - Test with empty output from tmux.
-      // INSTRUCTIONS:
-      // 1. Mock `mockedExec` to return an empty string for `stdout`.
-      // 2. Call `getActiveAgents()`.
-      // 3. Assert that the result is an empty array.
+      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout: '', stderr: '' }));
+      const agents = await getActiveAgents();
+      expect(agents).toEqual([]);
     });
 
     it('should return an empty array if the tmux command fails', async () => {
-      // TODO: part-unit-shell-parse-fail - Test when the `exec` call fails.
-      // INSTRUCTIONS:
-      // 1. Mock `mockedExec` to simulate an error (e.g., have the callback pass an Error object).
-      // 2. Call `getActiveAgents()`.
-      // 3. Assert that the function catches the error and returns an empty array.
+      mockedExec.mockImplementation((_cmd, callback) => callback(new Error('tmux failed'), { stdout: '', stderr: '' }));
+      const agents = await getActiveAgents();
+      expect(agents).toEqual([]);
     });
 
     it('should correctly calculate agent runtime', async () => {
-      // TODO: part-unit-shell-parse-runtime - Test the relative time calculation.
-      // INSTRUCTIONS:
-      // 1. Use `jest.spyOn(Date, 'now')` or `jest.useFakeTimers` to control the current time.
-      // 2. Create a mock `stdout` with a session activity timestamp that is a known duration in the past (e.g., 5 minutes).
-      // 3. Mock `mockedExec` to return this stdout.
-      // 4. Call `getActiveAgents()`.
-      // 5. Assert that the `runtime` string for the agent is the expected relative time (e.g., "5 minutes").
+      jest.useFakeTimers().setSystemTime(new Date('2023-01-01T12:00:00Z'));
+
+      const fiveMinutesAgo = dayjs('2023-01-01T11:55:00Z').unix();
+      const stdout = `dev-part123 111 ${fiveMinutesAgo}`;
+      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout, stderr: '' }));
+
+      const agents = await getActiveAgents();
+
+      expect(agents).toHaveLength(1);
+      // dayjs relative time can be "a few seconds", "a minute", etc. so we check for a known value.
+      // "5 minutes" is the expected output.
+      expect(agents[0].runtime).toBe('5 minutes');
+
+      jest.useRealTimers();
     });
   });
 });

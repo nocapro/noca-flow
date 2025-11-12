@@ -1,0 +1,1198 @@
+uuid: 4402660d-7dd8-4f81-9b16-538740c210d7
+projectId: noca-flow
+createdAt: '2025-11-12T02:44:28.563Z'
+gitCommitMsg: >-
+  feat(utils): implement core data-gathering utilities
+
+  This commit breathes life into the core data-gathering utilities required by
+  the `nocaflow state` command. It implements the logic for interacting with the
+  filesystem, git, logs, and shell.
+
+  - `fs.ts`: Implemented `getPhaseStats`, `getFailedReports`, and `readPlan`
+    to read project state directly from the `.nocaflow` directory.
+
+  - `git.ts`: Implemented `getGitLog` to provide a unified commit
+    history across all worktrees by parsing `git worktree list` and
+    `git log` output.
+
+  - `logs.ts`: Implemented `getRecentLogs` to scan, parse, and return
+    recent agent activity from log files.
+
+  - `shell.ts`: Implemented `getActiveAgents` to discover running agents
+    by parsing the output of `tmux ls`.
+promptSummary: >-
+  Execute part 2 of the master plan to implement all core data-gathering
+  utilities in `src/utils`.
+reasoning:
+  - >-
+    Executing Part 2: Implementing the core data-gathering utilities. This
+    involves bringing the `src/utils` directory to life by implementing the
+    logic for filesystem interactions, git history parsing, log aggregation, and
+    shell-based process discovery.
+  - '### Filesystem Utilities (`fs.ts`)'
+  - >-
+    First, I'll implement the functions in `src/utils/fs.ts`. This includes
+    `getPhaseStats` to count plan files across all statuses, `getFailedReports`
+    to find and parse recent failure reports, and `readPlan` to load a YAML plan
+    file. This is the foundation for understanding the project's state from the
+    filesystem.
+  - '### Git Utility (`git.ts`)'
+  - >-
+    Next, I'll implement `getGitLog` in `src/utils/git.ts`. This function will
+    execute `git` commands to list worktrees and recent commits, then parse and
+    combine the output to provide a unified view of repository activity. This is
+    crucial for tracking progress across isolated development tasks.
+  - '### Log Parsing Utility (`logs.ts`)'
+  - >-
+    Here, I'll implement `getRecentLogs` in `src/utils/logs.ts`. This function
+    will scan the `agent-log` directories, read all `.log` files, parse each
+    line with a regular expression, and return the most recent entries. This
+    provides a live feed of agent activity.
+  - '### Shell Utility (`shell.ts`)'
+  - >-
+    Finally, I'll implement `getActiveAgents` in `src/utils/shell.ts`. This
+    function interacts with the `tmux` process manager to discover and parse
+    information about running agent sessions, providing real-time visibility
+    into the agent swarm.
+operations:
+  - type: write
+    path: src/utils/fs.ts
+    content: >
+      --- src/utils/fs.ts
+
+      +++ src/utils/fs.ts
+
+      @@ -2,6 +2,7 @@
+       import fs from 'fs/promises';
+       import yaml from 'js-yaml';
+       import dayjs from 'dayjs';
+      +import { YAMLException } from 'js-yaml';
+       import { Plan } from '../models/plan';
+       
+       export interface PhaseStats {
+      @@ -27,58 +28,40 @@
+        * @returns An object containing plan counts for each status in each phase.
+        */
+       export const getPhaseStats = async (): Promise<PhaseStats> => {
+      -  // TODO: part-fs-get-phase-stats - Walk through
+      .nocaflow/{phase}/plans/* directories and count plans.
+
+      -  // INSTRUCTIONS:
+
+      -  // 1. Define phases: ['initialization', 'development'].
+
+      -  // 2. Define statuses: ['todo', 'doing', 'review', 'failed', 'done'].
+
+      -  // 3. Use `fs.readdir` to count the number of files in each
+      subdirectory. Handle errors for non-existent directories (count should be
+      0).
+
+      -  // 4. Aggregate the counts into a `PhaseStats` object.
+
+      -  // 5. Calculate the `total` for each phase.
+
+      -  // 6. Example structure for one phase:
+
+      -  //    'initialization': { todo: 1, doing: 2, review: 1, failed: 0,
+      done: 6, total: 10 }
+
+      -  // 7. Return the final `PhaseStats` object.
+
+      +  const phases = ['initialization', 'development'];
+
+      +  const statuses: (keyof PhaseStats[string])[] = [
+
+      +    'todo',
+
+      +    'doing',
+
+      +    'review',
+
+      +    'failed',
+
+      +    'done',
+
+      +  ];
+
+      +  const stats: PhaseStats = {};
+       
+      -  // const phases = ['initialization', 'development'];
+
+      -  // const statuses = ['todo', 'doing', 'review', 'failed', 'done'];
+
+      -  // const stats: PhaseStats = {};
+
+      -
+
+      -  // for (const phase of phases) {
+
+      -  //   stats[phase] = { todo: 0, doing: 0, review: 0, failed: 0, done: 0,
+      total: 0 };
+
+      -  //   for (const status of statuses) {
+
+      -  //     const dirPath = path.join('.nocaflow', phase, 'plans', status);
+
+      -  //     try {
+
+      -  //       const files = await fs.readdir(dirPath);
+
+      -  //       const count = files.filter(f => f.endsWith('.yml')).length;
+
+      -  //       stats[phase][status as keyof typeof stats.phase] = count;
+
+      -  //       stats[phase].total += count;
+
+      -  //     } catch (error) {
+
+      -  //       // Directory likely doesn't exist, count is 0.
+
+      -  //     }
+
+      -  //   }
+
+      -  // }
+
+      -  // return stats;
+
+      -
+
+      -  throw new Error('Not implemented');
+
+      +  for (const phase of phases) {
+
+      +    stats[phase] = { todo: 0, doing: 0, review: 0, failed: 0, done: 0,
+      total: 0 };
+
+      +    for (const status of statuses) {
+
+      +      const dirPath = path.join('.nocaflow', phase, 'plans', status);
+
+      +      try {
+
+      +        const files = await fs.readdir(dirPath);
+
+      +        // A plan is represented by its .yml file. This counts plans in
+      each state directory.
+
+      +        const count = files.filter(f => f.endsWith('.yml')).length;
+
+      +        stats[phase][status] = count;
+
+      +        stats[phase].total += count;
+
+      +      } catch (error) {
+
+      +        // Directory likely doesn't exist, count is 0.
+
+      +      }
+
+      +    }
+
+      +  }
+
+      +  return stats;
+       };
+       
+       /**
+      @@ -88,51 +71,38 @@
+        * @returns A list of failed report details.
+        */
+       export const getFailedReports = async (hours: number): Promise<FailedReport[]> => {
+      -  // TODO: part-fs-get-failed-reports - Scan failed report directories
+      for recent failures.
+
+      -  // INSTRUCTIONS:
+
+      -  // 1. Define phase directories to scan.
+
+      -  // 2. Use `fs.readdir` to get all report files (ending in .md).
+
+      -  // 3. For each file, get its stats using `fs.stat` to find its
+      modification time (`mtime`). Using `mtime` is more reliable and testable
+      than `birthtime`.
+
+      -  // 4. Use `dayjs` to check if `mtime` is within the last `hours`.
+
+      -  // 5. If it is recent, read the file content.
+
+      -  // 6. Parse the markdown content to extract the summary/reason. A
+      simple regex or string search for a "Summary" section is sufficient.
+
+      -  // 7. The filename typically follows the pattern
+      `{planId}.{partId}.report.md`. Parse this to get IDs.
+
+      -  // 8. Construct a `FailedReport` object and add it to a results array.
+
+      -  // 9. Return the array of recent failed reports.
+
+      +  const phases = ['initialization', 'development'];
+
+      +  const reports: FailedReport[] = [];
+
+      +  const since = dayjs().subtract(hours, 'hour');
+       
+      -  // const phases = ['initialization', 'development'];
+
+      -  // const reports: FailedReport[] = [];
+
+      -  // const since = dayjs().subtract(hours, 'hour');
+
+      -
+
+      -  // for (const phase of phases) {
+
+      -  //   const reportDir = path.join('.nocaflow', phase, 'plans', 'failed',
+      'report');
+
+      -  //   try {
+
+      -  //     const files = await fs.readdir(reportDir);
+
+      -  //     for (const file of files) {
+
+      -  //       if (!file.endsWith('.report.md')) continue;
+
+      -  //       const filePath = path.join(reportDir, file);
+
+      -  //       const stats = await fs.stat(filePath);
+
+      -  //       if (dayjs(stats.mtime).isAfter(since)) {
+
+      -  //         // const content = await fs.readFile(filePath, 'utf-8');
+
+      -  //         // const summaryMatch = content.match(/##
+      Summary\s*\n\s*(.*)/);
+
+      -  //         // const reason = summaryMatch ? summaryMatch[1].trim() :
+      'Could not parse summary.';
+
+      -  //         // const [planId, partId] = file.split('.').slice(0, 2);
+
+      -  //         // reports.push({ planId, partId, reason, reportPath:
+      filePath });
+
+      -  //       }
+
+      -  //     }
+
+      -  //   } catch (error) { /* dir may not exist */ }
+
+      -  // }
+
+      -  // return reports;
+
+      -  throw new Error('Not implemented');
+
+      +  for (const phase of phases) {
+
+      +    const reportDir = path.join('.nocaflow', phase, 'plans', 'failed',
+      'report');
+
+      +    try {
+
+      +      const files = await fs.readdir(reportDir);
+
+      +      for (const file of files) {
+
+      +        if (!file.endsWith('.report.md')) continue;
+
+      +        const filePath = path.join(reportDir, file);
+
+      +        const stats = await fs.stat(filePath);
+
+      +        if (dayjs(stats.mtime).isAfter(since)) {
+
+      +          const content = await fs.readFile(filePath, 'utf-8');
+
+      +          const summaryMatch = content.match(/##
+      Summary\s*\n\s*([\s\S]*?)(?=\n##|$)/);
+
+      +          const reason = summaryMatch ? summaryMatch[1].trim() : 'Could
+      not parse summary.';
+
+      +          const [planId, partId] = file.split('.').slice(0, 2);
+
+      +          reports.push({ planId, partId, reason, reportPath: filePath });
+
+      +        }
+
+      +      }
+
+      +    } catch (error) {
+
+      +      // dir may not exist
+
+      +    }
+
+      +  }
+
+      +  return reports;
+       };
+       
+       /**
+      @@ -142,21 +112,14 @@
+        */
+       export const readPlan = async (filePath: string): Promise<Plan> => {
+      -    // TODO: part-fs-read-plan - Read file content and parse using
+      js-yaml.
+
+      -    // INSTRUCTIONS:
+
+      -    // 1. Use `fs.readFile` to read the content of `filePath` as 'utf-8'.
+
+      -    // 2. Use `yaml.load()` from the 'js-yaml' library to parse the
+      string content.
+
+      -    // 3. Cast the result to the `Plan` type and return it.
+
+      -    // 4. Include error handling for file-not-found and YAML parsing
+      errors.
+
+      -
+
+      -    // try {
+
+      -    //   const fileContent = await fs.readFile(filePath, 'utf-8');
+
+      -    //   const plan = yaml.load(fileContent) as Plan;
+
+      -    //   return plan;
+
+      -    // } catch (error) {
+
+      -    //   // if (error.code === 'ENOENT') { ... }
+
+      -    //   // else if (error instanceof YAMLException) { ... }
+
+      -    //   // else { ... }
+
+      -    //   throw error;
+
+      -    // }
+
+      -    throw new Error('Not implemented');
+
+      +  try {
+
+      +    const fileContent = await fs.readFile(filePath, 'utf-8');
+
+      +    const plan = yaml.load(fileContent) as Plan;
+
+      +    return plan;
+
+      +  } catch (error: any) {
+
+      +    // Let the caller handle the error. They might want to know if it's a
+
+      +    // file not found vs. a parsing error.
+
+      +    throw error;
+
+      +  }
+       };
+    patchStrategy: standard-diff
+  - type: write
+    path: src/utils/git.ts
+    content: >
+      --- src/utils/git.ts
+
+      +++ src/utils/git.ts
+
+      @@ -15,41 +15,42 @@
+        * @returns A list of recent git commits.
+        */
+       export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
+      -  // TODO: part-git-get-log - Get recent git commits across all
+      worktrees.
+
+      -  // INSTRUCTIONS:
+
+      -  // 1. Execute `git worktree list --porcelain` to get worktree info.
+
+      -  //    - Parse the output to create a map: { 'worktrees/wt-name':
+      'wt-name' }.
+
+      -  // 2. Execute `git log --all -n ${limit} --pretty=format:'%H|%s|%D'`.
+
+      -  // 3. Process the log output line by line.
+
+      -  // 4. For each line, parse hash, message, and refs.
+
+      -  // 5. Match refs against the worktree map to find the worktree name.
+
+      -  // 6. Create `GitCommit` objects and add to a results array.
+
+      +  const getWorktreeMap = async (): Promise<Map<string, string>> => {
+
+      +    const map = new Map<string, string>();
+
+      +    try {
+
+      +      const { stdout } = await exec('git worktree list --porcelain');
+
+      +      const entries = stdout.trim().split('\n\n');
+
+      +      for (const entry of entries) {
+
+      +        const branchMatch = entry.match(/^branch refs\/heads\/(.*)/m);
+
+      +        if (branchMatch) {
+
+      +          const branchName = branchMatch[1];
+
+      +          // Assuming worktree branch name is the worktree name we want
+      to display
+
+      +          map.set(branchName, branchName);
+
+      +        }
+
+      +      }
+
+      +    } catch (error) {
+
+      +      // Not a git repo or no worktrees, map will be empty.
+
+      +    }
+
+      +    return map;
+
+      +  };
+       
+      -  // const getWorktreeMap = async (): Promise<Map<string, string>> => {
+
+      -  //   // const { stdout } = await exec('git worktree list --porcelain');
+
+      -  //   // const map = new Map<string, string>();
+
+      -  //   // parse stdout and populate map, e.g. extract 'worktrees/wt-...'
+      and the final part as the name.
+
+      -  //   // return map;
+
+      -  // }
+
+      -
+
+      -  // try {
+
+      -  //   // const worktreeMap = await getWorktreeMap();
+
+      -  //   // const { stdout: logOutput } = await exec(`...`);
+
+      -  //   // const commits: GitCommit[] =
+      logOutput.trim().split('\n').map(line => {
+
+      -  //   //   // ... parse line ...
+
+      -  //   //   // ... find worktree from refs using worktreeMap ...
+
+      -  //   //   // return { hash, message, worktree };
+
+      -  //   // });
+
+      -  //   // return commits;
+
+      -  // } catch (error) {
+
+      -  //   return []; // Git not installed or not a git repo.
+
+      -  // }
+
+      -  throw new Error('Not implemented');
+
+      +  try {
+
+      +    const worktreeMap = await getWorktreeMap();
+
+      +    const { stdout: logOutput } = await exec(`git log --all -n ${limit}
+      --pretty=format:"%H|%D|%s"`);
+
+      +    if (!logOutput) return [];
+
+      +
+
+      +    return logOutput.trim().split('\n').map(line => {
+
+      +      const parts = line.split('|');
+
+      +      const hash = parts[0] || '';
+
+      +      const refs = parts[1] || '';
+
+      +      const message = parts.slice(2).join('|'); // Robustly handle '|' in
+      commit message
+
+      +      
+
+      +      let worktree: string | null = null;
+
+      +      for (const branchName of worktreeMap.keys()) {
+
+      +        if (refs.includes(branchName)) {
+
+      +          worktree = worktreeMap.get(branchName) || null;
+
+      +          break;
+
+      +        }
+
+      +      }
+
+      +      return { hash, worktree, message };
+
+      +    });
+
+      +  } catch (error) {
+
+      +    return []; // Git not installed or not a git repo.
+
+      +  }
+       };
+    patchStrategy: standard-diff
+  - type: write
+    path: src/utils/logs.ts
+    content: >
+      --- src/utils/logs.ts
+
+      +++ src/utils/logs.ts
+
+      @@ -19,41 +19,40 @@
+        * @returns A list of recent log entries, sorted newest first.
+        */
+       export const getRecentLogs = async (limit: number): Promise<LogEntry[]> => {
+      -  // TODO: part-logs-get-recent - Read and parse agent log files.
+
+      -  // INSTRUCTIONS:
+
+      -  // 1. Define phase directories to scan.
+
+      -  // 2. Find all `.log` files in the `agent-log` subdirectories.
+
+      -  // 3. Read content of each log file.
+
+      -  // 4. For each line, use regex to parse. Example:
+
+      -  //    /^(?<timestamp>.*?)
+      \[(?<status>\w+)\|(?<phase>\w+)\|(?<agentId>.*?)\] plan:(?<planId>\S+) -
+      (?<message>.*)$/
+
+      -  // 5. Create `LogEntry` objects from matches. Convert timestamp string
+      to a `Date`.
+
+      -  // 6. Collect all entries.
+
+      -  // 7. Sort entries by timestamp (descending).
+
+      -  // 8. Return a slice of the array containing the top `limit` entries.
+
+      +  const logDirs = ['.nocaflow/initialization/agent-log',
+      '.nocaflow/development/agent-log'];
+
+      +  let allEntries: LogEntry[] = [];
+
+      +  const logRegex =
+
+      +    /^(?<timestamp>.*?)
+      \[(?<status>\w+)\|(?<phase>\w+)\|(?<agentId>.*?)\] plan:(?<planId>\S+) -
+      (?<message>.*)$/;
+       
+      -  // const logDirs = ['.nocaflow/initialization/agent-log',
+      '.nocaflow/development/agent-log'];
+
+      -  // let allEntries: LogEntry[] = [];
+
+      -  // const logRegex = /^(?<timestamp>.*?)
+      \[(?<status>\w+)\|(?<phase>\w+)\|(?<agentId>.*?)\] plan:(?<planId>\S+) -
+      (?<message>.*)$/;
+
+      +  for (const dir of logDirs) {
+
+      +    try {
+
+      +      const files = await fs.readdir(dir);
+
+      +      for (const file of files.filter(f => f.endsWith('.log'))) {
+
+      +        const content = await fs.readFile(path.join(dir, file), 'utf-8');
+
+      +        for (const line of content.split('\n')) {
+
+      +          const match = line.match(logRegex);
+
+      +          if (match?.groups) {
+
+      +            const { timestamp, status, phase, agentId, planId, message }
+      = match.groups;
+
+      +            allEntries.push({
+
+      +              timestamp: new Date(timestamp),
+
+      +              status: status as LogEntry['status'],
+
+      +              phase: phase as LogEntry['phase'],
+
+      +              agentId,
+
+      +              planId,
+
+      +              message,
+
+      +            });
+
+      +          }
+
+      +        }
+
+      +      }
+
+      +    } catch (error) {
+
+      +      // dir may not exist
+
+      +    }
+
+      +  }
+       
+      -  // for (const dir of logDirs) {
+
+      -  //   try {
+
+      -  //     const files = await fs.readdir(dir);
+
+      -  //     for (const file of files.filter(f => f.endsWith('.log'))) {
+
+      -  //       // const content = await fs.readFile(path.join(dir, file),
+      'utf-8');
+
+      -  //       // for (const line of content.split('\n')) {
+
+      -  //       //   const match = line.match(logRegex);
+
+      -  //       //   if (match?.groups) {
+
+      -  //       //     // create LogEntry and push to allEntries
+
+      -  //       //   }
+
+      -  //       // }
+
+      -  //     }
+
+      -  //   } catch (error) { /* dir may not exist */ }
+
+      -  // }
+
+      -
+
+      -  // allEntries.sort((a, b) => b.timestamp.getTime() -
+      a.timestamp.getTime());
+
+      -  // return allEntries.slice(0, limit);
+
+      -
+
+      -  throw new Error('Not implemented');
+
+      +  allEntries.sort((a, b) => b.timestamp.getTime() -
+      a.timestamp.getTime());
+
+      +  return allEntries.slice(0, limit);
+       };
+    patchStrategy: standard-diff
+  - type: write
+    path: src/utils/shell.ts
+    content: >
+      --- src/utils/shell.ts
+
+      +++ src/utils/shell.ts
+
+      @@ -23,41 +23,46 @@
+        * @returns A list of active agents.
+        */
+       export const getActiveAgents = async (): Promise<AgentInfo[]> => {
+      -  // TODO: part-shell-get-agents - List and parse active tmux sessions to
+      find agent info.
+
+      -  // INSTRUCTIONS:
+
+      -  // 1. Execute `tmux ls -F "#{session_name} #{pane_pid}
+      #{session_activity}"`.
+
+      -  // 2. Handle errors (e.g., tmux not running). Return empty array on
+      failure.
+
+      -  // 3. Parse each line of stdout.
+
+      -  // 4. Use regex on session name to determine agent type and extract
+      IDs.
+
+      -  //    - Worker: /^(init|dev)-(.+)/ -> { phase, partId }
+
+      -  //    - Scaffolder: /^(init)-scaffold-(.+)/ -> { phase: 'SCAF', planId
+      }
+
+      -  //    - QA: /^qa-(.+)/ -> { phase: 'QA', planId }
+
+      -  // 5. For worker agents, `planId` can be 'unknown' for this
+      implementation.
+
+      -  // 6. Calculate runtime from `session_activity` Unix timestamp using
+      `dayjs().to(dayjs.unix(timestamp), true)`.
+
+      -  // 7. Construct and return an array of `AgentInfo` objects.
+
+      +  try {
+
+      +    const { stdout } = await exec(`tmux ls -F "#{session_name}
+      #{pane_pid} #{session_activity}"`);
+
+      +    if (!stdout) return [];
+       
+      -  // try {
+
+      -  //   const { stdout } = await exec(`tmux ls -F "#{session_name}
+      #{pane_pid} #{session_activity}"`);
+
+      -  //   if (!stdout) return [];
+
+      -  //
+
+      -  //   const lines = stdout.trim().split('\n');
+
+      -  //   const agents: AgentInfo[] = [];
+
+      -  //
+
+      -  //   for (const line of lines) {
+
+      -  //     const [sessionName, pid, activity] = line.split(' ');
+
+      -  //     const runtime = dayjs().to(dayjs.unix(parseInt(activity, 10)),
+      true);
+
+      -  //
+
+      -  //     let match;
+
+      -  //     // if ((match = sessionName.match(/^(init|dev)-(.+)/))) { ... }
+
+      -  //     // else if ((match = sessionName.match(/^init-scaffold-(.+)/)))
+      { ... }
+
+      -  //     // else if ((match = sessionName.match(/^qa-(.+)/))) { ... }
+
+      -  //     //
+
+      -  //     // In each block, construct an AgentInfo object and push to
+      agents array.
+
+      -  //   }
+
+      -  //   return agents;
+
+      -  // } catch (error) {
+
+      -  //   return []; // Tmux likely not running or has no sessions.
+
+      -  // }
+
+      -  throw new Error('Not implemented');
+
+      +    const lines = stdout.trim().split('\n');
+
+      +    const agents: AgentInfo[] = [];
+
+      +
+
+      +    for (const line of lines) {
+
+      +      const [sessionName, pid, activity] = line.split(' ');
+
+      +      const runtime = dayjs().to(dayjs.unix(parseInt(activity, 10)),
+      true);
+
+      +
+
+      +      let match;
+
+      +      if ((match = sessionName.match(/^(init|dev)-(.+)/))) {
+
+      +        const phase = match[1].toUpperCase() as 'INIT' | 'DEV';
+
+      +        const partId = match[2];
+
+      +        agents.push({
+
+      +          phase,
+
+      +          id: partId,
+
+      +          planId: 'unknown', // Not available from session name
+
+      +          partId: partId,
+
+      +          runtime,
+
+      +          pid,
+
+      +        });
+
+      +      } else if ((match = sessionName.match(/^init-scaffold-(.+)/))) {
+
+      +        const planId = match[1];
+
+      +        agents.push({
+
+      +          phase: 'SCAF',
+
+      +          id: planId,
+
+      +          planId,
+
+      +          partId: 'scaffold',
+
+      +          runtime,
+
+      +          pid,
+
+      +        });
+
+      +      } else if ((match = sessionName.match(/^qa-(.+)/))) {
+
+      +        const planId = match[1];
+
+      +        agents.push({ phase: 'QA', id: planId, planId, partId: 'qa',
+      runtime, pid });
+
+      +      }
+
+      +    }
+
+      +    return agents;
+
+      +  } catch (error) {
+
+      +    return []; // Tmux likely not running or has no sessions.
+
+      +  }
+       };
+    patchStrategy: standard-diff
+snapshot:
+  src/utils/shell.ts: |-
+    import { promisify } from 'util';
+    import { exec as execCallback } from 'child_process';
+    import dayjs from 'dayjs';
+    import relativeTime from 'dayjs/plugin/relativeTime';
+    import { Plan, PlanPart } from '../models/plan';
+
+    export interface AgentInfo {
+      phase: 'INIT' | 'DEV' | 'QA' | 'SCAF';
+      id: string; // part_id, plan_id for QA/Scaffold
+      planId: string;
+      partId: string; // Can be 'scaffold' or 'qa'
+      runtime: string;
+      pid: string;
+    }
+
+    const exec = promisify(execCallback);
+    dayjs.extend(relativeTime);
+
+    /**
+     * @description Lists active tmux sessions and parses them to find agent info.
+     * @returns A list of active agents.
+     */
+    export const getActiveAgents = async (): Promise<AgentInfo[]> => {
+      // TODO: part-shell-get-agents - List and parse active tmux sessions to find agent info.
+      // INSTRUCTIONS:
+      // 1. Execute `tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`.
+      // 2. Handle errors (e.g., tmux not running). Return empty array on failure.
+      // 3. Parse each line of stdout.
+      // 4. Use regex on session name to determine agent type and extract IDs.
+      //    - Worker: /^(init|dev)-(.+)/ -> { phase, partId }
+      //    - Scaffolder: /^(init)-scaffold-(.+)/ -> { phase: 'SCAF', planId }
+      //    - QA: /^qa-(.+)/ -> { phase: 'QA', planId }
+      // 5. For worker agents, `planId` can be 'unknown' for this implementation.
+      // 6. Calculate runtime from `session_activity` Unix timestamp using `dayjs().to(dayjs.unix(timestamp), true)`.
+      // 7. Construct and return an array of `AgentInfo` objects.
+
+      // try {
+      //   const { stdout } = await exec(`tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`);
+      //   if (!stdout) return [];
+      //
+      //   const lines = stdout.trim().split('\n');
+      //   const agents: AgentInfo[] = [];
+      //
+      //   for (const line of lines) {
+      //     const [sessionName, pid, activity] = line.split(' ');
+      //     const runtime = dayjs().to(dayjs.unix(parseInt(activity, 10)), true);
+      //
+      //     let match;
+      //     // if ((match = sessionName.match(/^(init|dev)-(.+)/))) { ... }
+      //     // else if ((match = sessionName.match(/^init-scaffold-(.+)/))) { ... }
+      //     // else if ((match = sessionName.match(/^qa-(.+)/))) { ... }
+      //     //
+      //     // In each block, construct an AgentInfo object and push to agents array.
+      //   }
+      //   return agents;
+      // } catch (error) {
+      //   return []; // Tmux likely not running or has no sessions.
+      // }
+      throw new Error('Not implemented');
+    };
+  src/utils/git.ts: |-
+    import { promisify } from 'util';
+    import { exec as execCallback } from 'child_process';
+
+    export interface GitCommit {
+      hash: string;
+      worktree: string | null;
+      message: string;
+    }
+
+    const exec = promisify(execCallback);
+
+    /**
+     * @description Executes 'git log' to get recent commit history across all worktrees.
+     * @param limit - The maximum number of commits to return.
+     * @returns A list of recent git commits.
+     */
+    export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
+      // TODO: part-git-get-log - Get recent git commits across all worktrees.
+      // INSTRUCTIONS:
+      // 1. Execute `git worktree list --porcelain` to get worktree info.
+      //    - Parse the output to create a map: { 'worktrees/wt-name': 'wt-name' }.
+      // 2. Execute `git log --all -n ${limit} --pretty=format:'%H|%s|%D'`.
+      // 3. Process the log output line by line.
+      // 4. For each line, parse hash, message, and refs.
+      // 5. Match refs against the worktree map to find the worktree name.
+      // 6. Create `GitCommit` objects and add to a results array.
+
+      // const getWorktreeMap = async (): Promise<Map<string, string>> => {
+      //   // const { stdout } = await exec('git worktree list --porcelain');
+      //   // const map = new Map<string, string>();
+      //   // parse stdout and populate map, e.g. extract 'worktrees/wt-...' and the final part as the name.
+      //   // return map;
+      // }
+
+      // try {
+      //   // const worktreeMap = await getWorktreeMap();
+      //   // const { stdout: logOutput } = await exec(`...`);
+      //   // const commits: GitCommit[] = logOutput.trim().split('\n').map(line => {
+      //   //   // ... parse line ...
+      //   //   // ... find worktree from refs using worktreeMap ...
+      //   //   // return { hash, message, worktree };
+      //   // });
+      //   // return commits;
+      // } catch (error) {
+      //   return []; // Git not installed or not a git repo.
+      // }
+      throw new Error('Not implemented');
+    };
+  src/utils/fs.ts: >-
+    import path from 'path';
+
+    import fs from 'fs/promises';
+
+    import yaml from 'js-yaml';
+
+    import dayjs from 'dayjs';
+
+    import { Plan } from '../models/plan';
+
+
+    export interface PhaseStats {
+      [phaseName: string]: {
+        todo: number;
+        doing: number;
+        review: number;
+        failed: number;
+        done: number;
+        total: number;
+      };
+    }
+
+
+    export interface FailedReport {
+      planId: string;
+      partId: string;
+      reason: string;
+      reportPath: string;
+    }
+
+
+    /**
+     * @description Reads all plan files from all phases and aggregates stats.
+     * @returns An object containing plan counts for each status in each phase.
+     */
+    export const getPhaseStats = async (): Promise<PhaseStats> => {
+      // TODO: part-fs-get-phase-stats - Walk through .nocaflow/{phase}/plans/* directories and count plans.
+      // INSTRUCTIONS:
+      // 1. Define phases: ['initialization', 'development'].
+      // 2. Define statuses: ['todo', 'doing', 'review', 'failed', 'done'].
+      // 3. Use `fs.readdir` to count the number of files in each subdirectory. Handle errors for non-existent directories (count should be 0).
+      // 4. Aggregate the counts into a `PhaseStats` object.
+      // 5. Calculate the `total` for each phase.
+      // 6. Example structure for one phase:
+      //    'initialization': { todo: 1, doing: 2, review: 1, failed: 0, done: 6, total: 10 }
+      // 7. Return the final `PhaseStats` object.
+
+      // const phases = ['initialization', 'development'];
+      // const statuses = ['todo', 'doing', 'review', 'failed', 'done'];
+      // const stats: PhaseStats = {};
+
+      // for (const phase of phases) {
+      //   stats[phase] = { todo: 0, doing: 0, review: 0, failed: 0, done: 0, total: 0 };
+      //   for (const status of statuses) {
+      //     const dirPath = path.join('.nocaflow', phase, 'plans', status);
+      //     try {
+      //       const files = await fs.readdir(dirPath);
+      //       const count = files.filter(f => f.endsWith('.yml')).length;
+      //       stats[phase][status as keyof typeof stats.phase] = count;
+      //       stats[phase].total += count;
+      //     } catch (error) {
+      //       // Directory likely doesn't exist, count is 0.
+      //     }
+      //   }
+      // }
+      // return stats;
+
+      throw new Error('Not implemented');
+    };
+
+
+    /**
+     * @description Scans the failed reports directory for recent failures.
+     * @param hours - The lookback period in hours.
+     * @returns A list of failed report details.
+     */
+    export const getFailedReports = async (hours: number):
+    Promise<FailedReport[]> => {
+      // TODO: part-fs-get-failed-reports - Scan failed report directories for recent failures.
+      // INSTRUCTIONS:
+      // 1. Define phase directories to scan.
+      // 2. Use `fs.readdir` to get all report files (ending in .md).
+      // 3. For each file, get its stats using `fs.stat` to find its modification time (`mtime`). Using `mtime` is more reliable and testable than `birthtime`.
+      // 4. Use `dayjs` to check if `mtime` is within the last `hours`.
+      // 5. If it is recent, read the file content.
+      // 6. Parse the markdown content to extract the summary/reason. A simple regex or string search for a "Summary" section is sufficient.
+      // 7. The filename typically follows the pattern `{planId}.{partId}.report.md`. Parse this to get IDs.
+      // 8. Construct a `FailedReport` object and add it to a results array.
+      // 9. Return the array of recent failed reports.
+
+      // const phases = ['initialization', 'development'];
+      // const reports: FailedReport[] = [];
+      // const since = dayjs().subtract(hours, 'hour');
+
+      // for (const phase of phases) {
+      //   const reportDir = path.join('.nocaflow', phase, 'plans', 'failed', 'report');
+      //   try {
+      //     const files = await fs.readdir(reportDir);
+      //     for (const file of files) {
+      //       if (!file.endsWith('.report.md')) continue;
+      //       const filePath = path.join(reportDir, file);
+      //       const stats = await fs.stat(filePath);
+      //       if (dayjs(stats.mtime).isAfter(since)) {
+      //         // const content = await fs.readFile(filePath, 'utf-8');
+      //         // const summaryMatch = content.match(/## Summary\s*\n\s*(.*)/);
+      //         // const reason = summaryMatch ? summaryMatch[1].trim() : 'Could not parse summary.';
+      //         // const [planId, partId] = file.split('.').slice(0, 2);
+      //         // reports.push({ planId, partId, reason, reportPath: filePath });
+      //       }
+      //     }
+      //   } catch (error) { /* dir may not exist */ }
+      // }
+      // return reports;
+      throw new Error('Not implemented');
+    };
+
+
+    /**
+     * @description Reads and parses a YAML plan file.
+     * @param filePath - The path to the plan.yml file.
+     * @returns The parsed Plan object.
+     */
+    export const readPlan = async (filePath: string): Promise<Plan> => {
+        // TODO: part-fs-read-plan - Read file content and parse using js-yaml.
+        // INSTRUCTIONS:
+        // 1. Use `fs.readFile` to read the content of `filePath` as 'utf-8'.
+        // 2. Use `yaml.load()` from the 'js-yaml' library to parse the string content.
+        // 3. Cast the result to the `Plan` type and return it.
+        // 4. Include error handling for file-not-found and YAML parsing errors.
+
+        // try {
+        //   const fileContent = await fs.readFile(filePath, 'utf-8');
+        //   const plan = yaml.load(fileContent) as Plan;
+        //   return plan;
+        // } catch (error) {
+        //   // if (error.code === 'ENOENT') { ... }
+        //   // else if (error instanceof YAMLException) { ... }
+        //   // else { ... }
+        //   throw error;
+        // }
+        throw new Error('Not implemented');
+    };
+  src/utils/logs.ts: |-
+    import path from 'path';
+    import fs from 'fs/promises';
+
+     export interface LogEntry {
+      status: 'DONE' | 'FAIL' | 'INFO';
+      phase: 'INIT' | 'DEV' | 'QA';
+      agentId: string;
+      planId: string;
+      message: string;
+      timestamp: Date;
+    }
+
+    /**
+     * @description Reads the agent log files and returns the most recent entries.
+     * @param limit - The maximum number of log entries to return.
+     * @returns A list of recent log entries, sorted newest first.
+     */
+    export const getRecentLogs = async (limit: number): Promise<LogEntry[]> => {
+      // TODO: part-logs-get-recent - Read and parse agent log files.
+      // INSTRUCTIONS:
+      // 1. Define phase directories to scan.
+      // 2. Find all `.log` files in the `agent-log` subdirectories.
+      // 3. Read content of each log file.
+      // 4. For each line, use regex to parse. Example:
+      //    /^(?<timestamp>.*?) \[(?<status>\w+)\|(?<phase>\w+)\|(?<agentId>.*?)\] plan:(?<planId>\S+) - (?<message>.*)$/
+      // 5. Create `LogEntry` objects from matches. Convert timestamp string to a `Date`.
+      // 6. Collect all entries.
+      // 7. Sort entries by timestamp (descending).
+      // 8. Return a slice of the array containing the top `limit` entries.
+
+      // const logDirs = ['.nocaflow/initialization/agent-log', '.nocaflow/development/agent-log'];
+      // let allEntries: LogEntry[] = [];
+      // const logRegex = /^(?<timestamp>.*?) \[(?<status>\w+)\|(?<phase>\w+)\|(?<agentId>.*?)\] plan:(?<planId>\S+) - (?<message>.*)$/;
+
+      // for (const dir of logDirs) {
+      //   try {
+      //     const files = await fs.readdir(dir);
+      //     for (const file of files.filter(f => f.endsWith('.log'))) {
+      //       // const content = await fs.readFile(path.join(dir, file), 'utf-8');
+      //       // for (const line of content.split('\n')) {
+      //       //   const match = line.match(logRegex);
+      //       //   if (match?.groups) {
+      //       //     // create LogEntry and push to allEntries
+      //       //   }
+      //       // }
+      //     }
+      //   } catch (error) { /* dir may not exist */ }
+      // }
+
+      // allEntries.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      // return allEntries.slice(0, limit);
+
+      throw new Error('Not implemented');
+    };
+approved: true
+linesAdded: null
+linesRemoved: null
+linesDifference: null
+gitCommittedAt: null
+status: committed
+id: 18

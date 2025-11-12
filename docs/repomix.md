@@ -85,17 +85,16 @@ test/
   integration/
     commands/
       init.test.ts
+    utils/
+      git.test.ts
   unit/
     commands/
       state.test.ts
     utils/
       fs.test.ts
-      git.test.ts
       logs.test.ts
       shell.test.ts
   test.util.ts
-worktrees/
-  .gitkeep
 .eslintrc.js
 jest.config.js
 manager.agent.md
@@ -476,40 +475,52 @@ plan:
 import fs from 'fs/promises';
 import path from 'path';
 import chalk from 'chalk';
+import { EOL } from 'os';
 
 /**
  * @description Handles the logic for the 'init' command.
  */
 export const handleInitCommand = async (argv: {}): Promise<void> => {
-  // TODO: part-init-scaffold - Create the initial .nocaflow directory structure.
-  // INSTRUCTIONS:
-  // 1. Check if a `.nocaflow` directory already exists in the current working directory. If it does, log a warning message and exit the process to avoid overwriting existing state.
-  // 2. Define an array of directory paths that need to be created. This should include all subdirectories for both 'initialization' and 'development' phases as seen in the project structure.
-  //    - e.g., '.nocaflow/initialization/agent-log', '.nocaflow/initialization/plans/todo', etc.
-  // 3. Iterate through the array and use `fs.mkdir` with the `{ recursive: true }` option to create each directory.
-  // 4. Define an array of paths for `.gitkeep` files that should be placed in empty directories to ensure they are tracked by Git.
-  //    - e.g., '.nocaflow/initialization/agent-log/.gitkeep', '.nocaflow/development/plans/todo/.gitkeep', etc.
-  // 5. Iterate through the `.gitkeep` file paths and create each empty file using `fs.writeFile(filePath, '')`.
-  // 6. After successfully creating the structure, log a confirmation message to the console.
-
   const rootDir = '.nocaflow';
-  const phases = ['initialization', 'development'];
-  const planDirs = ['todo', 'doing', 'review', 'done', 'failed/report'];
+  try {
+    await fs.access(rootDir);
+    console.warn(chalk.yellow(`Warning: '${rootDir}' directory already exists. Initialization skipped.`));
+    process.exit(0);
+  } catch (error) {
+    // Directory does not exist, proceed.
+  }
 
-  // Blueprint for directory structure
+  const phases = ['initialization', 'development'];
+  const planSubDirs = ['todo', 'doing', 'review', 'done', 'failed/report'];
+  const agentLogDir = 'agent-log';
+
   const dirsToCreate: string[] = [];
   const gitkeepFiles: string[] = [];
 
-  // 1. Check for rootDir existence.
-  // fs.access(rootDir).then(() => { console.warn(...) and process.exit(0) }).catch(() => { /* continue */ });
+  for (const phase of phases) {
+    const phaseBase = path.join(rootDir, phase);
+    const agentLogPath = path.join(phaseBase, agentLogDir);
+    dirsToCreate.push(agentLogPath);
+    gitkeepFiles.push(path.join(agentLogPath, '.gitkeep'));
 
-  // 2 & 4. Loop phases and planDirs to populate dirsToCreate and gitkeepFiles.
-  
-  // 3 & 5. Loop through dirsToCreate/gitkeepFiles and call fs.mkdir/fs.writeFile.
+    const plansBase = path.join(phaseBase, 'plans');
+    for (const subDir of planSubDirs) {
+      const dirPath = path.join(plansBase, subDir);
+      dirsToCreate.push(dirPath);
+      gitkeepFiles.push(path.join(dirPath, '.gitkeep'));
+    }
+  }
 
-  // 6. Log success message using chalk.green.
+  try {
+    await Promise.all(dirsToCreate.map(dir => fs.mkdir(dir, { recursive: true })));
+    await Promise.all(gitkeepFiles.map(file => fs.writeFile(file, '')));
 
-  throw new Error('Not implemented');
+    console.log(chalk.green(' nocaflow project initialized successfully. ✨'));
+    console.log(`Created ${chalk.bold(rootDir)} directory structure with ${dirsToCreate.length} directories and ${gitkeepFiles.length} .gitkeep files.`);
+  } catch (error) {
+    console.error(chalk.red('Failed to initialize nocaflow project:'), EOL, error);
+    process.exit(1);
+  }
 };
 ````
 
@@ -524,6 +535,110 @@ export interface Phase {
   path: string;
   // TODO: Add other phase-specific properties if needed.
 }
+````
+
+## File: test/integration/utils/git.test.ts
+````typescript
+import { getGitLog } from '../../../src/utils/git';
+import { setupTestDirectory, initGitRepo } from '../../test.util';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import fs from 'fs/promises';
+import path from 'path';
+
+const promisedExec = promisify(exec);
+
+describe('integration/utils/git', () => {
+  let cleanup: () => Promise<void>;
+  let testDir: string;
+
+  beforeEach(async () => {
+    const { cleanup: c, testDir: td } = await setupTestDirectory();
+    cleanup = c;
+    testDir = td;
+    await initGitRepo();
+  });
+
+  afterEach(async () => {
+    await cleanup();
+  });
+
+  it('should parse commits with worktree information', async () => {
+    const worktreeName = 'my-feature-wt';
+    const worktreePath = path.join(testDir, '..', worktreeName);
+    await promisedExec(`git worktree add ${worktreePath}`);
+
+    const originalCwd = process.cwd();
+    process.chdir(worktreePath);
+    await fs.writeFile('feature.txt', 'data');
+    await promisedExec('git add .');
+    await promisedExec('git commit -m "feat: commit from worktree"');
+    process.chdir(originalCwd);
+
+    const log = await getGitLog(5);
+    const wtCommit = log.find(c => c.message === 'feat: commit from worktree');
+
+    expect(wtCommit).toBeDefined();
+    expect(wtCommit?.worktree).toBe(worktreeName);
+
+    // Cleanup worktree
+    await promisedExec(`git worktree remove ${worktreeName}`);
+  });
+
+  it('should handle commits not associated with a worktree', async () => {
+    await fs.writeFile('main.txt', 'data');
+    await promisedExec('git add .');
+    await promisedExec('git commit -m "feat: commit from main"');
+
+    const log = await getGitLog(5);
+    const mainCommit = log.find(c => c.message === 'feat: commit from main');
+
+    expect(mainCommit).toBeDefined();
+    expect(mainCommit?.worktree).toBeNull();
+  });
+
+  it('should respect the commit limit', async () => {
+    for (let i = 0; i < 5; i++) {
+      await promisedExec(`git commit --allow-empty -m "commit ${i + 1}"`);
+    }
+
+    const log = await getGitLog(3);
+    expect(log).toHaveLength(3);
+  });
+
+  it('should return an empty array for a repository with no commits', async () => {
+    // Need a separate setup that doesn't create an initial commit.
+    await cleanup();
+    const { cleanup: c2 } = await setupTestDirectory();
+    await promisedExec('git init');
+
+    const log = await getGitLog(5);
+    expect(log).toEqual([]);
+
+    await c2(); // Use the new cleanup function
+  });
+
+  it('should handle commit messages with special characters', async () => {
+    const complexMessage = `feat: handle '|' "quotes" and 'apostrophes'\n\nwith a body.`;
+    await promisedExec(`git commit --allow-empty -m "${complexMessage}"`);
+
+    const log = await getGitLog(1);
+
+    expect(log).toHaveLength(1);
+    expect(log[0].message).toBe(complexMessage);
+  });
+
+  it('should return an empty array if not in a git repository', async () => {
+    // This requires a non-git directory.
+    await cleanup(); // Get rid of the git repo from beforeEach
+    const { cleanup: c2 } = await setupTestDirectory();
+
+    const log = await getGitLog(5);
+    expect(log).toEqual([]);
+
+    await c2(); // Use the new cleanup function
+  });
+});
 ````
 
 ## File: .eslintrc.js
@@ -618,142 +733,6 @@ export interface Plan {
 }
 ````
 
-## File: src/utils/fs.ts
-````typescript
-import path from 'path';
-import fs from 'fs/promises';
-import yaml from 'js-yaml';
-import dayjs from 'dayjs';
-import { Plan } from '../models/plan';
-
-export interface PhaseStats {
-  [phaseName: string]: {
-    todo: number;
-    doing: number;
-    review: number;
-    failed: number;
-    done: number;
-    total: number;
-  };
-}
-
-export interface FailedReport {
-  planId: string;
-  partId: string;
-  reason: string;
-  reportPath: string;
-}
-
-/**
- * @description Reads all plan files from all phases and aggregates stats.
- * @returns An object containing plan counts for each status in each phase.
- */
-export const getPhaseStats = async (): Promise<PhaseStats> => {
-  // TODO: part-fs-get-phase-stats - Walk through .nocaflow/{phase}/plans/* directories and count plans.
-  // INSTRUCTIONS:
-  // 1. Define phases: ['initialization', 'development'].
-  // 2. Define statuses: ['todo', 'doing', 'review', 'failed', 'done'].
-  // 3. Use `fs.readdir` to count the number of files in each subdirectory. Handle errors for non-existent directories (count should be 0).
-  // 4. Aggregate the counts into a `PhaseStats` object.
-  // 5. Calculate the `total` for each phase.
-  // 6. Example structure for one phase:
-  //    'initialization': { todo: 1, doing: 2, review: 1, failed: 0, done: 6, total: 10 }
-  // 7. Return the final `PhaseStats` object.
-
-  // const phases = ['initialization', 'development'];
-  // const statuses = ['todo', 'doing', 'review', 'failed', 'done'];
-  // const stats: PhaseStats = {};
-
-  // for (const phase of phases) {
-  //   stats[phase] = { todo: 0, doing: 0, review: 0, failed: 0, done: 0, total: 0 };
-  //   for (const status of statuses) {
-  //     const dirPath = path.join('.nocaflow', phase, 'plans', status);
-  //     try {
-  //       const files = await fs.readdir(dirPath);
-  //       const count = files.filter(f => f.endsWith('.yml')).length;
-  //       stats[phase][status as keyof typeof stats.phase] = count;
-  //       stats[phase].total += count;
-  //     } catch (error) {
-  //       // Directory likely doesn't exist, count is 0.
-  //     }
-  //   }
-  // }
-  // return stats;
-
-  throw new Error('Not implemented');
-};
-
-/**
- * @description Scans the failed reports directory for recent failures.
- * @param hours - The lookback period in hours.
- * @returns A list of failed report details.
- */
-export const getFailedReports = async (hours: number): Promise<FailedReport[]> => {
-  // TODO: part-fs-get-failed-reports - Scan failed report directories for recent failures.
-  // INSTRUCTIONS:
-  // 1. Define phase directories to scan.
-  // 2. Use `fs.readdir` to get all report files (ending in .md).
-  // 3. For each file, get its stats using `fs.stat` to find the creation time (`birthtime`).
-  // 4. Use `dayjs` to check if `birthtime` is within the last `hours`.
-  // 5. If it is recent, read the file content.
-  // 6. Parse the markdown content to extract the summary/reason. A simple regex or string search for a "Summary" section is sufficient.
-  // 7. The filename typically follows the pattern `{planId}.{partId}.report.md`. Parse this to get IDs.
-  // 8. Construct a `FailedReport` object and add it to a results array.
-  // 9. Return the array of recent failed reports.
-
-  // const phases = ['initialization', 'development'];
-  // const reports: FailedReport[] = [];
-  // const since = dayjs().subtract(hours, 'hour');
-
-  // for (const phase of phases) {
-  //   const reportDir = path.join('.nocaflow', phase, 'plans', 'failed', 'report');
-  //   try {
-  //     const files = await fs.readdir(reportDir);
-  //     for (const file of files) {
-  //       if (!file.endsWith('.report.md')) continue;
-  //       const filePath = path.join(reportDir, file);
-  //       const stats = await fs.stat(filePath);
-  //       if (dayjs(stats.birthtime).isAfter(since)) {
-  //         // const content = await fs.readFile(filePath, 'utf-8');
-  //         // const summaryMatch = content.match(/## Summary\s*\n\s*(.*)/);
-  //         // const reason = summaryMatch ? summaryMatch[1].trim() : 'Could not parse summary.';
-  //         // const [planId, partId] = file.split('.').slice(0, 2);
-  //         // reports.push({ planId, partId, reason, reportPath: filePath });
-  //       }
-  //     }
-  //   } catch (error) { /* dir may not exist */ }
-  // }
-  // return reports;
-  throw new Error('Not implemented');
-};
-
-/**
- * @description Reads and parses a YAML plan file.
- * @param filePath - The path to the plan.yml file.
- * @returns The parsed Plan object.
- */
-export const readPlan = async (filePath: string): Promise<Plan> => {
-    // TODO: part-fs-read-plan - Read file content and parse using js-yaml.
-    // INSTRUCTIONS:
-    // 1. Use `fs.readFile` to read the content of `filePath` as 'utf-8'.
-    // 2. Use `yaml.load()` from the 'js-yaml' library to parse the string content.
-    // 3. Cast the result to the `Plan` type and return it.
-    // 4. Include error handling for file-not-found and YAML parsing errors.
-
-    // try {
-    //   const fileContent = await fs.readFile(filePath, 'utf-8');
-    //   const plan = yaml.load(fileContent) as Plan;
-    //   return plan;
-    // } catch (error) {
-    //   // if (error.code === 'ENOENT') { ... }
-    //   // else if (error instanceof YAMLException) { ... }
-    //   // else { ... }
-    //   throw error;
-    // }
-    throw new Error('Not implemented');
-};
-````
-
 ## File: src/utils/git.ts
 ````typescript
 import { promisify } from 'util';
@@ -773,36 +752,48 @@ const exec = promisify(execCallback);
  * @returns A list of recent git commits.
  */
 export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
-  // TODO: part-git-get-log - Get recent git commits across all worktrees.
-  // INSTRUCTIONS:
-  // 1. Execute `git worktree list --porcelain` to get worktree info.
-  //    - Parse the output to create a map: { 'worktrees/wt-name': 'wt-name' }.
-  // 2. Execute `git log --all -n ${limit} --pretty=format:'%H|%s|%D'`.
-  // 3. Process the log output line by line.
-  // 4. For each line, parse hash, message, and refs.
-  // 5. Match refs against the worktree map to find the worktree name.
-  // 6. Create `GitCommit` objects and add to a results array.
+  const getWorktreeMap = async (): Promise<Map<string, string>> => {
+    const map = new Map<string, string>();
+    try {
+      const { stdout } = await exec('git worktree list --porcelain');
+      const entries = stdout.trim().split('\n\n');
+      for (const entry of entries) {
+        const branchMatch = entry.match(/^branch refs\/heads\/(.*)/m);
+        if (branchMatch) {
+          const branchName = branchMatch[1];
+          // Assuming worktree branch name is the worktree name we want to display
+          map.set(branchName, branchName);
+        }
+      }
+    } catch (error) {
+      // Not a git repo or no worktrees, map will be empty.
+    }
+    return map;
+  };
 
-  // const getWorktreeMap = async (): Promise<Map<string, string>> => {
-  //   // const { stdout } = await exec('git worktree list --porcelain');
-  //   // const map = new Map<string, string>();
-  //   // parse stdout and populate map, e.g. extract 'worktrees/wt-...' and the final part as the name.
-  //   // return map;
-  // }
+  try {
+    const worktreeMap = await getWorktreeMap();
+    const { stdout: logOutput } = await exec(`git log --all -n ${limit} --pretty=format:"%H|%D|%s"`);
+    if (!logOutput) return [];
 
-  // try {
-  //   // const worktreeMap = await getWorktreeMap();
-  //   // const { stdout: logOutput } = await exec(`...`);
-  //   // const commits: GitCommit[] = logOutput.trim().split('\n').map(line => {
-  //   //   // ... parse line ...
-  //   //   // ... find worktree from refs using worktreeMap ...
-  //   //   // return { hash, message, worktree };
-  //   // });
-  //   // return commits;
-  // } catch (error) {
-  //   return []; // Git not installed or not a git repo.
-  // }
-  throw new Error('Not implemented');
+    return logOutput.trim().split('\n').map(line => {
+      const parts = line.split('|');
+      const hash = parts[0] || '';
+      const refs = parts[1] || '';
+      const message = parts.slice(2).join('|'); // Robustly handle '|' in commit message
+      
+      let worktree: string | null = null;
+      for (const branchName of worktreeMap.keys()) {
+        if (refs.includes(branchName)) {
+          worktree = worktreeMap.get(branchName) || null;
+          break;
+        }
+      }
+      return { hash, worktree, message };
+    });
+  } catch (error) {
+    return []; // Git not installed or not a git repo.
+  }
 };
 ````
 
@@ -827,72 +818,6 @@ yargs(hideBin(process.argv))
   .demandCommand(1, 'You need at least one command before moving on')
   .help()
   .argv;
-````
-
-## File: test/test.util.ts
-````typescript
-import { exec as execCallback, ExecException } from 'child_process';
-import { promisify } from 'util';
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
-
-const promisedExec = promisify(execCallback);
-
-// TODO: part-test-util-run-cli - Implement a promisified exec for running the CLI.
-// INSTRUCTIONS:
-// 1. Create a function `runCli(args: string)` that returns a promise.
-// 2. It should execute the compiled CLI from the `dist` folder.
-// 3. The command should be `node <path-to-project-root>/dist/cli.js ${args}`.
-// 4. It should return an object `{ stdout: string, stderr: string, code: number }`.
-// 5. Handle non-zero exit codes gracefully by catching the error from `exec` and extracting details from it.
-export const runCli = async (
-  args: string,
-): Promise<{ stdout: string; stderr: string; code: number }> => {
-  throw new Error('Not implemented');
-};
-
-// TODO: part-test-util-setup-dir - Implement a test setup utility.
-// INSTRUCTIONS:
-// 1. Create a function `setupTestDirectory()` that returns a promise resolving to an object.
-// 2. The function should create a unique temporary directory using `fs.mkdtemp` in `os.tmpdir()`.
-// 3. It should store the original `process.cwd()` and then `process.chdir()` into the new temp directory.
-// 4. The returned object should contain `testDir: string` (the path to the temp dir) and `cleanup: () => Promise<void>`.
-// 5. The `cleanup` function should `process.chdir()` back to the original directory and remove the temp directory recursively.
-export const setupTestDirectory = async (): Promise<{
-  testDir: string;
-  cleanup: () => Promise<void>;
-}> => {
-  throw new Error('Not implemented');
-};
-
-// TODO: part-test-util-git-init - Implement a utility to initialize a git repository.
-// INSTRUCTIONS:
-// 1. Create an async function `initGitRepo()`.
-// 2. It should execute the necessary `git` commands using `promisedExec`.
-// 3. Commands to run:
-//    - `git init`
-//    - `git config user.email "test@example.com"`
-//    - `git config user.name "Test User"`
-//    - `git commit --allow-empty -m "Initial commit"`
-export const initGitRepo = async (): Promise<void> => {
-  throw new Error('Not implemented');
-};
-
-// TODO: part-test-util-create-plan - Implement a utility to create a dummy plan file.
-// INSTRUCTIONS:
-// 1. Create an async function `createDummyPlanFile(phase: 'initialization' | 'development', status: 'todo' | 'doing' | 'done' | 'review' | 'failed', fileName: string)`.
-// 2. The function should create the necessary directory structure inside the current test directory.
-//    - e.g., `.nocaflow/${phase}/plans/${status}/`
-// 3. It should write a minimal, empty YAML file to that path.
-//    - e.g., `fs.writeFile(path.join(..., fileName), '# dummy plan')`.
-export const createDummyPlanFile = async (
-  phase: 'initialization' | 'development',
-  status: 'todo' | 'doing' | 'done' | 'review' | 'failed',
-  fileName: string,
-): Promise<void> => {
-  throw new Error('Not implemented');
-};
 ````
 
 ## File: jest.config.js
@@ -1029,6 +954,117 @@ export const createToken = (user: User): string => {
 ```
 ````
 
+## File: src/utils/fs.ts
+````typescript
+import path from 'path';
+import fs from 'fs/promises';
+import yaml from 'js-yaml';
+import dayjs from 'dayjs';
+import { YAMLException } from 'js-yaml';
+import { Plan } from '../models/plan';
+
+export interface PhaseStats {
+  [phaseName: string]: {
+    todo: number;
+    doing: number;
+    review: number;
+    failed: number;
+    done: number;
+    total: number;
+  };
+}
+
+export interface FailedReport {
+  planId: string;
+  partId: string;
+  reason: string;
+  reportPath: string;
+}
+
+/**
+ * @description Reads all plan files from all phases and aggregates stats.
+ * @returns An object containing plan counts for each status in each phase.
+ */
+export const getPhaseStats = async (): Promise<PhaseStats> => {
+  const phases = ['initialization', 'development'];
+  const statuses: (keyof PhaseStats[string])[] = [
+    'todo',
+    'doing',
+    'review',
+    'failed',
+    'done',
+  ];
+  const stats: PhaseStats = {};
+
+  for (const phase of phases) {
+    stats[phase] = { todo: 0, doing: 0, review: 0, failed: 0, done: 0, total: 0 };
+    for (const status of statuses) {
+      const dirPath = path.join('.nocaflow', phase, 'plans', status);
+      try {
+        const files = await fs.readdir(dirPath);
+        // A plan is represented by its .yml file. This counts plans in each state directory.
+        const count = files.filter(f => f.endsWith('.yml')).length;
+        stats[phase][status] = count;
+        stats[phase].total += count;
+      } catch (error) {
+        // Directory likely doesn't exist, count is 0.
+      }
+    }
+  }
+  return stats;
+};
+
+/**
+ * @description Scans the failed reports directory for recent failures.
+ * @param hours - The lookback period in hours.
+ * @returns A list of failed report details.
+ */
+export const getFailedReports = async (hours: number): Promise<FailedReport[]> => {
+  const phases = ['initialization', 'development'];
+  const reports: FailedReport[] = [];
+  const since = dayjs().subtract(hours, 'hour');
+
+  for (const phase of phases) {
+    const reportDir = path.join('.nocaflow', phase, 'plans', 'failed', 'report');
+    try {
+      const files = await fs.readdir(reportDir);
+      for (const file of files) {
+        if (!file.endsWith('.report.md')) continue;
+        const filePath = path.join(reportDir, file);
+        const stats = await fs.stat(filePath);
+        if (dayjs(stats.mtime).isAfter(since)) {
+          const content = await fs.readFile(filePath, 'utf-8');
+          const summaryMatch = content.match(/## Summary\s*\n\s*([\s\S]*?)(?=\n##|$)/);
+          const reason = summaryMatch ? summaryMatch[1].trim() : 'Could not parse summary.';
+          const [planId, partId] = file.split('.').slice(0, 2);
+          reports.push({ planId, partId, reason, reportPath: filePath });
+        }
+      }
+    } catch (error) {
+      // dir may not exist
+    }
+  }
+  return reports;
+};
+
+/**
+ * @description Reads and parses a YAML plan file.
+ * @param filePath - The path to the plan.yml file.
+ * @returns The parsed Plan object.
+ */
+export const readPlan = async (filePath: string): Promise<Plan> => {
+  try {
+    const fileContent = await fs.readFile(filePath, 'utf-8');
+    const plan = yaml.load(fileContent) as Plan;
+    return plan;
+  } catch (error: any) {
+    // Let the caller handle the error. They might want to know if it's a
+    // file not found vs. a parsing error.
+    throw error;
+  }
+};
+````
+
 ## File: src/utils/logs.ts
 ````typescript
 import path from 'path';
@@ -1049,41 +1085,38 @@ import fs from 'fs/promises';
  * @returns A list of recent log entries, sorted newest first.
  */
 export const getRecentLogs = async (limit: number): Promise<LogEntry[]> => {
-  // TODO: part-logs-get-recent - Read and parse agent log files.
-  // INSTRUCTIONS:
-  // 1. Define phase directories to scan.
-  // 2. Find all `.log` files in the `agent-log` subdirectories.
-  // 3. Read content of each log file.
-  // 4. For each line, use regex to parse. Example:
-  //    /^(?<timestamp>.*?) \[(?<status>\w+)\|(?<phase>\w+)\|(?<agentId>.*?)\] plan:(?<planId>\S+) - (?<message>.*)$/
-  // 5. Create `LogEntry` objects from matches. Convert timestamp string to a `Date`.
-  // 6. Collect all entries.
-  // 7. Sort entries by timestamp (descending).
-  // 8. Return a slice of the array containing the top `limit` entries.
+  const logDirs = ['.nocaflow/initialization/agent-log', '.nocaflow/development/agent-log'];
+  let allEntries: LogEntry[] = [];
+  const logRegex =
+    /^(?<timestamp>.*?) \[(?<status>\w+)\|(?<phase>\w+)\|(?<agentId>.*?)\] plan:(?<planId>\S+) - (?<message>.*)$/;
 
-  // const logDirs = ['.nocaflow/initialization/agent-log', '.nocaflow/development/agent-log'];
-  // let allEntries: LogEntry[] = [];
-  // const logRegex = /^(?<timestamp>.*?) \[(?<status>\w+)\|(?<phase>\w+)\|(?<agentId>.*?)\] plan:(?<planId>\S+) - (?<message>.*)$/;
+  for (const dir of logDirs) {
+    try {
+      const files = await fs.readdir(dir);
+      for (const file of files.filter(f => f.endsWith('.log'))) {
+        const content = await fs.readFile(path.join(dir, file), 'utf-8');
+        for (const line of content.split('\n')) {
+          const match = line.match(logRegex);
+          if (match?.groups) {
+            const { timestamp, status, phase, agentId, planId, message } = match.groups;
+            allEntries.push({
+              timestamp: new Date(timestamp),
+              status: status as LogEntry['status'],
+              phase: phase as LogEntry['phase'],
+              agentId,
+              planId,
+              message,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      // dir may not exist
+    }
+  }
 
-  // for (const dir of logDirs) {
-  //   try {
-  //     const files = await fs.readdir(dir);
-  //     for (const file of files.filter(f => f.endsWith('.log'))) {
-  //       // const content = await fs.readFile(path.join(dir, file), 'utf-8');
-  //       // for (const line of content.split('\n')) {
-  //       //   const match = line.match(logRegex);
-  //       //   if (match?.groups) {
-  //       //     // create LogEntry and push to allEntries
-  //       //   }
-  //       // }
-  //     }
-  //   } catch (error) { /* dir may not exist */ }
-  // }
-
-  // allEntries.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-  // return allEntries.slice(0, limit);
-
-  throw new Error('Not implemented');
+  allEntries.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  return allEntries.slice(0, limit);
 };
 ````
 
@@ -1094,50 +1127,156 @@ import { renderProgressBar } from '../../../src/commands/state';
 describe('unit/commands/state', () => {
   describe('renderProgressBar', () => {
     it('should render an empty bar for 0% progress', () => {
-      // TODO: part-unit-progress-bar-0 - Test rendering for 0% progress.
-      // INSTRUCTIONS:
-      // 1. Call `renderProgressBar(0, 10)`.
-      // 2. Assert the output string is correct for an empty bar, e.g., `[----------] (0/10 plans done)`.
+      const result = renderProgressBar(0, 10, 10);
+      expect(result).toBe('[----------] (0/10 plans done)');
     });
 
     it('should render a half-filled bar for 50% progress', () => {
-      // TODO: part-unit-progress-bar-50 - Test rendering for 50% progress.
-      // INSTRUCTIONS:
-      // 1. Call `renderProgressBar(5, 10)`.
-      // 2. Assert the output string is correct for a half-filled bar, e.g., `[▇▇▇▇▇-----] (5/10 plans done)`.
+      const result = renderProgressBar(5, 10, 10);
+      expect(result).toBe('[▇▇▇▇▇-----] (5/10 plans done)');
     });
 
     it('should render a full bar for 100% progress', () => {
-      // TODO: part-unit-progress-bar-100 - Test rendering for 100% progress.
-      // INSTRUCTIONS:
-      // 1. Call `renderProgressBar(10, 10)`.
-      // 2. Assert the output string is correct for a full bar, e.g., `[▇▇▇▇▇▇▇▇▇▇] (10/10 plans done)`.
+      const result = renderProgressBar(10, 10, 10);
+      expect(result).toBe('[▇▇▇▇▇▇▇▇▇▇] (10/10 plans done)');
     });
 
     it('should handle different bar lengths', () => {
-      // TODO: part-unit-progress-bar-length - Test that the length parameter is respected.
-      // INSTRUCTIONS:
-      // 1. Call `renderProgressBar(1, 2, 20)` to specify a bar length of 20.
-      // 2. Assert the bar part of the string has 20 characters (`[▇...-...]`).
+      const result = renderProgressBar(1, 2, 20);
+      // 50% of 20 is 10 filled characters
+      const bar = result.substring(result.indexOf('[') + 1, result.indexOf(']'));
+      expect(bar).toHaveLength(20);
+      expect(bar).toBe('▇'.repeat(10) + '-'.repeat(10));
     });
 
     it('should round to the nearest character for fractional progress', () => {
-      // TODO: part-unit-progress-bar-rounding - Test rounding logic.
-      // INSTRUCTIONS:
-      // 1. Call `renderProgressBar(1, 3, 10)`.
-      // 2. 33.3% of 10 should round to 3 filled characters.
-      // 3. Assert the output string reflects this, e.g., `[▇▇▇-------] (1/3 plans done)`.
+      // 1/3 of 10 is 3.33, which should round to 3
+      const result1 = renderProgressBar(1, 3, 10);
+      expect(result1).toContain('[▇▇▇-------]');
+
+      // 2/3 of 10 is 6.66, which should round to 7
+      const result2 = renderProgressBar(2, 3, 10);
+      expect(result2).toContain('[▇▇▇▇▇▇▇---]');
     });
 
     it('should handle a total of 0 gracefully', () => {
-      // TODO: part-unit-progress-bar-zero - Test the edge case where the total is 0.
-      // INSTRUCTIONS:
-      // 1. Call `renderProgressBar(0, 0)`.
-      // 2. Assert it does not throw a "division by zero" error.
-      // 3. Assert the output shows an empty bar with a (0/0) count.
+      const result = renderProgressBar(0, 0, 10);
+      expect(result).toBe('[----------] (0/0 plans done)');
     });
   });
 });
+````
+
+## File: test/test.util.ts
+````typescript
+import { exec as execCallback, ExecException } from 'child_process';
+import { promisify } from 'util';
+import fs from 'fs/promises';
+import path from 'path';
+import os from 'os';
+
+const promisedExec = promisify(execCallback);
+
+// TODO: part-test-util-run-cli - Implement a utility to run the compiled CLI.
+// INSTRUCTIONS:
+// 1. Create a function `runCli(args: string)` that returns a promise.
+// 2. It should execute the compiled CLI from the `dist` folder.
+// 3. The command should be `node ${path.join(__dirname, '..', 'dist', 'cli.js')} ${args}`.
+// 4. It should return an object `{ stdout: string, stderr: string, code: number }`.
+// 5. Handle non-zero exit codes gracefully by catching the error from `exec` and extracting details from it.
+export const runCli = async (
+  args: string,
+): Promise<{ stdout: string; stderr: string; code: number }> => {
+  const cliPath = path.join(__dirname, '..', 'dist', 'cli.js');
+  try {
+    const { stdout, stderr } = await promisedExec(`node ${cliPath} ${args}`);
+    return { stdout, stderr, code: 0 };
+  } catch (error) {
+    const err = error as ExecException & { stdout: string; stderr: string };
+    return {
+      stdout: err.stdout,
+      stderr: err.stderr,
+      code: err.code || 1,
+    };
+  }
+};
+
+// TODO: part-test-util-setup-dir - Implement a utility to create an isolated test directory.
+// INSTRUCTIONS:
+// 1. Create a function `setupTestDirectory()` that returns a promise resolving to an object.
+// 2. The function should create a unique temporary directory using `fs.mkdtemp` in `os.tmpdir()`.
+// 3. It should store the original `process.cwd()` and then `process.chdir()` into the new temp directory.
+// 4. The returned object should contain `testDir: string` (the path to the temp dir) and `cleanup: () => Promise<void>`.
+// 5. The `cleanup` function should `process.chdir()` back to the original directory and remove the temp directory recursively.
+export const setupTestDirectory = async (): Promise<{
+  testDir: string;
+  cleanup: () => Promise<void>;
+}> => {
+  const originalCwd = process.cwd();
+  const testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'nocaflow-test-'));
+  process.chdir(testDir);
+
+  const cleanup = async (): Promise<void> => {
+    process.chdir(originalCwd);
+    await fs.rm(testDir, { recursive: true, force: true });
+  };
+
+  return { testDir, cleanup };
+};
+
+// TODO: part-test-util-git-init - Implement a utility to initialize a git repository for testing.
+// INSTRUCTIONS:
+// 1. Create an async function `initGitRepo()`.
+// 2. It should execute the necessary `git` commands using `promisedExec`.
+// 3. Commands to run:
+//    - `git init`
+//    - `git config user.email "test@example.com"`
+//    - `git config user.name "Test User"`
+//    - `git commit --allow-empty -m "Initial commit"`
+export const initGitRepo = async (): Promise<void> => {
+  await promisedExec('git init');
+  await promisedExec('git config user.email "test@example.com"');
+  await promisedExec('git config user.name "Test User"');
+  await promisedExec('git commit --allow-empty -m "Initial commit"');
+};
+
+// TODO: part-test-util-create-plan - Implement a utility to create a dummy plan file for testing stats.
+// INSTRUCTIONS:
+// 1. Create an async function `createDummyPlanFile(phase: 'initialization' | 'development', status: 'todo' | 'doing' | 'done' | 'review' | 'failed', fileName: string)`.
+// 2. The function should create the necessary directory structure inside the current test directory.
+//    - e.g., `.nocaflow/${phase}/plans/${status}/`
+// 3. It should write a minimal, empty YAML file to that path.
+//    - e.g., `fs.writeFile(path.join(..., fileName), '# dummy plan')`.
+export const createDummyPlanFile = async (
+  phase: 'initialization' | 'development',
+  status: 'todo' | 'doing' | 'done' | 'review' | 'failed',
+  fileName: string,
+): Promise<void> => {
+  const dirPath = path.join('.nocaflow', phase, 'plans', status);
+  await fs.mkdir(dirPath, { recursive: true });
+  await fs.writeFile(path.join(dirPath, fileName), '# dummy plan');
+};
+
+// TODO: part-test-util-create-report - Implement a utility to create a dummy failed report file.
+// INSTRUCTIONS:
+// 1. Create an async function `createDummyFailedReport(phase: 'initialization' | 'development', planId: string, partId: string, summary: string)`.
+// 2. It should create the report directory: `.nocaflow/${phase}/plans/failed/report/`.
+// 3. It should create a markdown file named `${planId}.${partId}.report.md`.
+// 4. The file content should be `## Summary\n\n${summary}`.
+// 5. The function should return the full path to the created file.
+export const createDummyFailedReport = async (
+  phase: 'initialization' | 'development',
+  planId: string,
+  partId: string,
+  summary: string,
+): Promise<string> => {
+  const reportDir = path.join('.nocaflow', phase, 'plans', 'failed', 'report');
+  await fs.mkdir(reportDir, { recursive: true });
+  const reportPath = path.join(reportDir, `${planId}.${partId}.report.md`);
+  const content = `## Summary\n\n${summary}`;
+  await fs.writeFile(reportPath, content);
+  return reportPath;
+};
 ````
 
 ## File: plan.agent.md
@@ -1286,8 +1425,11 @@ import chalk from 'chalk';
 import { getPhaseStats, PhaseStats, getFailedReports, FailedReport } from '../utils/fs';
 import { getActiveAgents, AgentInfo } from '../utils/shell';
 import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
 import { getRecentLogs, LogEntry } from '../utils/logs';
 import { getGitLog, GitCommit } from '../utils/git';
+
+dayjs.extend(relativeTime);
 
 /**
  * @description Renders a progress bar.
@@ -1297,93 +1439,92 @@ import { getGitLog, GitCommit } from '../utils/git';
  * @returns A string representing the progress bar.
  */
 export const renderProgressBar = (current: number, total: number, length: number = 20): string => {
-  // TODO: part-state-render-progress - Implement progress bar rendering logic.
-  // INSTRUCTIONS:
-  // 1. Calculate the percentage of `current` to `total`.
-  // 2. Determine how many `length` characters should be filled (e.g., '▇').
-  // 3. Determine how many `length` characters should be empty (e.g., '-').
-  // 4. Return a string like `[▇▇▇▇----] (current/total plans done)`.
-  // 5. If total is 0, return a string representing an empty bar `[----------] (0/0 plans done)`.
+  const percent = total > 0 ? current / total : 0;
+  const filledLength = Math.round(length * percent);
+  const emptyLength = length - filledLength;
+  const filledBar = '▇'.repeat(filledLength);
+  const emptyBar = '-'.repeat(emptyLength);
+  const bar = `[${filledBar}${emptyBar}]`;
+  const text = `(${current}/${total} plans done)`;
 
-  // const percent = total > 0 ? current / total : 0;
-  // const filledLength = Math.round(length * percent);
-  // const emptyLength = length - filledLength;
-  // const filledBar = '▇'.repeat(filledLength);
-  // const emptyBar = '-'.repeat(emptyLength);
-  // const bar = `[${filledBar}${emptyBar}]`;
-  // const text = `(${current}/${total} plans done)`;
-
-  // return `${bar} ${text}`;
-
-  throw new Error('Not implemented');
+  return `${bar} ${text}`;
 };
 
 /**
  * @description Displays the full state report to the console.
  */
 export const handleStateCommand = async (argv: {}): Promise<void> => {
-  // TODO: part-state-fetch-data - Fetch all necessary data using utility functions.
-  // INSTRUCTIONS:
-  // 2. Call `getPhaseStats()` to get statistics for all phases.
-  // 3. Call `getActiveAgents()` to get a list of running agents.
-  // 4. Call `getRecentLogs(5)` to get the last 5 log entries.
-  // 5. Call `getFailedReports(24)` to get failures in the last 24 hours.
-  // 6. Call `getGitLog(10)` to get the 10 most recent git commits.
+  const phaseStats: PhaseStats = await getPhaseStats();
+  const activeAgents: AgentInfo[] = await getActiveAgents();
+  const recentLogs: LogEntry[] = await getRecentLogs(5);
+  const failedReports: FailedReport[] = await getFailedReports(24);
+  const gitCommits: GitCommit[] = await getGitLog(10);
+  const currentPhase = phaseStats.development?.total > 0 ? 'development' : 'initialization';
 
-  // const phaseStats: PhaseStats = await getPhaseStats();
-  // const activeAgents: AgentInfo[] = await getActiveAgents();
-  // const recentLogs: LogEntry[] = await getRecentLogs(5);
-  // const failedReports: FailedReport[] = await getFailedReports(24);
-  // const gitCommits: GitCommit[] = await getGitLog(10);
-  // const currentPhase = phaseStats.development?.total > 0 ? 'development' : 'initialization';
-
-  // TODO: part-state-render-output - Format and print the state report.
-  // INSTRUCTIONS:
-  // 1. Use `chalk` for all coloring to match the style in the project's README.md.
-  // 2. Print a header with the current time.
-  // 3. Print the current phase.
-  // 4. Print phase progress using `renderProgressBar` for each phase found in `phaseStats`.
-  // 5. Print detailed plan counts for each phase.
-  // 6. Print a list of active agents, including their phase, IDs, and runtime.
-  // 7. Print recent agent activity from `recentLogs`, color-coding by status (DONE, FAIL).
-  // 8. Print any stalled or failed reports from `failedReports`.
-  // 9. Print recent git commits, including hash, worktree (if any), and message.
-
-  /*
   // Header
   console.log(chalk.bold(`== nocaflow State [${dayjs().format('YYYY-MM-DD HH:mm:ss')}] ==`));
   console.log(`Current Phase: ${chalk.cyan(currentPhase)}`);
   
   // Phase Progress
   console.log(chalk.bold('\n== Phase Progress =='));
-  // for (const phaseName in phaseStats) { ... renderProgressBar(...) ... }
+  for (const phaseName in phaseStats) {
+    const stats = phaseStats[phaseName];
+    const progressBar = renderProgressBar(stats.done, stats.total);
+    console.log(`[${chalk.yellow(phaseName.toUpperCase())}]`.padEnd(18) + progressBar);
+  }
 
   // Phase Stats
   console.log(chalk.bold('\n== Phase Stats (Plans) =='));
-  // for (const phaseName in phaseStats) { ... console.log(...) ... }
+  for (const phaseName in phaseStats) {
+    const stats = phaseStats[phaseName];
+    if (stats.total === 0) continue;
+    const statsString = `todo: ${stats.todo}, doing: ${stats.doing}, review: ${stats.review}, failed: ${stats.failed}, done: ${stats.done}`;
+    console.log(`[${chalk.yellow(phaseName.toUpperCase())}]`.padEnd(18) + statsString);
+  }
 
   // Active Agents
   console.log(chalk.bold('\n== Active Agents (tmux) =='));
-  // if (activeAgents.length === 0) { console.log('No active agents.'); }
-  // for (const agent of activeAgents) { ... console.log(...) ... }
+  if (activeAgents.length === 0) {
+    console.log('No active agents.');
+  } else {
+    for (const agent of activeAgents) {
+      console.log(`[${chalk.blue(agent.phase)}|${chalk.magenta(agent.pid)}]`.padEnd(18) + `id:${agent.id} (running ${agent.runtime})`);
+    }
+  }
 
   // Recent Agent Activity
   console.log(chalk.bold('\n== Recent Agent Activity (last 5) =='));
-  // if (recentLogs.length === 0) { console.log('No recent activity.'); }
-  // for (const log of recentLogs) { ... console.log with color based on log.status ... }
+  if (recentLogs.length === 0) {
+    console.log('No recent activity.');
+  } else {
+    for (const log of recentLogs) {
+      const statusColor = log.status === 'DONE' ? chalk.green : log.status === 'FAIL' ? chalk.red : chalk.gray;
+      const time = dayjs(log.timestamp).fromNow();
+      console.log(`${statusColor(`[${log.status}|${log.phase}|${log.agentId}]`)} plan:${log.planId} - ${log.message} (${chalk.gray(time)})`);
+    }
+  }
 
   // Stalled / Failed
   console.log(chalk.bold('\n== Stalled / Failed (last 24h) =='));
-  // if (failedReports.length === 0) { console.log('No failed reports in the last 24 hours.'); }
-  // for (const report of failedReports) { ... console.log(...) ... }
+  if (failedReports.length === 0) {
+    console.log('No failed reports in the last 24 hours.');
+  } else {
+    for (const report of failedReports) {
+      console.log(`${chalk.red('[FAILED]')} plan:${report.planId} part:${report.partId} - "${report.reason}"`);
+      console.log(`         Report: ${report.reportPath}`);
+    }
+  }
 
   // Recent Git Commits
   console.log(chalk.bold('\n== Recent Git Commits (all worktrees) =='));
-  // if (gitCommits.length === 0) { console.log('No recent commits.'); }
-  // for (const commit of gitCommits) { ... console.log(...) ... }
-  */
-
-  throw new Error('Not implemented');
+  if (gitCommits.length === 0) {
+    console.log('No recent commits.');
+  } else {
+    for (const commit of gitCommits) {
+      const worktreeInfo = commit.worktree ? `(${chalk.cyan(commit.worktree)}) ` : '';
+      console.log(`${chalk.yellow(commit.hash.slice(0, 7))} ${worktreeInfo}${commit.message}`);
+    }
+  }
 };
 ````
 
@@ -1412,474 +1553,49 @@ dayjs.extend(relativeTime);
  * @returns A list of active agents.
  */
 export const getActiveAgents = async (): Promise<AgentInfo[]> => {
-  // TODO: part-shell-get-agents - List and parse active tmux sessions to find agent info.
-  // INSTRUCTIONS:
-  // 1. Execute `tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`.
-  // 2. Handle errors (e.g., tmux not running). Return empty array on failure.
-  // 3. Parse each line of stdout.
-  // 4. Use regex on session name to determine agent type and extract IDs.
-  //    - Worker: /^(init|dev)-(.+)/ -> { phase, partId }
-  //    - Scaffolder: /^(init)-scaffold-(.+)/ -> { phase: 'SCAF', planId }
-  //    - QA: /^qa-(.+)/ -> { phase: 'QA', planId }
-  // 5. For worker agents, `planId` can be 'unknown' for this implementation.
-  // 6. Calculate runtime from `session_activity` Unix timestamp using `dayjs().to(dayjs.unix(timestamp), true)`.
-  // 7. Construct and return an array of `AgentInfo` objects.
+  try {
+    const { stdout } = await exec(`tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`);
+    if (!stdout) return [];
 
-  // try {
-  //   const { stdout } = await exec(`tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`);
-  //   if (!stdout) return [];
-  //
-  //   const lines = stdout.trim().split('\n');
-  //   const agents: AgentInfo[] = [];
-  //
-  //   for (const line of lines) {
-  //     const [sessionName, pid, activity] = line.split(' ');
-  //     const runtime = dayjs().to(dayjs.unix(parseInt(activity, 10)), true);
-  //
-  //     let match;
-  //     // if ((match = sessionName.match(/^(init|dev)-(.+)/))) { ... }
-  //     // else if ((match = sessionName.match(/^init-scaffold-(.+)/))) { ... }
-  //     // else if ((match = sessionName.match(/^qa-(.+)/))) { ... }
-  //     //
-  //     // In each block, construct an AgentInfo object and push to agents array.
-  //   }
-  //   return agents;
-  // } catch (error) {
-  //   return []; // Tmux likely not running or has no sessions.
-  // }
-  throw new Error('Not implemented');
+    const lines = stdout.trim().split('\n');
+    const agents: AgentInfo[] = [];
+
+    for (const line of lines) {
+      const [sessionName, pid, activity] = line.split(' ');
+      const runtime = dayjs().to(dayjs.unix(parseInt(activity, 10)), true);
+
+      let match;
+      if ((match = sessionName.match(/^(init|dev)-(.+)/))) {
+        const phase = match[1].toUpperCase() as 'INIT' | 'DEV';
+        const partId = match[2];
+        agents.push({
+          phase,
+          id: partId,
+          planId: 'unknown', // Not available from session name
+          partId: partId,
+          runtime,
+          pid,
+        });
+      } else if ((match = sessionName.match(/^init-scaffold-(.+)/))) {
+        const planId = match[1];
+        agents.push({
+          phase: 'SCAF',
+          id: planId,
+          planId,
+          partId: 'scaffold',
+          runtime,
+          pid,
+        });
+      } else if ((match = sessionName.match(/^qa-(.+)/))) {
+        const planId = match[1];
+        agents.push({ phase: 'QA', id: planId, planId, partId: 'qa', runtime, pid });
+      }
+    }
+    return agents;
+  } catch (error) {
+    return []; // Tmux likely not running or has no sessions.
+  }
 };
-````
-
-## File: test/e2e/cli.test.ts
-````typescript
-import { runCli, setupTestDirectory } from '../test.util';
-import fs from 'fs/promises';
-import path from 'path';
-
-describe('e2e/cli', () => {
-  let cleanup: () => Promise<void>;
-
-  beforeEach(async () => {
-    // TODO: part-e2e-setup - Use the test utility to create a clean, isolated directory for each test.
-    // INSTRUCTIONS:
-    // 1. Call `setupTestDirectory()` to get the cleanup function.
-    // 2. Store it in the `cleanup` variable.
-    const { cleanup: c } = await setupTestDirectory();
-    cleanup = c;
-  });
-
-  afterEach(async () => {
-    // TODO: part-e2e-cleanup - Use the cleanup function from the test utility.
-    // INSTRUCTIONS:
-    // 1. Call the `cleanup()` function to restore the CWD and remove the temporary directory.
-    await cleanup();
-  });
-
-  // TODO: part-e2e-build-step - Add a `beforeAll` hook to build the project.
-  // INSTRUCTIONS:
-  // 1. Add a `beforeAll` block.
-  // 2. Inside, execute `npm run build` from the project root to ensure `dist/cli.js` is up-to-date.
-  // 3. Use a long timeout for this hook (e.g., 30000 ms) as `tsc` can be slow.
-
-  describe('init command', () => {
-    it('should initialize a new project structure', async () => {
-      // TODO: part-e2e-init-success - Test the `init` command in a clean directory.
-      // INSTRUCTIONS:
-      // 1. Run the CLI with the `init` command using `runCli('init')`.
-      // 2. Assert that the command's stdout contains a success message.
-      // 3. Assert that the command's exit code is 0.
-      // 4. Use `fs.access` to verify that key directories and `.gitkeep` files have been created.
-      //    - e.g., `.nocaflow/initialization/plans/todo/.gitkeep`
-    });
-
-    it('should show a warning if the project is already initialized', async () => {
-      // TODO: part-e2e-init-exists - Test the `init` command in an already initialized directory.
-      // INSTRUCTIONS:
-      // 1. Manually create a `.nocaflow` directory.
-      // 2. Run `runCli('init')`.
-      // 3. Assert that the command's `stderr` contains a warning message.
-      // 4. Assert that the command exits with a non-zero exit code.
-    });
-  });
-
-  describe('state command', () => {
-    it('should display the project state in an initialized directory', async () => {
-      // TODO: part-e2e-state-success - Test the `state` command in a valid project.
-      // INSTRUCTIONS:
-      // 1. First, run `runCli('init')`.
-      // 2. Create some dummy plan files (e.g., in `.nocaflow/initialization/plans/todo/`).
-      // 3. Run `runCli('state')`.
-      // 4. Assert that the stdout contains key headers like "== nocaflow State ==" and "Current Phase:".
-      // 5. Assert that the command exits with code 0.
-    });
-
-    it('should display a complex state with active agents and failed reports', async () => {
-      // TODO: part-e2e-state-complex - Test the `state` command with a rich project state.
-      // INSTRUCTIONS:
-      // 1. Run `init` and set up a git repo.
-      // 2. Create multiple dummy plan files in various states (todo, doing, done).
-      // 3. Create a dummy failed report file.
-      // 4. (Challenge) If possible, mock `exec` to simulate `tmux` output for active agents. This is an exception to the "no mock" rule for `tmux`.
-      // 5. Run `runCli('state')`.
-      // 6. Assert that the output contains sections for "Active Agents" and "Stalled / Failed" with the dummy data.
-    });
-
-    it('should show an error when run in a non-initialized directory', async () => {
-      // TODO: part-e2e-state-fail - Test the `state` command in a non-initialized directory.
-      // INSTRUCTIONS:
-      // 1. Run `runCli('state')` without running `init` first.
-      // 2. Assert that the command's `stderr` contains an error message about `.nocaflow` not being found.
-      // 3. Assert that the command exits with a non-zero code.
-    });
-  });
-
-  describe('no command', () => {
-    it('should display help when no command is provided', async () => {
-      // TODO: part-e2e-no-command - Test running the CLI with no arguments.
-      // INSTRUCTIONS:
-      // 1. Run `runCli('')`.
-      // 2. Assert that `stdout` contains the help message (e.g., "Commands:", "Options:").
-    });
-
-    it('should display help when --help flag is used', async () => {
-      // TODO: part-e2e-help-flag - Test running the CLI with --help.
-      // INSTRUCTIONS:
-      // 1. Run `runCli('--help')`.
-      // 2. Assert that `stdout` contains the help message.
-      // 3. Run `runCli('state --help')`.
-      // 4. Assert that `stdout` contains help information specific to the `state` command.
-    });
-  });
-});
-````
-
-## File: test/integration/commands/init.test.ts
-````typescript
-import { handleInitCommand } from '../../../src/commands/init';
-import { setupTestDirectory } from '../../test.util';
-import fs from 'fs/promises';
-
-describe('integration/commands/init', () => {
-  let cleanup: () => Promise<void>;
-
-  beforeEach(async () => {
-    // TODO: part-int-init-setup - Use the test utility to create a clean, isolated directory.
-    // INSTRUCTIONS:
-    // 1. Call `setupTestDirectory()` to get the cleanup function.
-    const { cleanup: c } = await setupTestDirectory();
-    cleanup = c;
-  });
-
-  afterEach(async () => {
-    // TODO: part-int-init-cleanup - Use the cleanup function from the test utility.
-    // INSTRUCTIONS:
-    // 1. Call the `cleanup()` function to restore the CWD and remove the temporary directory.
-    await cleanup();
-  });
-
-  it('should create the full .nocaflow directory structure on a fresh run', async () => {
-    // TODO: part-int-init-success - Test the successful creation of the directory structure.
-    // INSTRUCTIONS:
-    // 1. Call `handleInitCommand({})` directly.
-    // 2. Use `fs.access` to verify that several key directories exist.
-    //    - e.g., '.nocaflow/initialization/plans/todo'
-    //    - e.g., '.nocaflow/development/plans/failed/report'
-    // 3. Use `fs.access` to verify that several key `.gitkeep` files exist.
-    //    - e.g., '.nocaflow/initialization/agent-log/.gitkeep'
-  });
-
-  it('should create the correct number of directories and .gitkeep files', async () => {
-    // TODO: part-int-init-counts - Test the exact count of created items.
-    // INSTRUCTIONS:
-    // 1. Call `handleInitCommand({})`.
-    // 2. Recursively read all created directory and file paths.
-    // 3. Assert that the number of created directories matches the expected count (e.g., 2 phases * 5 plan subdirs + other dirs).
-    // 4. Assert that the number of `.gitkeep` files matches the expected count for empty directories.
-  });
-
-  // Note: The case for an existing .nocaflow directory is tested in e2e/cli.test.ts,
-  // as it involves checking process exit codes, which is not suitable for an integration test
-  // without mocking `process.exit`.
-});
-````
-
-## File: test/unit/utils/fs.test.ts
-````typescript
-import { getPhaseStats, getFailedReports, readPlan } from '../../../src/utils/fs';
-import { setupTestDirectory } from '../../test.util';
-import fs from 'fs/promises';
-import path from 'path';
-
-describe('unit/utils/fs', () => {
-  let cleanup: () => Promise<void>;
-
-  beforeEach(async () => {
-    // TODO: part-unit-fs-setup - Use the test utility to create a clean, isolated directory.
-    // INSTRUCTIONS:
-    // 1. Call `setupTestDirectory()` to get the cleanup function.
-    const { cleanup: c } = await setupTestDirectory();
-    cleanup = c;
-  });
-
-  afterEach(async () => {
-    // TODO: part-unit-fs-cleanup - Use the cleanup function from the test utility.
-    // INSTRUCTIONS:
-    // 1. Call the `cleanup()` function to restore the CWD and remove the temporary directory.
-    await cleanup();
-  });
-
-  describe('getPhaseStats', () => {
-    it('should correctly count plans across different statuses and phases', async () => {
-      // TODO: part-unit-fs-stats-count - Test plan counting with a populated directory structure.
-      // INSTRUCTIONS:
-      // 1. Create a `.nocaflow` directory structure.
-      //    - e.g., `fs.mkdir('.nocaflow/initialization/plans/todo', { recursive: true })`
-      // 2. Create dummy plan files in various status directories.
-      //    - e.g., `fs.writeFile('.nocaflow/initialization/plans/todo/a.yml', '')`
-      //    - e.g., `fs.writeFile('.nocaflow/development/plans/done/b.yml', '')`
-      // 3. Call `getPhaseStats()`.
-      // 4. Assert that the returned stats object accurately reflects the file counts.
-    });
-
-    it('should return all zeros for an empty directory structure', async () => {
-      // TODO: part-unit-fs-stats-empty - Test plan counting with an empty structure.
-      // INSTRUCTIONS:
-      // 1. Create the top-level `.nocaflow` directory and phase directories, but leave plan folders empty.
-      // 2. Call `getPhaseStats()`.
-      // 3. Assert that all counts in the returned stats object are 0.
-    });
-
-    it('should handle missing status subdirectories gracefully', async () => {
-      // TODO: part-unit-fs-stats-missing-subdir - Test plan counting with some status dirs missing.
-      // INSTRUCTIONS:
-      // 1. Create a structure like `.nocaflow/initialization/plans/` but only create a `todo` subdirectory, not `doing`, `done`, etc.
-      // 2. Create a plan file in the `todo` directory.
-      // 3. Call `getPhaseStats()`.
-      // 4. Assert that the stats for `initialization` show `todo: 1` and `doing: 0`, `done: 0`, etc., without throwing an error.
-    });
-
-    it('should ignore non-YAML files', async () => {
-      // TODO: part-unit-fs-stats-ignore-files - Test that non-plan files are not counted.
-      // INSTRUCTIONS:
-      // 1. Create a `.nocaflow/development/plans/todo` directory.
-      // 2. Create `plan1.yml` and `notes.txt` in that directory.
-      // 3. Call `getPhaseStats()`.
-      // 4. Assert that the `todo` count for `development` is 1, not 2.
-    });
-  });
-
-  describe('getFailedReports', () => {
-    it('should only return reports within the lookback period', async () => {
-      // TODO: part-unit-fs-reports-time - Test that only recent reports are returned.
-      // INSTRUCTIONS:
-      // 1. Create the failed report directory structure.
-      // 2. Create two report files: one recent, one old.
-      // 3. Use `fs.utimes` to modify the `mtime` of the old file to be outside the lookback window.
-      //    Note: `birthtime` cannot be easily changed, so tests must rely on `mtime` or `ctime`.
-      // 4. Call `getFailedReports(24)` (for 24 hours).
-      // 5. Assert that the result array contains only the recent report.
-    });
-
-    it('should correctly parse report details from filename and content', async () => {
-      // TODO: part-unit-fs-reports-parse - Test parsing of report details.
-      // INSTRUCTIONS:
-      // 1. Create a report file named `plan1.partA.report.md`.
-      // 2. Write markdown content to it, including a "## Summary" section.
-      // 3. Call `getFailedReports(1)`.
-      // 4. Assert that the returned `FailedReport` object has `planId: 'plan1'`, `partId: 'partA'`, and the correct `reason` text.
-    });
-
-    it('should return an empty array if the report directory does not exist', async () => {
-      // TODO: part-unit-fs-reports-no-dir - Test behavior with no report directory.
-      // INSTRUCTIONS:
-      // 1. Do not create any failed report directories.
-      // 2. Call `getFailedReports(24)`.
-      // 3. Assert that the result is an empty array.
-    });
-
-    it('should gracefully handle malformed report filenames', async () => {
-      // TODO: part-unit-fs-reports-bad-name - Test parsing of malformed report names.
-      // INSTRUCTIONS:
-      // 1. Create a report file named `malformed.report.md` (missing partId).
-      // 2. Call `getFailedReports(1)`.
-      // 3. Assert that the returned object has sensible defaults (e.g., `planId: 'malformed'`, `partId: undefined`).
-    });
-  });
-
-  describe('readPlan', () => {
-    it('should parse a valid plan file', async () => {
-      // TODO: part-unit-fs-plan-read-success - Test reading a valid YAML plan.
-      // INSTRUCTIONS:
-      // 1. Define a valid plan object and serialize it to a YAML string.
-      // 2. Write this string to a file, e.g., `plan.yml`.
-      // 3. Call `readPlan('plan.yml')`.
-      // 4. Assert that the returned object deeply equals the original plan object.
-    });
-
-    it('should throw an error for a non-existent file', async () => {
-      // TODO: part-unit-fs-plan-read-no-file - Test behavior when file is missing.
-      // INSTRUCTIONS:
-      // 1. Call `readPlan('non-existent-plan.yml')`.
-      // 2. Assert that the call rejects with an error (e.g., using `expect(...).rejects.toThrow()`).
-    });
-
-    it('should throw an error for invalid YAML', async () => {
-      // TODO: part-unit-fs-plan-read-bad-yaml - Test behavior with a malformed YAML file.
-      // INSTRUCTIONS:
-      // 1. Write a string with invalid YAML syntax to a file.
-      // 2. Call `readPlan()` with the path to that file.
-      // 3. Assert that the call rejects with a YAML-specific parsing error.
-    });
-  });
-});
-````
-
-## File: test/unit/utils/git.test.ts
-````typescript
-import { getGitLog } from '../../../src/utils/git';
-import { setupTestDirectory, initGitRepo } from '../../test.util';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import fs from 'fs/promises';
-import path from 'path';
-
-const promisedExec = promisify(exec);
-
-describe('integration/utils/git', () => {
-  let cleanup: () => Promise<void>;
-
-  beforeEach(async () => {
-    // TODO: part-int-git-setup - Set up a clean directory and initialize a git repo.
-    // INSTRUCTIONS:
-    // 1. Use `setupTestDirectory()` to create a temporary, isolated directory.
-    // 2. Use `initGitRepo()` to initialize a git repository inside it.
-    const { cleanup: c } = await setupTestDirectory();
-    cleanup = c;
-    await initGitRepo();
-  });
-
-  afterEach(async () => {
-    // TODO: part-int-git-cleanup - Clean up the temporary directory.
-    // INSTRUCTIONS:
-    // 1. Call the `cleanup()` function.
-    await cleanup();
-  });
-
-  it('should parse commits with worktree information', async () => {
-    // TODO: part-int-git-worktree - Test parsing of commits from a git worktree.
-    // INSTRUCTIONS:
-    // 1. Create a new worktree using `git worktree add ../my-feature-wt`.
-    // 2. In the new worktree directory, create a file and commit it with a specific message.
-    // 3. Call `getGitLog(5)`.
-    // 4. Find the commit from the worktree in the results.
-    // 5. Assert that its `worktree` property is `my-feature-wt` (or similar).
-  });
-
-  it('should handle commits not associated with a worktree', async () => {
-    // TODO: part-int-git-mainline - Test parsing of commits not in a worktree.
-    // INSTRUCTIONS:
-    // 1. In the main worktree, create a file and commit it.
-    // 2. Call `getGitLog(5)`.
-    // 3. Find the new commit in the results.
-    // 4. Assert that its `worktree` property is `null`.
-  });
-
-  it('should respect the commit limit', async () => {
-    // TODO: part-int-git-limit - Test that the `limit` parameter is respected.
-    // INSTRUCTIONS:
-    // 1. Create more commits than the limit (e.g., 5 commits).
-    // 2. Call `getGitLog(3)`.
-    // 3. Assert that the length of the returned array is exactly 3.
-  });
-
-  it('should handle commit messages with special characters', async () => {
-    // TODO: part-int-git-special-chars - Test parsing of complex commit messages.
-    // INSTRUCTIONS:
-    // 1. Create a commit with a message containing characters like `|`, `'`, `"`, and newlines.
-    // 2. Call `getGitLog(1)`.
-    // 3. Assert that the `message` property of the returned commit object is the full, unmodified commit message.
-  });
-
-  it('should return an empty array if not in a git repository', async () => {
-    // TODO: part-int-git-no-repo - Test behavior when run outside a git repository.
-    // INSTRUCTIONS:
-    // 1. This test needs a separate setup. Use `setupTestDirectory` but DO NOT call `initGitRepo`.
-    // 2. Call `getGitLog(5)`.
-    // 3. Assert that the result is an empty array.
-    // 4. Remember to call the cleanup function.
-  });
-});
-````
-
-## File: test/unit/utils/logs.test.ts
-````typescript
-import { getRecentLogs } from '../../../src/utils/logs';
-import { setupTestDirectory } from '../../test.util';
-import fs from 'fs/promises';
-import path from 'path';
-
-describe('unit/utils/logs', () => {
-  let cleanup: () => Promise<void>;
-
-  beforeEach(async () => {
-    // TODO: part-unit-logs-setup - Set up a clean directory for each test.
-    // INSTRUCTIONS:
-    // 1. Use `setupTestDirectory()` to create a temporary, isolated directory.
-    const { cleanup: c } = await setupTestDirectory();
-    cleanup = c;
-  });
-
-  afterEach(async () => {
-    // TODO: part-unit-logs-cleanup - Clean up the temporary directory.
-    // INSTRUCTIONS:
-    // 1. Call the `cleanup()` function.
-    await cleanup();
-  });
-
-  it('should aggregate logs from all phase directories', async () => {
-    // TODO: part-unit-logs-aggregate - Test reading from both initialization and development log dirs.
-    // INSTRUCTIONS:
-    // 1. Create log directories for both phases, e.g., `.nocaflow/initialization/agent-log`.
-    // 2. Create a log file in each directory with valid log entries.
-    // 3. Call `getRecentLogs(10)`.
-    // 4. Assert that the result contains log entries from both files.
-  });
-
-  it('should return the correct number of recent, sorted log entries', async () => {
-    // TODO: part-unit-logs-limit-sort - Test the limit and sorting logic.
-    // INSTRUCTIONS:
-    // 1. Create a single log file.
-    // 2. Write several (e.g., 10) valid log entries with timestamps that are *out of order*.
-    // 3. Call `getRecentLogs(5)`.
-    // 4. Assert that the result array has a length of 5.
-    // 5. Assert that the entries in the array are sorted by timestamp in descending order.
-  });
-
-  it('should correctly parse valid log lines and skip invalid ones', async () => {
-    // TODO: part-unit-logs-parse - Test the parsing logic for valid and invalid lines.
-    // INSTRUCTIONS:
-    // 1. Create a log file containing a mix of correctly formatted and malformed log lines.
-    // 2. Call `getRecentLogs(10)`.
-    // 3. Assert that the result only contains entries corresponding to the valid lines.
-  });
-
-  it('should handle empty log files gracefully', async () => {
-    // TODO: part-unit-logs-empty-file - Test behavior with empty log files.
-    // INSTRUCTIONS:
-    // 1. Create a log directory and an empty `agent.log` file inside it.
-    // 2. Call `getRecentLogs(5)`.
-    // 3. Assert that the result is an empty array and no error was thrown.
-  });
-
-  it('should return an empty array if log directories are missing', async () => {
-    // TODO: part-unit-logs-no-dir - Test behavior when log directories do not exist.
-    // INSTRUCTIONS:
-    // 1. Do not create any `.nocaflow` directories.
-    // 2. Call `getRecentLogs(5)`.
-    // 3. Assert that the result is an empty array.
-  });
-});
 ````
 
 ## File: test/unit/utils/shell.test.ts
@@ -1903,48 +1619,66 @@ describe('unit/utils/shell', () => {
 
   describe('getActiveAgents', () => {
     it('should parse all types of agent sessions and ignore non-agent sessions', async () => {
-      // TODO: part-unit-shell-parse-all - Test parsing of various valid tmux session names.
-      // INSTRUCTIONS:
-      // 1. Define a mock `stdout` string from `tmux ls` containing lines for init, dev, scaffold, and qa agents, plus a non-agent session.
-      // 2. Mock `mockedExec` to return this `stdout` string.
-      // 3. Call `getActiveAgents()`.
-      // 4. Assert that the result array contains the correct number of agents (ignoring the non-agent session).
-      // 5. Assert that each agent object has correctly parsed details (phase, planId, etc.).
+      const now = dayjs().unix();
+      const stdout = [
+        `init-part123 111 ${now}`,
+        `dev-part456 222 ${now}`,
+        `init-scaffold-plan789 333 ${now}`,
+        `qa-planABC 444 ${now}`,
+        `my-random-session 555 ${now}`,
+      ].join('\n');
+      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout, stderr: '' }));
+
+      const agents = await getActiveAgents();
+      expect(agents).toHaveLength(4);
+
+      expect(agents).toContainEqual(expect.objectContaining({ phase: 'INIT', partId: 'part123', pid: '111' }));
+      expect(agents).toContainEqual(expect.objectContaining({ phase: 'DEV', partId: 'part456', pid: '222' }));
+      expect(agents).toContainEqual(expect.objectContaining({ phase: 'SCAF', planId: 'plan789', pid: '333' }));
+      expect(agents).toContainEqual(expect.objectContaining({ phase: 'QA', planId: 'planABC', pid: '444' }));
     });
 
     it('should ignore session names that are similar to but not valid agent sessions', async () => {
-      // TODO: part-unit-shell-parse-similar - Test that tricky but invalid names are ignored.
-      // INSTRUCTIONS:
-      // 1. Define mock `stdout` with sessions like `init-`, `dev-scaffold-123`, `qa`, `my-init-session`.
-      // 2. Mock `mockedExec` to return this stdout.
-      // 3. Call `getActiveAgents()`.
-      // 4. Assert that the result is an empty array.
+      const now = dayjs().unix();
+      const stdout = [
+        `init- 111 ${now}`,
+        `dev-scaffold-123 222 ${now}`,
+        `qa 333 ${now}`,
+        `my-init-session 444 ${now}`,
+      ].join('\n');
+      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout, stderr: '' }));
+
+      const agents = await getActiveAgents();
+      expect(agents).toEqual([]);
     });
 
     it('should return an empty array when there are no tmux sessions', async () => {
-      // TODO: part-unit-shell-parse-empty - Test with empty output from tmux.
-      // INSTRUCTIONS:
-      // 1. Mock `mockedExec` to return an empty string for `stdout`.
-      // 2. Call `getActiveAgents()`.
-      // 3. Assert that the result is an empty array.
+      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout: '', stderr: '' }));
+      const agents = await getActiveAgents();
+      expect(agents).toEqual([]);
     });
 
     it('should return an empty array if the tmux command fails', async () => {
-      // TODO: part-unit-shell-parse-fail - Test when the `exec` call fails.
-      // INSTRUCTIONS:
-      // 1. Mock `mockedExec` to simulate an error (e.g., have the callback pass an Error object).
-      // 2. Call `getActiveAgents()`.
-      // 3. Assert that the function catches the error and returns an empty array.
+      mockedExec.mockImplementation((_cmd, callback) => callback(new Error('tmux failed'), { stdout: '', stderr: '' }));
+      const agents = await getActiveAgents();
+      expect(agents).toEqual([]);
     });
 
     it('should correctly calculate agent runtime', async () => {
-      // TODO: part-unit-shell-parse-runtime - Test the relative time calculation.
-      // INSTRUCTIONS:
-      // 1. Use `jest.spyOn(Date, 'now')` or `jest.useFakeTimers` to control the current time.
-      // 2. Create a mock `stdout` with a session activity timestamp that is a known duration in the past (e.g., 5 minutes).
-      // 3. Mock `mockedExec` to return this stdout.
-      // 4. Call `getActiveAgents()`.
-      // 5. Assert that the `runtime` string for the agent is the expected relative time (e.g., "5 minutes").
+      jest.useFakeTimers().setSystemTime(new Date('2023-01-01T12:00:00Z'));
+
+      const fiveMinutesAgo = dayjs('2023-01-01T11:55:00Z').unix();
+      const stdout = `dev-part123 111 ${fiveMinutesAgo}`;
+      mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout, stderr: '' }));
+
+      const agents = await getActiveAgents();
+
+      expect(agents).toHaveLength(1);
+      // dayjs relative time can be "a few seconds", "a minute", etc. so we check for a known value.
+      // "5 minutes" is the expected output.
+      expect(agents[0].runtime).toBe('5 minutes');
+
+      jest.useRealTimers();
     });
   });
 });
@@ -2008,6 +1742,495 @@ src/
 - If any step fails, do not set status to `review`.
 - Halt, write a concise failure report to the log file.
 - Exit non-zero. The manager handles cleanup.
+````
+
+## File: test/e2e/cli.test.ts
+````typescript
+import { runCli, setupTestDirectory } from '../test.util';
+import fs from 'fs/promises';
+import { exec as execCallback } from 'child_process';
+import path from 'path';
+
+describe('e2e/cli', () => {
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    // TODO: part-e2e-setup - Use the test utility to create a clean, isolated directory for each test.
+    // INSTRUCTIONS:
+    // 1. Call `setupTestDirectory()` to get the cleanup function.
+    // 2. Store it in the `cleanup` variable.
+    const { cleanup: c } = await setupTestDirectory();
+    cleanup = c;
+  });
+
+  afterEach(async () => {
+    // TODO: part-e2e-cleanup - Use the cleanup function from the test utility.
+    // INSTRUCTIONS:
+    // 1. Call the `cleanup()` function to restore the CWD and remove the temporary directory.
+    await cleanup();
+  });
+
+  // TODO: part-e2e-build-step - Add a `beforeAll` hook to build the project before tests run.
+  // INSTRUCTIONS:
+  // 1. Add a `beforeAll` block.
+  // 2. Inside, execute `npm run build` using `child_process.exec` to ensure `dist/cli.js` is up-to-date.
+  // 3. Use a long timeout for this hook (e.g., `jest.setTimeout(30000)`) as `tsc` can be slow.
+  // 4. Wrap the execution in a promise to handle async behavior correctly.
+  
+  describe('init command', () => {
+    it('should initialize a new project structure', async () => {
+      // TODO: part-e2e-init-success - Test the `init` command in a clean directory.
+      // INSTRUCTIONS:
+      // 1. Run the CLI with the `init` command using `runCli('init')`.
+      // 2. Assert that the command's stdout contains a success message.
+      // 3. Assert that the command's exit code is 0.
+      // 4. Use `fs.access` to verify that key directories and `.gitkeep` files have been created.
+      //    - e.g., check for `.nocaflow/initialization/plans/todo/.gitkeep`
+    });
+
+    it('should show a warning if the project is already initialized', async () => {
+      // TODO: part-e2e-init-exists - Test the `init` command in an already initialized directory.
+      // INSTRUCTIONS:
+      // 1. Manually create a `.nocaflow` directory.
+      // 2. Run `runCli('init')`.
+      // 3. Assert that the command's `stdout` contains a warning message (e.g., "already exists").
+      // 4. Assert that the command exits gracefully with code 0, as it's a warning, not an error.
+    });
+  });
+
+  describe('state command', () => {
+    it('should display the project state in an initialized directory', async () => {
+      // TODO: part-e2e-state-success - Test the `state` command in a valid project.
+      // INSTRUCTIONS:
+      // 1. First, run `runCli('init')`.
+      // 2. Create some dummy plan files (e.g., in `.nocaflow/initialization/plans/todo/`).
+      // 3. Run `runCli('state')`.
+      // 4. Assert that the stdout contains key headers like "== nocaflow State", "Phase Progress", and "Current Phase: initialization".
+      // 5. Assert that the command exits with code 0.
+    });
+
+    it('should display a complex state with active agents and failed reports', async () => {
+      // TODO: part-e2e-state-complex - Test the `state` command with a rich project state.
+      // INSTRUCTIONS:
+      // 1. Run `init` and set up a git repo using test utils.
+      // 2. Create multiple dummy plan files in various states (`todo`, `doing`, `done`) using `createDummyPlanFile`.
+      // 3. Create a dummy failed report file using `createDummyFailedReport`.
+      // 4. To test active agents, `getActiveAgents` is mocked for unit tests. For E2E, we can accept that this section may be empty unless `tmux` is actually running, but we should verify the header is present.
+      // 5. Run `runCli('state')`.
+      // 6. Assert that the output contains sections for "Active Agents", "Stalled / Failed", and "Recent Git Commits" and that the dummy data appears correctly.
+    });
+
+    it('should show an error when run in a non-initialized directory', async () => {
+      // TODO: part-e2e-state-fail - Test the `state` command in a non-initialized directory.
+      // INSTRUCTIONS:
+      // 1. Run `runCli('state')` without running `init` first.
+      // 2. Assert that the command's `stderr` contains an error message about `.nocaflow` not being found or an inability to read stats.
+      // 3. Assert that the command exits with a non-zero code.
+    });
+  });
+
+  describe('no command', () => {
+    it('should display help when no command is provided', async () => {
+      // TODO: part-e2e-no-command - Test running the CLI with no arguments.
+      // INSTRUCTIONS:
+      // 1. Run `runCli('')`.
+      // 2. Assert that `stdout` contains the help message (e.g., "Commands:", "init", "state").
+    });
+
+    it('should display help when --help flag is used', async () => {
+      // TODO: part-e2e-help-flag - Test running the CLI with --help.
+      // INSTRUCTIONS:
+      // 1. Run `runCli('--help')`.
+      // 2. Assert that `stdout` contains the general help message.
+      // 3. Run `runCli('state --help')`.
+      // 4. Assert that `stdout` contains help information specific to the `state` command (e.g., its description).
+    });
+
+    it('should show an error for an unknown command', async () => {
+      // TODO: part-e2e-unknown-command - Test running the CLI with an invalid command.
+      // INSTRUCTIONS:
+      // 1. Run `runCli('nonexistent-command')`.
+      // 2. Assert that `stderr` shows an "Unknown argument" or similar error from yargs.
+    });
+  });
+});
+````
+
+## File: test/integration/commands/init.test.ts
+````typescript
+import { handleInitCommand } from '../../../src/commands/init';
+import { setupTestDirectory } from '../../test.util';
+import fs from 'fs/promises';
+
+describe('integration/commands/init', () => {
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    const { cleanup: c } = await setupTestDirectory();
+    cleanup = c;
+  });
+
+  afterEach(async () => {
+    await cleanup();
+  });
+
+  it('should create the full .nocaflow directory structure on a fresh run', async () => {
+    await handleInitCommand({});
+
+    const dirsToCheck = [
+      '.nocaflow/initialization/plans/todo',
+      '.nocaflow/development/plans/failed/report',
+      '.nocaflow/initialization/agent-log',
+    ];
+
+    const filesToCheck = [
+      '.nocaflow/initialization/plans/todo/.gitkeep',
+      '.nocaflow/development/agent-log/.gitkeep',
+      '.nocaflow/development/plans/failed/report/.gitkeep',
+    ];
+
+    for (const dir of dirsToCheck) {
+      await expect(fs.access(dir)).resolves.toBeUndefined();
+    }
+
+    for (const file of filesToCheck) {
+      await expect(fs.access(file)).resolves.toBeUndefined();
+    }
+  });
+
+  it('should create the correct number of directories and .gitkeep files', async () => {
+    await handleInitCommand({});
+
+    const getAllFiles = async (dir: string): Promise<string[]> => {
+        const dirents = await fs.readdir(dir, { withFileTypes: true });
+        const files = await Promise.all(dirents.map((dirent) => {
+            const res = `${dir}/${dirent.name}`;
+            return dirent.isDirectory() ? getAllFiles(res) : res;
+        }));
+        return Array.prototype.concat(...files);
+    };
+
+    const allFiles = await getAllFiles('.nocaflow');
+    const gitkeepCount = allFiles.filter(file => file.endsWith('.gitkeep')).length;
+
+    // Expected: 2 phases * (1 agent-log dir + 5 plan sub-dirs) = 12 .gitkeeps
+    expect(gitkeepCount).toBe(12);
+
+    // Let's count the directories that contain a .gitkeep file.
+    const allDirsWithGitkeep = new Set(allFiles.map(file => file.substring(0, file.lastIndexOf('/'))));
+    expect(allDirsWithGitkeep.size).toBe(12);
+  });
+
+  // Note: The case for an existing .nocaflow directory is tested in e2e/cli.test.ts,
+  // as it involves checking process exit codes, which is not suitable for an integration test
+  // without mocking `process.exit`.
+});
+````
+
+## File: test/unit/utils/fs.test.ts
+````typescript
+import { getPhaseStats, getFailedReports, readPlan } from '../../../src/utils/fs';
+import { setupTestDirectory } from '../../test.util';
+import fs from 'fs/promises';
+import path from 'path';
+
+describe('unit/utils/fs', () => {
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    // TODO: part-unit-fs-setup - Use the test utility to create a clean, isolated directory.
+    // INSTRUCTIONS:
+    // 1. Call `setupTestDirectory()` to get the cleanup function.
+    const { cleanup: c } = await setupTestDirectory();
+    cleanup = c;
+  });
+
+  afterEach(async () => {
+    // TODO: part-unit-fs-cleanup - Use the cleanup function from the test utility.
+    // INSTRUCTIONS:
+    // 1. Call the `cleanup()` function to restore the CWD and remove the temporary directory.
+    await cleanup();
+  });
+
+  describe('getPhaseStats', () => {
+      it('should correctly count plans across different statuses and phases', async () => {
+        await fs.mkdir('.nocaflow/initialization/plans/todo', { recursive: true });
+        await fs.mkdir('.nocaflow/initialization/plans/doing', { recursive: true });
+        await fs.mkdir('.nocaflow/development/plans/done', { recursive: true });
+
+        await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml', '');
+        await fs.writeFile('.nocaflow/initialization/plans/todo/b.yml', '');
+        await fs.writeFile('.nocaflow/initialization/plans/doing/c.yml', '');
+        await fs.writeFile('.nocaflow/development/plans/done/d.yml', '');
+
+        const stats = await getPhaseStats();
+
+        expect(stats.initialization.todo).toBe(2);
+        expect(stats.initialization.doing).toBe(1);
+        expect(stats.initialization.done).toBe(0);
+        expect(stats.initialization.total).toBe(3);
+
+        expect(stats.development.done).toBe(1);
+        expect(stats.development.total).toBe(1);
+      });
+
+      it('should return all zeros for an empty directory structure', async () => {
+        await fs.mkdir('.nocaflow/initialization/plans', { recursive: true });
+        await fs.mkdir('.nocaflow/development/plans', { recursive: true });
+
+        const stats = await getPhaseStats();
+
+        expect(stats.initialization.total).toBe(0);
+        expect(stats.development.total).toBe(0);
+      });
+
+      it('should handle missing status subdirectories gracefully', async () => {
+        await fs.mkdir('.nocaflow/initialization/plans/todo', { recursive: true });
+        await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml', '');
+
+        const stats = await getPhaseStats();
+
+        expect(stats.initialization.todo).toBe(1);
+        expect(stats.initialization.doing).toBe(0);
+        expect(stats.initialization.done).toBe(0);
+        expect(stats.initialization.total).toBe(1);
+      });
+
+      it('should handle a missing phase directory gracefully', async () => {
+        await fs.mkdir('.nocaflow/initialization/plans/todo', { recursive: true });
+        await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml', '');
+
+        const stats = await getPhaseStats();
+
+        expect(stats.initialization.total).toBe(1);
+        expect(stats.development.total).toBe(0);
+      });
+
+      it('should ignore non-YAML files', async () => {
+        await fs.mkdir('.nocaflow/development/plans/todo', { recursive: true });
+        await fs.writeFile('.nocaflow/development/plans/todo/plan1.yml', '');
+        await fs.writeFile('.nocaflow/development/plans/todo/notes.txt', '');
+
+        const stats = await getPhaseStats();
+
+        expect(stats.development.todo).toBe(1);
+        expect(stats.development.total).toBe(1);
+      });
+    });
+
+    describe('getFailedReports', () => {
+      it('should only return reports within the lookback period', async () => {
+        const reportDir = '.nocaflow/initialization/plans/failed/report';
+        await fs.mkdir(reportDir, { recursive: true });
+
+        const recentReportPath = path.join(reportDir, 'plan1.partA.report.md');
+        const oldReportPath = path.join(reportDir, 'plan2.partB.report.md');
+        await fs.writeFile(recentReportPath, '## Summary\n\nRecent failure.');
+        await fs.writeFile(oldReportPath, '## Summary\n\nOld failure.');
+
+        const twoDaysAgo = new Date();
+        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+        await fs.utimes(oldReportPath, twoDaysAgo, twoDaysAgo);
+
+        const reports = await getFailedReports(24);
+
+        expect(reports).toHaveLength(1);
+        expect(reports[0].planId).toBe('plan1');
+      });
+
+      it('should correctly parse report details from filename and content', async () => {
+        const reportDir = '.nocaflow/development/plans/failed/report';
+        await fs.mkdir(reportDir, { recursive: true });
+        const reportPath = path.join(reportDir, 'plan1.partA.report.md');
+        await fs.writeFile(reportPath, '## Summary\n\nThis is the reason.');
+
+        const reports = await getFailedReports(1);
+
+        expect(reports).toHaveLength(1);
+        expect(reports[0].planId).toBe('plan1');
+        expect(reports[0].partId).toBe('partA');
+        expect(reports[0].reason).toBe('This is the reason.');
+        expect(reports[0].reportPath).toBe(reportPath);
+      });
+
+      it('should return an empty array if the report directory does not exist', async () => {
+        const reports = await getFailedReports(24);
+        expect(reports).toEqual([]);
+      });
+
+      it('should gracefully handle malformed report filenames', async () => {
+        const reportDir = '.nocaflow/development/plans/failed/report';
+        await fs.mkdir(reportDir, { recursive: true });
+        const reportPath = path.join(reportDir, 'malformed.report.md');
+        await fs.writeFile(reportPath, '## Summary\n\nReason.');
+
+        const reports = await getFailedReports(1);
+
+        expect(reports).toHaveLength(1);
+        expect(reports[0].planId).toBe('malformed');
+        expect(reports[0].partId).toBeUndefined();
+      });
+
+      it('should ignore non-markdown report files', async () => {
+        const reportDir = '.nocaflow/initialization/plans/failed/report';
+        await fs.mkdir(reportDir, { recursive: true });
+        await fs.writeFile(path.join(reportDir, 'plan1.partA.report.md'), '## Summary\n\nReport');
+        await fs.writeFile(path.join(reportDir, 'notes.txt'), 'some notes');
+
+        const reports = await getFailedReports(1);
+        expect(reports).toHaveLength(1);
+        expect(reports[0].planId).toBe('plan1');
+      });
+    });
+
+    describe('readPlan', () => {
+      it('should parse a valid plan file', async () => {
+        const planContent = `
+  plan:
+    id: 'test-plan'
+    status: 'todo'
+    title: 'Test Plan'
+    introduction: 'Intro'
+    parts: []
+    conclusion: 'Conclusion'
+    context_files: { compact: [], medium: [], extended: [] }
+  `;
+        await fs.writeFile('plan.yml', planContent);
+        const plan = await readPlan('plan.yml');
+        expect(plan.plan.id).toBe('test-plan');
+        expect(plan.plan.title).toBe('Test Plan');
+      });
+
+      it('should throw an error for a non-existent file', async () => {
+        await expect(readPlan('non-existent-plan.yml')).rejects.toThrow();
+      });
+
+      it('should throw an error for invalid YAML', async () => {
+        await fs.writeFile('bad-plan.yml', 'key: value\n  bad-indent');
+        await expect(readPlan('bad-plan.yml')).rejects.toThrow();
+      });
+  });
+});
+````
+
+## File: test/unit/utils/logs.test.ts
+````typescript
+import { getRecentLogs } from '../../../src/utils/logs';
+import { setupTestDirectory } from '../../test.util';
+import fs from 'fs/promises';
+import path from 'path';
+
+describe('unit/utils/logs', () => {
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    // TODO: part-unit-logs-setup - Set up a clean directory for each test.
+    // INSTRUCTIONS:
+    // 1. Use `setupTestDirectory()` to create a temporary, isolated directory.
+    const { cleanup: c } = await setupTestDirectory();
+    cleanup = c;
+  });
+
+  afterEach(async () => {
+    // TODO: part-unit-logs-cleanup - Clean up the temporary directory.
+    // INSTRUCTIONS:
+    // 1. Call the `cleanup()` function.
+    await cleanup();
+  });
+
+  it('should aggregate logs from all phase directories', async () => {
+    const initLogDir = '.nocaflow/initialization/agent-log';
+    const devLogDir = '.nocaflow/development/agent-log';
+    await fs.mkdir(initLogDir, { recursive: true });
+    await fs.mkdir(devLogDir, { recursive: true });
+
+    const log1 = `2023-01-01T10:00:00.000Z [DONE|INIT|agent1] plan:planA - Init log`;
+    const log2 = `2023-01-01T11:00:00.000Z [INFO|DEV|agent2] plan:planB - Dev log`;
+    await fs.writeFile(path.join(initLogDir, 'init.log'), log1);
+    await fs.writeFile(path.join(devLogDir, 'dev.log'), log2);
+
+    const logs = await getRecentLogs(10);
+    expect(logs).toHaveLength(2);
+    expect(logs.some(l => l.message === 'Init log')).toBe(true);
+    expect(logs.some(l => l.message === 'Dev log')).toBe(true);
+  });
+
+  it('should return the correct number of recent, sorted log entries', async () => {
+    const logDir = '.nocaflow/initialization/agent-log';
+    await fs.mkdir(logDir, { recursive: true });
+    const logContent = [
+      `2023-01-01T10:00:00.000Z [DONE|INIT|a] plan:p1 - msg1`,
+      `2023-01-01T12:00:00.000Z [DONE|INIT|b] plan:p2 - msg3`,
+      `2023-01-01T11:00:00.000Z [DONE|INIT|c] plan:p3 - msg2`,
+      `2023-01-01T14:00:00.000Z [DONE|INIT|d] plan:p4 - msg5`,
+      `2023-01-01T13:00:00.000Z [DONE|INIT|e] plan:p5 - msg4`,
+    ].join('\n');
+    await fs.writeFile(path.join(logDir, 'test.log'), logContent);
+
+    const logs = await getRecentLogs(3);
+    expect(logs).toHaveLength(3);
+    expect(logs[0].message).toBe('msg5');
+    expect(logs[1].message).toBe('msg4');
+    expect(logs[2].message).toBe('msg3');
+  });
+
+  it('should correctly parse valid log lines and skip invalid ones', async () => {
+    const logDir = '.nocaflow/initialization/agent-log';
+    await fs.mkdir(logDir, { recursive: true });
+    const logContent = [
+      `2023-01-01T10:00:00.000Z [DONE|INIT|agent1] plan:planA - Valid message`,
+      `This is a malformed line`,
+      `2023-01-01T11:00:00.000Z [FAIL|QA|qa-agent] plan:planB - Another valid one`,
+      `[FAIL|QA|qa-agent] plan:planB - Missing timestamp`,
+    ].join('\n');
+    await fs.writeFile(path.join(logDir, 'mixed.log'), logContent);
+
+    const logs = await getRecentLogs(10);
+    expect(logs).toHaveLength(2);
+    expect(logs[0].message).toBe('Another valid one');
+    expect(logs[1].message).toBe('Valid message');
+  });
+
+  it('should correctly parse log lines with varied content', async () => {
+    const logDir = '.nocaflow/development/agent-log';
+    await fs.mkdir(logDir, { recursive: true });
+    const logContent = `2023-01-01T10:00:00.000Z [INFO|DEV|agent-with-dashes_123] plan:plan.id.with.dots - Message with | and other chars`;
+    await fs.writeFile(path.join(logDir, 'varied.log'), logContent);
+
+    const logs = await getRecentLogs(1);
+    expect(logs).toHaveLength(1);
+    expect(logs[0].agentId).toBe('agent-with-dashes_123');
+    expect(logs[0].planId).toBe('plan.id.with.dots');
+    expect(logs[0].message).toBe('Message with | and other chars');
+  });
+
+  it('should handle empty log files gracefully', async () => {
+    const logDir = '.nocaflow/initialization/agent-log';
+    await fs.mkdir(logDir, { recursive: true });
+    await fs.writeFile(path.join(logDir, 'empty.log'), '');
+
+    const logs = await getRecentLogs(5);
+    expect(logs).toEqual([]);
+  });
+
+  it('should return an empty array if log directories are missing', async () => {
+    const logs = await getRecentLogs(5);
+    expect(logs).toEqual([]);
+  });
+
+  it('should ignore files that do not end with .log', async () => {
+    const logDir = '.nocaflow/initialization/agent-log';
+    await fs.mkdir(logDir, { recursive: true });
+    const logContent = `2023-01-01T10:00:00.000Z [DONE|INIT|agent1] plan:planA - Real log`;
+    const bakContent = `2023-01-01T11:00:00.000Z [DONE|INIT|agent2] plan:planB - Backup log`;
+    await fs.writeFile(path.join(logDir, 'agent.log'), logContent);
+    await fs.writeFile(path.join(logDir, 'agent.log.bak'), bakContent);
+
+    const logs = await getRecentLogs(5);
+    expect(logs).toHaveLength(1);
+    expect(logs[0].message).toBe('Real log');
+  });
+});
 ````
 
 ## File: manager.agent.md

@@ -1,0 +1,470 @@
+uuid: f435338a-4467-458b-960f-22a7f053e164
+projectId: noca-flow
+createdAt: '2025-11-12T02:55:54.762Z'
+gitCommitMsg: >-
+  feat(cli): implement init and state command logic
+
+  Implements the core functionality for the `nocaflow init` and `nocaflow state`
+  commands.
+
+  - The `init` command now scaffolds the complete `.nocaflow` directory
+  structure, including subdirectories for phases and plans, and adds `.gitkeep`
+  files to ensure they are tracked by git. It includes a check to prevent
+  overwriting an existing installation.
+
+  - The `state` command now fetches all relevant data from the filesystem, git,
+  and shell utilities. It then formats this data into a comprehensive,
+  color-coded status report, including phase progress, plan statistics, active
+  agents, recent logs, failed reports, and recent git commits.
+promptSummary: >-
+  Implement part 4 of the master plan, which involves building out the CLI
+  command logic for `init` and `state`.
+reasoning:
+  - >-
+    Executing Part 4 of the plan. This involves implementing the core logic for
+    the `init` and `state` commands, which are the primary user-facing entry
+    points of the CLI.
+  - '### Implementing `init` command'
+  - >-
+    First, I'll implement the `handleInitCommand` in `src/commands/init.ts`.
+    This function is responsible for creating the entire `.nocaflow` directory
+    structure. It will check if the directory already exists to prevent
+    overwriting, then create all the necessary subdirectories for each phase
+    (`initialization`, `development`) and place `.gitkeep` files in them to
+    ensure they can be tracked by git.
+  - '### Implementing `state` command'
+  - >-
+    Next, I'll implement the `handleStateCommand` in `src/commands/state.ts`.
+    This involves multiple steps: implementing the progress bar rendering,
+    fetching data from all the utility functions we built in earlier parts, and
+    then formatting and printing that data to the console in a clear,
+    color-coded report.
+operations:
+  - type: write
+    path: src/commands/init.ts
+    content: >+
+      --- src/commands/init.ts
+
+      +++ src/commands/init.ts
+
+      @@ -1,49 +1,48 @@
+       import fs from 'fs/promises';
+       import path from 'path';
+       import chalk from 'chalk';
+      +import { EOL } from 'os';
+       
+       /**
+        * @description Handles the logic for the 'init' command.
+        */
+       export const handleInitCommand = async (argv: {}): Promise<void> => {
+      -  // TODO: part-init-scaffold - Create the initial .nocaflow directory
+      structure.
+
+      -  // INSTRUCTIONS:
+
+      -  // 1. Check if a `.nocaflow` directory already exists in the current
+      working directory. If it does, log a warning message and exit the process
+      to avoid overwriting existing state.
+
+      -  // 2. Define an array of directory paths that need to be created. This
+      should include all subdirectories for both 'initialization' and
+      'development' phases as seen in the project structure.
+
+      -  //    - e.g., '.nocaflow/initialization/agent-log',
+      '.nocaflow/initialization/plans/todo', etc.
+
+      -  // 3. Iterate through the array and use `fs.mkdir` with the `{
+      recursive: true }` option to create each directory.
+
+      -  // 4. Define an array of paths for `.gitkeep` files that should be
+      placed in empty directories to ensure they are tracked by Git.
+
+      -  //    - e.g., '.nocaflow/initialization/agent-log/.gitkeep',
+      '.nocaflow/development/plans/todo/.gitkeep', etc.
+
+      -  // 5. Iterate through the `.gitkeep` file paths and create each empty
+      file using `fs.writeFile(filePath, '')`.
+
+      -  // 6. After successfully creating the structure, log a confirmation
+      message to the console.
+
+      +  const rootDir = '.nocaflow';
+
+      +  try {
+
+      +    await fs.access(rootDir);
+
+      +    console.warn(chalk.yellow(`Warning: '${rootDir}' directory already
+      exists. Initialization skipped.`));
+
+      +    process.exit(0);
+
+      +  } catch (error) {
+
+      +    // Directory does not exist, proceed.
+
+      +  }
+       
+      -  const rootDir = '.nocaflow';
+         const phases = ['initialization', 'development'];
+      -  const planDirs = ['todo', 'doing', 'review', 'done', 'failed/report'];
+
+      +  const planSubDirs = ['todo', 'doing', 'review', 'done',
+      'failed/report'];
+
+      +  const agentLogDir = 'agent-log';
+       
+      -  // Blueprint for directory structure
+         const dirsToCreate: string[] = [];
+         const gitkeepFiles: string[] = [];
+       
+      -  // 1. Check for rootDir existence.
+
+      -  // fs.access(rootDir).then(() => { console.warn(...) and
+      process.exit(0) }).catch(() => { /* continue */ });
+
+      +  for (const phase of phases) {
+
+      +    const phaseBase = path.join(rootDir, phase);
+
+      +    const agentLogPath = path.join(phaseBase, agentLogDir);
+
+      +    dirsToCreate.push(agentLogPath);
+
+      +    gitkeepFiles.push(path.join(agentLogPath, '.gitkeep'));
+       
+      -  // 2 & 4. Loop phases and planDirs to populate dirsToCreate and
+      gitkeepFiles.
+
+      -  
+
+      -  // 3 & 5. Loop through dirsToCreate/gitkeepFiles and call
+      fs.mkdir/fs.writeFile.
+
+      +    const plansBase = path.join(phaseBase, 'plans');
+
+      +    for (const subDir of planSubDirs) {
+
+      +      const dirPath = path.join(plansBase, subDir);
+
+      +      dirsToCreate.push(dirPath);
+
+      +      gitkeepFiles.push(path.join(dirPath, '.gitkeep'));
+
+      +    }
+
+      +  }
+       
+      -  // 6. Log success message using chalk.green.
+
+      -
+
+      -  throw new Error('Not implemented');
+
+      +  try {
+
+      +    await Promise.all(dirsToCreate.map(dir => fs.mkdir(dir, { recursive:
+      true })));
+
+      +    await Promise.all(gitkeepFiles.map(file => fs.writeFile(file, '')));
+
+      +
+
+      +    console.log(chalk.green(' nocaflow project initialized successfully.
+      ✨'));
+
+      +    console.log(`Created ${chalk.bold(rootDir)} directory structure with
+      ${dirsToCreate.length} directories and ${gitkeepFiles.length} .gitkeep
+      files.`);
+
+      +  } catch (error) {
+
+      +    console.error(chalk.red('Failed to initialize nocaflow project:'),
+      EOL, error);
+
+      +    process.exit(1);
+
+      +  }
+       };
+
+    patchStrategy: standard-diff
+  - type: write
+    path: src/commands/state.ts
+    content: >-
+      import chalk from 'chalk';
+
+      import { getPhaseStats, PhaseStats, getFailedReports, FailedReport } from
+      '../utils/fs';
+
+      import { getActiveAgents, AgentInfo } from '../utils/shell';
+
+      import dayjs from 'dayjs';
+
+      import relativeTime from 'dayjs/plugin/relativeTime';
+
+      import { getRecentLogs, LogEntry } from '../utils/logs';
+
+      import { getGitLog, GitCommit } from '../utils/git';
+
+
+      dayjs.extend(relativeTime);
+
+
+      /**
+       * @description Renders a progress bar.
+       * @param current - The current progress value.
+       * @param total - The total value for 100%.
+       * @param length - The character length of the bar.
+       * @returns A string representing the progress bar.
+       */
+      export const renderProgressBar = (current: number, total: number, length:
+      number = 20): string => {
+        const percent = total > 0 ? current / total : 0;
+        const filledLength = Math.round(length * percent);
+        const emptyLength = length - filledLength;
+        const filledBar = '▇'.repeat(filledLength);
+        const emptyBar = '-'.repeat(emptyLength);
+        const bar = `[${filledBar}${emptyBar}]`;
+        const text = `(${current}/${total} plans done)`;
+
+        return `${bar} ${text}`;
+      };
+
+
+      /**
+       * @description Displays the full state report to the console.
+       */
+      export const handleStateCommand = async (argv: {}): Promise<void> => {
+        const phaseStats: PhaseStats = await getPhaseStats();
+        const activeAgents: AgentInfo[] = await getActiveAgents();
+        const recentLogs: LogEntry[] = await getRecentLogs(5);
+        const failedReports: FailedReport[] = await getFailedReports(24);
+        const gitCommits: GitCommit[] = await getGitLog(10);
+        const currentPhase = phaseStats.development?.total > 0 ? 'development' : 'initialization';
+
+        // Header
+        console.log(chalk.bold(`== nocaflow State [${dayjs().format('YYYY-MM-DD HH:mm:ss')}] ==`));
+        console.log(`Current Phase: ${chalk.cyan(currentPhase)}`);
+        
+        // Phase Progress
+        console.log(chalk.bold('\n== Phase Progress =='));
+        for (const phaseName in phaseStats) {
+          const stats = phaseStats[phaseName];
+          const progressBar = renderProgressBar(stats.done, stats.total);
+          console.log(`[${chalk.yellow(phaseName.toUpperCase())}]`.padEnd(18) + progressBar);
+        }
+
+        // Phase Stats
+        console.log(chalk.bold('\n== Phase Stats (Plans) =='));
+        for (const phaseName in phaseStats) {
+          const stats = phaseStats[phaseName];
+          if (stats.total === 0) continue;
+          const statsString = `todo: ${stats.todo}, doing: ${stats.doing}, review: ${stats.review}, failed: ${stats.failed}, done: ${stats.done}`;
+          console.log(`[${chalk.yellow(phaseName.toUpperCase())}]`.padEnd(18) + statsString);
+        }
+
+        // Active Agents
+        console.log(chalk.bold('\n== Active Agents (tmux) =='));
+        if (activeAgents.length === 0) {
+          console.log('No active agents.');
+        } else {
+          for (const agent of activeAgents) {
+            console.log(`[${chalk.blue(agent.phase)}|${chalk.magenta(agent.pid)}]`.padEnd(18) + `id:${agent.id} (running ${agent.runtime})`);
+          }
+        }
+
+        // Recent Agent Activity
+        console.log(chalk.bold('\n== Recent Agent Activity (last 5) =='));
+        if (recentLogs.length === 0) {
+          console.log('No recent activity.');
+        } else {
+          for (const log of recentLogs) {
+            const statusColor = log.status === 'DONE' ? chalk.green : log.status === 'FAIL' ? chalk.red : chalk.gray;
+            const time = dayjs(log.timestamp).fromNow();
+            console.log(`${statusColor(`[${log.status}|${log.phase}|${log.agentId}]`)} plan:${log.planId} - ${log.message} (${chalk.gray(time)})`);
+          }
+        }
+
+        // Stalled / Failed
+        console.log(chalk.bold('\n== Stalled / Failed (last 24h) =='));
+        if (failedReports.length === 0) {
+          console.log('No failed reports in the last 24 hours.');
+        } else {
+          for (const report of failedReports) {
+            console.log(`${chalk.red('[FAILED]')} plan:${report.planId} part:${report.partId} - "${report.reason}"`);
+            console.log(`         Report: ${report.reportPath}`);
+          }
+        }
+
+        // Recent Git Commits
+        console.log(chalk.bold('\n== Recent Git Commits (all worktrees) =='));
+        if (gitCommits.length === 0) {
+          console.log('No recent commits.');
+        } else {
+          for (const commit of gitCommits) {
+            const worktreeInfo = commit.worktree ? `(${chalk.cyan(commit.worktree)}) ` : '';
+            console.log(`${chalk.yellow(commit.hash.slice(0, 7))} ${worktreeInfo}${commit.message}`);
+          }
+        }
+      };
+    patchStrategy: replace
+snapshot:
+  src/commands/init.ts: |-
+    import fs from 'fs/promises';
+    import path from 'path';
+    import chalk from 'chalk';
+
+    /**
+     * @description Handles the logic for the 'init' command.
+     */
+    export const handleInitCommand = async (argv: {}): Promise<void> => {
+      // TODO: part-init-scaffold - Create the initial .nocaflow directory structure.
+      // INSTRUCTIONS:
+      // 1. Check if a `.nocaflow` directory already exists in the current working directory. If it does, log a warning message and exit the process to avoid overwriting existing state.
+      // 2. Define an array of directory paths that need to be created. This should include all subdirectories for both 'initialization' and 'development' phases as seen in the project structure.
+      //    - e.g., '.nocaflow/initialization/agent-log', '.nocaflow/initialization/plans/todo', etc.
+      // 3. Iterate through the array and use `fs.mkdir` with the `{ recursive: true }` option to create each directory.
+      // 4. Define an array of paths for `.gitkeep` files that should be placed in empty directories to ensure they are tracked by Git.
+      //    - e.g., '.nocaflow/initialization/agent-log/.gitkeep', '.nocaflow/development/plans/todo/.gitkeep', etc.
+      // 5. Iterate through the `.gitkeep` file paths and create each empty file using `fs.writeFile(filePath, '')`.
+      // 6. After successfully creating the structure, log a confirmation message to the console.
+
+      const rootDir = '.nocaflow';
+      const phases = ['initialization', 'development'];
+      const planDirs = ['todo', 'doing', 'review', 'done', 'failed/report'];
+
+      // Blueprint for directory structure
+      const dirsToCreate: string[] = [];
+      const gitkeepFiles: string[] = [];
+
+      // 1. Check for rootDir existence.
+      // fs.access(rootDir).then(() => { console.warn(...) and process.exit(0) }).catch(() => { /* continue */ });
+
+      // 2 & 4. Loop phases and planDirs to populate dirsToCreate and gitkeepFiles.
+      
+      // 3 & 5. Loop through dirsToCreate/gitkeepFiles and call fs.mkdir/fs.writeFile.
+
+      // 6. Log success message using chalk.green.
+
+      throw new Error('Not implemented');
+    };
+  src/commands/state.ts: >-
+    import chalk from 'chalk';
+
+    import { getPhaseStats, PhaseStats, getFailedReports, FailedReport } from
+    '../utils/fs';
+
+    import { getActiveAgents, AgentInfo } from '../utils/shell';
+
+    import dayjs from 'dayjs';
+
+    import { getRecentLogs, LogEntry } from '../utils/logs';
+
+    import { getGitLog, GitCommit } from '../utils/git';
+
+
+    /**
+     * @description Renders a progress bar.
+     * @param current - The current progress value.
+     * @param total - The total value for 100%.
+     * @param length - The character length of the bar.
+     * @returns A string representing the progress bar.
+     */
+    export const renderProgressBar = (current: number, total: number, length:
+    number = 20): string => {
+      // TODO: part-state-render-progress - Implement progress bar rendering logic.
+      // INSTRUCTIONS:
+      // 1. Calculate the percentage of `current` to `total`.
+      // 2. Determine how many `length` characters should be filled (e.g., '▇').
+      // 3. Determine how many `length` characters should be empty (e.g., '-').
+      // 4. Return a string like `[▇▇▇▇----] (current/total plans done)`.
+      // 5. If total is 0, return a string representing an empty bar `[----------] (0/0 plans done)`.
+
+      // const percent = total > 0 ? current / total : 0;
+      // const filledLength = Math.round(length * percent);
+      // const emptyLength = length - filledLength;
+      // const filledBar = '▇'.repeat(filledLength);
+      // const emptyBar = '-'.repeat(emptyLength);
+      // const bar = `[${filledBar}${emptyBar}]`;
+      // const text = `(${current}/${total} plans done)`;
+
+      // return `${bar} ${text}`;
+
+      throw new Error('Not implemented');
+    };
+
+
+    /**
+     * @description Displays the full state report to the console.
+     */
+    export const handleStateCommand = async (argv: {}): Promise<void> => {
+      // TODO: part-state-fetch-data - Fetch all necessary data using utility functions.
+      // INSTRUCTIONS:
+      // 2. Call `getPhaseStats()` to get statistics for all phases.
+      // 3. Call `getActiveAgents()` to get a list of running agents.
+      // 4. Call `getRecentLogs(5)` to get the last 5 log entries.
+      // 5. Call `getFailedReports(24)` to get failures in the last 24 hours.
+      // 6. Call `getGitLog(10)` to get the 10 most recent git commits.
+
+      // const phaseStats: PhaseStats = await getPhaseStats();
+      // const activeAgents: AgentInfo[] = await getActiveAgents();
+      // const recentLogs: LogEntry[] = await getRecentLogs(5);
+      // const failedReports: FailedReport[] = await getFailedReports(24);
+      // const gitCommits: GitCommit[] = await getGitLog(10);
+      // const currentPhase = phaseStats.development?.total > 0 ? 'development' : 'initialization';
+
+      // TODO: part-state-render-output - Format and print the state report.
+      // INSTRUCTIONS:
+      // 1. Use `chalk` for all coloring to match the style in the project's README.md.
+      // 2. Print a header with the current time.
+      // 3. Print the current phase.
+      // 4. Print phase progress using `renderProgressBar` for each phase found in `phaseStats`.
+      // 5. Print detailed plan counts for each phase.
+      // 6. Print a list of active agents, including their phase, IDs, and runtime.
+      // 7. Print recent agent activity from `recentLogs`, color-coding by status (DONE, FAIL).
+      // 8. Print any stalled or failed reports from `failedReports`.
+      // 9. Print recent git commits, including hash, worktree (if any), and message.
+
+      /*
+      // Header
+      console.log(chalk.bold(`== nocaflow State [${dayjs().format('YYYY-MM-DD HH:mm:ss')}] ==`));
+      console.log(`Current Phase: ${chalk.cyan(currentPhase)}`);
+      
+      // Phase Progress
+      console.log(chalk.bold('\n== Phase Progress =='));
+      // for (const phaseName in phaseStats) { ... renderProgressBar(...) ... }
+
+      // Phase Stats
+      console.log(chalk.bold('\n== Phase Stats (Plans) =='));
+      // for (const phaseName in phaseStats) { ... console.log(...) ... }
+
+      // Active Agents
+      console.log(chalk.bold('\n== Active Agents (tmux) =='));
+      // if (activeAgents.length === 0) { console.log('No active agents.'); }
+      // for (const agent of activeAgents) { ... console.log(...) ... }
+
+      // Recent Agent Activity
+      console.log(chalk.bold('\n== Recent Agent Activity (last 5) =='));
+      // if (recentLogs.length === 0) { console.log('No recent activity.'); }
+      // for (const log of recentLogs) { ... console.log with color based on log.status ... }
+
+      // Stalled / Failed
+      console.log(chalk.bold('\n== Stalled / Failed (last 24h) =='));
+      // if (failedReports.length === 0) { console.log('No failed reports in the last 24 hours.'); }
+      // for (const report of failedReports) { ... console.log(...) ... }
+
+      // Recent Git Commits
+      console.log(chalk.bold('\n== Recent Git Commits (all worktrees) =='));
+      // if (gitCommits.length === 0) { console.log('No recent commits.'); }
+      // for (const commit of gitCommits) { ... console.log(...) ... }
+      */
+
+      throw new Error('Not implemented');
+    };
+approved: true
+linesAdded: null
+linesRemoved: null
+linesDifference: null
+gitCommittedAt: null
+status: committed
+id: 20

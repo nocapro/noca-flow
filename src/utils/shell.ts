@@ -21,40 +21,46 @@ dayjs.extend(relativeTime);
  * @returns A list of active agents.
  */
 export const getActiveAgents = async (): Promise<AgentInfo[]> => {
-  // TODO: part-shell-get-agents - List and parse active tmux sessions to find agent info.
-  // INSTRUCTIONS:
-  // 1. Execute `tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`.
-  // 2. Handle errors (e.g., tmux not running). Return empty array on failure.
-  // 3. Parse each line of stdout.
-  // 4. Use regex on session name to determine agent type and extract IDs.
-  //    - Worker: /^(init|dev)-(.+)/ -> { phase, partId }
-  //    - Scaffolder: /^(init)-scaffold-(.+)/ -> { phase: 'SCAF', planId }
-  //    - QA: /^qa-(.+)/ -> { phase: 'QA', planId }
-  // 5. For worker agents, `planId` can be 'unknown' for this implementation.
-  // 6. Calculate runtime from `session_activity` Unix timestamp using `dayjs().to(dayjs.unix(timestamp), true)`.
-  // 7. Construct and return an array of `AgentInfo` objects.
+  try {
+    const { stdout } = await exec(`tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`);
+    if (!stdout) return [];
 
-  // try {
-  //   const { stdout } = await exec(`tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`);
-  //   if (!stdout) return [];
-  //
-  //   const lines = stdout.trim().split('\n');
-  //   const agents: AgentInfo[] = [];
-  //
-  //   for (const line of lines) {
-  //     const [sessionName, pid, activity] = line.split(' ');
-  //     const runtime = dayjs().to(dayjs.unix(parseInt(activity, 10)), true);
-  //
-  //     let match;
-  //     // if ((match = sessionName.match(/^(init|dev)-(.+)/))) { ... }
-  //     // else if ((match = sessionName.match(/^init-scaffold-(.+)/))) { ... }
-  //     // else if ((match = sessionName.match(/^qa-(.+)/))) { ... }
-  //     //
-  //     // In each block, construct an AgentInfo object and push to agents array.
-  //   }
-  //   return agents;
-  // } catch (error) {
-  //   return []; // Tmux likely not running or has no sessions.
-  // }
-  throw new Error('Not implemented');
+    const lines = stdout.trim().split('\n');
+    const agents: AgentInfo[] = [];
+
+    for (const line of lines) {
+      const [sessionName, pid, activity] = line.split(' ');
+      const runtime = dayjs().to(dayjs.unix(parseInt(activity, 10)), true);
+
+      let match;
+      if ((match = sessionName.match(/^(init|dev)-(.+)/))) {
+        const phase = match[1].toUpperCase() as 'INIT' | 'DEV';
+        const partId = match[2];
+        agents.push({
+          phase,
+          id: partId,
+          planId: 'unknown', // Not available from session name
+          partId: partId,
+          runtime,
+          pid,
+        });
+      } else if ((match = sessionName.match(/^init-scaffold-(.+)/))) {
+        const planId = match[1];
+        agents.push({
+          phase: 'SCAF',
+          id: planId,
+          planId,
+          partId: 'scaffold',
+          runtime,
+          pid,
+        });
+      } else if ((match = sessionName.match(/^qa-(.+)/))) {
+        const planId = match[1];
+        agents.push({ phase: 'QA', id: planId, planId, partId: 'qa', runtime, pid });
+      }
+    }
+    return agents;
+  } catch (error) {
+    return []; // Tmux likely not running or has no sessions.
+  }
 };

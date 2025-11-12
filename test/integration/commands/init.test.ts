@@ -6,38 +6,59 @@ describe('integration/commands/init', () => {
   let cleanup: () => Promise<void>;
 
   beforeEach(async () => {
-    // TODO: part-int-init-setup - Use the test utility to create a clean, isolated directory.
-    // INSTRUCTIONS:
-    // 1. Call `setupTestDirectory()` to get the cleanup function.
     const { cleanup: c } = await setupTestDirectory();
     cleanup = c;
   });
 
   afterEach(async () => {
-    // TODO: part-int-init-cleanup - Use the cleanup function from the test utility.
-    // INSTRUCTIONS:
-    // 1. Call the `cleanup()` function to restore the CWD and remove the temporary directory.
     await cleanup();
   });
 
   it('should create the full .nocaflow directory structure on a fresh run', async () => {
-    // TODO: part-int-init-success - Test the successful creation of the directory structure.
-    // INSTRUCTIONS:
-    // 1. Call `handleInitCommand({})` directly.
-    // 2. Use `fs.access` to verify that a representative set of key directories exist.
-    //    - e.g., '.nocaflow/initialization/plans/todo'
-    //    - e.g., '.nocaflow/development/plans/failed/report'
-    // 3. Use `fs.access` to verify that a representative set of key `.gitkeep` files exist.
-    //    - e.g., check '.nocaflow/initialization/agent-log/.gitkeep'
+    await handleInitCommand({});
+
+    const dirsToCheck = [
+      '.nocaflow/initialization/plans/todo',
+      '.nocaflow/development/plans/failed/report',
+      '.nocaflow/initialization/agent-log',
+    ];
+
+    const filesToCheck = [
+      '.nocaflow/initialization/plans/todo/.gitkeep',
+      '.nocaflow/development/agent-log/.gitkeep',
+      '.nocaflow/development/plans/failed/report/.gitkeep',
+    ];
+
+    for (const dir of dirsToCheck) {
+      await expect(fs.access(dir)).resolves.toBeUndefined();
+    }
+
+    for (const file of filesToCheck) {
+      await expect(fs.access(file)).resolves.toBeUndefined();
+    }
   });
 
   it('should create the correct number of directories and .gitkeep files', async () => {
-    // TODO: part-int-init-counts - Test the exact count of created items.
-    // INSTRUCTIONS:
-    // 1. Call `handleInitCommand({})`.
-    // 2. Recursively read all created directory and file paths starting from `.nocaflow`.
-    // 3. Assert that the number of created directories matches the expected count (e.g., 2 phases * 5 plan subdirs + other root dirs).
-    // 4. Assert that the number of `.gitkeep` files matches the expected count for empty directories.
+    await handleInitCommand({});
+
+    const getAllFiles = async (dir: string): Promise<string[]> => {
+        const dirents = await fs.readdir(dir, { withFileTypes: true });
+        const files = await Promise.all(dirents.map((dirent) => {
+            const res = `${dir}/${dirent.name}`;
+            return dirent.isDirectory() ? getAllFiles(res) : res;
+        }));
+        return Array.prototype.concat(...files);
+    };
+
+    const allFiles = await getAllFiles('.nocaflow');
+    const gitkeepCount = allFiles.filter(file => file.endsWith('.gitkeep')).length;
+
+    // Expected: 2 phases * (1 agent-log dir + 5 plan sub-dirs) = 12 .gitkeeps
+    expect(gitkeepCount).toBe(12);
+
+    // Let's count the directories that contain a .gitkeep file.
+    const allDirsWithGitkeep = new Set(allFiles.map(file => file.substring(0, file.lastIndexOf('/'))));
+    expect(allDirsWithGitkeep.size).toBe(12);
   });
 
   // Note: The case for an existing .nocaflow directory is tested in e2e/cli.test.ts,
