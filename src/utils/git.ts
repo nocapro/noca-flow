@@ -62,7 +62,7 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
     const isRepo = await git.checkIsRepo();
     if (!isRepo) return [];
 
-    const worktrees = await getWorktreeList();
+    const worktrees = await getWorktreeList(); // for mapping branch to worktree name
     const worktreeMap = new Map<string, string>();
     for (const wt of worktrees) {
       const branchNameMatch = wt.branch.match(/refs\/heads\/(.*)/);
@@ -75,14 +75,15 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
       }
     }
 
-    const logResult = await git.log({ '--all': null, maxCount: limit, format: { hash: '%H', refs: '%d' } });
+    const logResult = await git.log({
+      '--all': null,
+      maxCount: limit,
+      format: { hash: '%H', refs: '%d', message: '%B' }, // %B gets the full commit message body
+    });
+
     if (!logResult.all || logResult.total === 0) return [];
 
-    const commits: GitCommit[] = [];
-    for (const commit of logResult.all) {
-      const fullMessageResult = await git.raw(['show', '--format=%B', '--no-patch', commit.hash]);
-      const fullMessage = fullMessageResult.trim();
-
+    const commits = logResult.all.map(commit => {
       let worktree: string | null = null;
       // commit.refs is like ' (HEAD -> my-feature, origin/my-feature)'
       for (const branchName of worktreeMap.keys()) {
@@ -92,12 +93,13 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
         }
       }
 
-      commits.push({
+      return {
         hash: commit.hash,
         worktree,
-        message: fullMessage,
-      });
-    }
+        message: commit.message.trim(),
+      };
+    });
+
     return commits;
   } catch (error) {
     return []; // Git not installed, not a git repo, or other error.

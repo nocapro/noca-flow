@@ -45,23 +45,41 @@ describe('unit/utils/shell (integration)', () => {
     it('should parse all types of agent sessions and ignore non-agent sessions', async () => {
       const agents = await getActiveAgents();
       // Filter for agents created in this specific test run to ensure isolation
-      const testAgents = agents.filter(
-        a => a.partId.endsWith(testId) || a.planId.endsWith(testId),
-      );
+      const testAgents = agents.filter(a => a.sessionName.endsWith(testId));
 
       expect(testAgents).toHaveLength(4);
 
       expect(testAgents).toContainEqual(
-        expect.objectContaining({ phase: 'INIT', partId: `part123-${testId}` }),
+        expect.objectContaining({
+          type: 'WORKER',
+          phase: 'INIT',
+          partId: `part123-${testId}`,
+          planId: null,
+        }),
       );
       expect(testAgents).toContainEqual(
-        expect.objectContaining({ phase: 'DEV', partId: `part456-${testId}` }),
+        expect.objectContaining({
+          type: 'WORKER',
+          phase: 'DEV',
+          partId: `part456-${testId}`,
+          planId: null,
+        }),
       );
       expect(testAgents).toContainEqual(
-        expect.objectContaining({ phase: 'SCAF', planId: `plan789-${testId}` }),
+        expect.objectContaining({
+          type: 'SCAFFOLDER',
+          phase: 'INIT',
+          planId: `plan789-${testId}`,
+          partId: 'scaffold',
+        }),
       );
       expect(testAgents).toContainEqual(
-        expect.objectContaining({ phase: 'QA', planId: `planABC-${testId}` }),
+        expect.objectContaining({
+          type: 'QA',
+          phase: null,
+          planId: `planABC-${testId}`,
+          partId: 'qa',
+        }),
       );
     });
 
@@ -77,7 +95,9 @@ describe('unit/utils/shell (integration)', () => {
 
     it('should correctly calculate agent runtime', async () => {
       const agents = await getActiveAgents();
-      const devAgent = agents.find(a => a.partId === `part456-${testId}`);
+      const devAgent = agents.find(
+        a => a.sessionName === `dev-part456-${testId}`,
+      );
       expect(devAgent).toBeDefined();
       // The runtime is short and non-deterministic, just check it exists.
       expect(devAgent?.runtime).toContain('a few seconds');

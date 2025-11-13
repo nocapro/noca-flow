@@ -106,7 +106,7 @@ describe('e2e/cli', () => {
       expect(stdout).toContain('[INITIALIZATION]'.padEnd(18) + '[--------------------] (0/1 plans done)');
       expect(stdout).toContain('[DEVELOPMENT]'.padEnd(18) + '[▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇] (1/1 plans done)');
       if (canRunTmux) {
-        expect(stdout).toContain('id:e2e-part-xyz');
+        expect(stdout).toContain('part:e2e-part-xyz');
       }
       expect(stdout).toContain('plan:plan-e2e - Log message');
       expect(stdout).toContain('plan:f01 part:pA - "Test failure"');

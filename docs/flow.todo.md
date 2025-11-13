@@ -1,4 +1,4 @@
-===
+=== DOING
 
 implement multi-level logger and error implement accross codebase. all without causing fail tests
 
@@ -31,7 +31,7 @@ Impact
 The filesystem-as-state-machine concept is not fully implemented, breaking the core state management approach.
 
 
-===
+=== DONE
 
 I want all stats and data for nocaflow state is accurate and high integrity. if there is no existing test cases to guardrails them, then do it.
 
