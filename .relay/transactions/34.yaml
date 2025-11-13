@@ -1,0 +1,284 @@
+uuid: 48e89139-c12e-4b6e-b31c-333e6f98c199
+projectId: noca-flow
+createdAt: '2025-11-13T01:18:50.206Z'
+gitCommitMsg: >-
+  fix(tests): update mock implementations to match type changes
+
+  Corrects test failures in `shell.test.ts` and `init.test.ts` caused by recent
+  refactoring.
+
+  - In `test/unit/utils/shell.test.ts`, updated `platform.runCommand`
+    mock return values to include the required `code: 0` property,
+    aligning with the modified `CommandResult` interface. The test for
+    a failed command was also updated to use `mockResolvedValue` with a
+    non-zero exit code instead of `mockRejectedValue`.
+  - In `test/integration/commands/init.test.ts`, relaxed the type
+    assertion for the `process.exit` mock from `(code?: number)` to
+    `(code?: any)` to resolve a TypeScript type mismatch.
+promptSummary: >-
+  The user has provided TypeScript errors from running tests after my previous
+  changes. The errors are due to outdated mock implementations that do not match
+  the updated `CommandResult` type signature in `platform.ts` and a type
+  mismatch in a `process.exit` mock. I will update the mock return values and
+  type assertions to fix the build.
+reasoning:
+  - >-
+    Ah, classic. A refactor in one place breaks mocks in another. The
+    `CommandResult` type changed, but I forgot to update the mock values in
+    `shell.test.ts`. And a `process.exit` mock in `init.test.ts` is too picky
+    about its argument type. Easy fixes.
+  - >-
+    First, I'll update the shell utility tests. The `runCommand` mock needs to
+    return a `code` field now.
+  - >-
+    Next, I'll fix the `process.exit` mock in the `init` command's integration
+    test by loosening the type constraint.
+  - That should clear the test failures and get us back to green.
+operations:
+  - type: write
+    path: test/unit/utils/shell.test.ts
+    content: >+
+      --- test/unit/utils/shell.test.ts
+
+      +++ test/unit/utils/shell.test.ts
+
+      @@ -22,7 +22,7 @@
+               `qa-planABC 444 ${now}`,
+               `my-random-session 555 ${now}`,
+             ].join('\n');
+      -      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: ''
+      });
+
+      +      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: '',
+      code: 0 });
+       
+             const agents = await getActiveAgents();
+             expect(agents).toHaveLength(4);
+      @@ -41,20 +41,20 @@
+               `qa 333 ${now}`,
+               `my-init-session 444 ${now}`,
+             ].join('\n');
+      -      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: ''
+      });
+
+      +      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: '',
+      code: 0 });
+       
+             const agents = await getActiveAgents();
+             expect(agents).toEqual([]);
+           });
+       
+           it('should return an empty array when there are no tmux sessions', async () => {
+      -      mockedPlatform.runCommand.mockResolvedValue({ stdout: '', stderr:
+      '' });
+
+      +      mockedPlatform.runCommand.mockResolvedValue({ stdout: '', stderr:
+      '', code: 0 });
+             const agents = await getActiveAgents();
+             expect(agents).toEqual([]);
+           });
+       
+           it('should return an empty array if the tmux command fails', async () => {
+      -      mockedPlatform.runCommand.mockRejectedValue(new Error('tmux
+      failed'));
+
+      +      mockedPlatform.runCommand.mockResolvedValue({ stdout: '', stderr:
+      'command not found', code: 1 });
+             const agents = await getActiveAgents();
+             expect(agents).toEqual([]);
+           });
+      @@ -64,7 +64,7 @@
+       
+             const fiveMinutesAgo = dayjs('2023-01-01T11:55:00Z').unix();
+             const stdout = `dev-part123 111 ${fiveMinutesAgo}`;
+      -      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: ''
+      });
+
+      +      mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: '',
+      code: 0 });
+       
+             const agents = await getActiveAgents();
+       
+
+    patchStrategy: standard-diff
+  - type: write
+    path: test/integration/commands/init.test.ts
+    content: |
+      <<<<<<< SEARCH
+          processExitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {}) as (code?: number) => never);
+      =======
+          processExitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {}) as (code?: any) => never);
+      >>>>>>> REPLACE
+    patchStrategy: search-replace
+snapshot:
+  test/unit/utils/shell.test.ts: |-
+    import { getActiveAgents } from '../../../src/utils/shell';
+    import { platform } from '../../../src/utils/platform';
+    import dayjs from 'dayjs';
+    import relativeTime from 'dayjs/plugin/relativeTime';
+
+    jest.mock('../../../src/utils/platform');
+    const mockedPlatform = platform as jest.Mocked<typeof platform>;
+    dayjs.extend(relativeTime);
+
+    describe('unit/utils/shell', () => {
+      afterEach(() => {
+        jest.resetAllMocks();
+      });
+
+      describe('getActiveAgents', () => {
+        it('should parse all types of agent sessions and ignore non-agent sessions', async () => {
+          const now = dayjs().unix();
+          const stdout = [
+            `init-part123 111 ${now}`,
+            `dev-part456 222 ${now}`,
+            `init-scaffold-plan789 333 ${now}`,
+            `qa-planABC 444 ${now}`,
+            `my-random-session 555 ${now}`,
+          ].join('\n');
+          mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: '' });
+
+          const agents = await getActiveAgents();
+          expect(agents).toHaveLength(4);
+
+          expect(agents).toContainEqual(expect.objectContaining({ phase: 'INIT', partId: 'part123', pid: '111' }));
+          expect(agents).toContainEqual(expect.objectContaining({ phase: 'DEV', partId: 'part456', pid: '222' }));
+          expect(agents).toContainEqual(expect.objectContaining({ phase: 'SCAF', planId: 'plan789', pid: '333' }));
+          expect(agents).toContainEqual(expect.objectContaining({ phase: 'QA', planId: 'planABC', pid: '444' }));
+        });
+
+        it('should ignore session names that are similar to but not valid agent sessions', async () => {
+          const now = dayjs().unix();
+          const stdout = [
+            `init- 111 ${now}`,
+            `dev-scaffold-123 222 ${now}`,
+            `qa 333 ${now}`,
+            `my-init-session 444 ${now}`,
+          ].join('\n');
+          mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: '' });
+
+          const agents = await getActiveAgents();
+          expect(agents).toEqual([]);
+        });
+
+        it('should return an empty array when there are no tmux sessions', async () => {
+          mockedPlatform.runCommand.mockResolvedValue({ stdout: '', stderr: '' });
+          const agents = await getActiveAgents();
+          expect(agents).toEqual([]);
+        });
+
+        it('should return an empty array if the tmux command fails', async () => {
+          mockedPlatform.runCommand.mockRejectedValue(new Error('tmux failed'));
+          const agents = await getActiveAgents();
+          expect(agents).toEqual([]);
+        });
+
+        it('should correctly calculate agent runtime', async () => {
+          jest.useFakeTimers().setSystemTime(new Date('2023-01-01T12:00:00Z'));
+
+          const fiveMinutesAgo = dayjs('2023-01-01T11:55:00Z').unix();
+          const stdout = `dev-part123 111 ${fiveMinutesAgo}`;
+          mockedPlatform.runCommand.mockResolvedValue({ stdout, stderr: '' });
+
+          const agents = await getActiveAgents();
+
+          expect(agents).toHaveLength(1);
+          // dayjs relative time can be "a few seconds", "a minute", etc. so we check for a known value.
+          // "5 minutes" is the expected output.
+          expect(agents[0].runtime).toBe('5 minutes');
+
+          jest.useRealTimers();
+        });
+      });
+    });
+  test/integration/commands/init.test.ts: |-
+    import { handleInitCommand } from '../../../src/commands/init';
+    import { setupTestDirectory } from '../../test.util';
+    import fs from 'fs/promises';
+    import { platform } from '../../../src/utils/platform';
+    import * as gitUtils from '../../../src/utils/git';
+
+    jest.mock('../../../src/utils/platform');
+    jest.mock('../../../src/utils/git');
+
+    const mockedPlatform = platform as jest.Mocked<typeof platform>;
+    const mockedGitUtils = gitUtils as jest.Mocked<typeof gitUtils>;
+
+    describe('integration/commands/init', () => {
+      let cleanup: () => Promise<void>;
+      let processExitSpy: jest.SpyInstance;
+      let consoleErrorSpy: jest.SpyInstance;
+
+      beforeEach(async () => {
+        const { cleanup: c } = await setupTestDirectory();
+        cleanup = c;
+
+        mockedPlatform.commandExists.mockResolvedValue(true);
+        mockedPlatform.runCommand.mockResolvedValue({ stdout: '', stderr: '', code: 0 });
+        mockedGitUtils.isGitRepository.mockResolvedValue(false); // Default to not a repo
+
+        processExitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {}) as (code?: number) => never);
+        consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      });
+
+      afterEach(async () => {
+        await cleanup();
+        jest.restoreAllMocks();
+      });
+
+      it('should fail if a dependency is missing', async () => {
+        mockedPlatform.commandExists.mockImplementation(async (cmd: string) => cmd !== 'tmux');
+
+        await handleInitCommand({});
+
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Error: tmux is not installed.'),
+        );
+        expect(processExitSpy).toHaveBeenCalledWith(1);
+      });
+
+      it('should initialize a git repo if not already present', async () => {
+        await handleInitCommand({});
+        expect(mockedPlatform.runCommand).toHaveBeenCalledWith('git init');
+      });
+
+      it('should skip git init if already in a git repo', async () => {
+        mockedGitUtils.isGitRepository.mockResolvedValue(true);
+
+        await handleInitCommand({});
+        expect(mockedPlatform.runCommand).not.toHaveBeenCalledWith('git init');
+      });
+
+      it('should create the full .nocaflow directory and file structure on a fresh run', async () => {
+        await handleInitCommand({});
+
+        const dirsToCheck = [
+          '.nocaflow/initialization/plans/todo',
+          '.nocaflow/development/plans/failed/report',
+          '.nocaflow/initialization/agent-log',
+        ];
+        const filesToCheck = [
+          '.nocaflow/manager.agent.md',
+          '.nocaflow/initialization/init.phase.rule.md',
+          '.nocaflow/development/dev.agent-swarm.md',
+          'user.prompt.md',
+        ];
+
+        for (const dir of dirsToCheck) {
+          await expect(fs.access(dir)).resolves.toBeUndefined();
+        }
+        for (const file of filesToCheck) {
+          await expect(fs.access(file)).resolves.toBeUndefined();
+        }
+
+        const managerContent = await fs.readFile('.nocaflow/manager.agent.md', 'utf-8');
+        expect(managerContent).toContain('You are manager.agent. The orchestrator.');
+      });
+    });
+approved: true
+linesAdded: 6
+linesRemoved: 6
+linesDifference: 12
+gitCommittedAt: null
+status: committed
+id: 34

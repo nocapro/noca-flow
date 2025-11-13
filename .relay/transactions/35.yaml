@@ -1,0 +1,444 @@
+uuid: 440307b6-c958-45e6-bbab-655e0fd11c75
+projectId: noca-flow
+createdAt: '2025-11-13T01:31:43.820Z'
+gitCommitMsg: >-
+  refactor(test): eliminate mocks for platform and git utils
+
+  Refactors the test suite to remove mocks for core system interactions,
+  aligning with a more robust integration testing strategy.
+
+  - Replaces mocked `child_process` and `os` in `platform.test.ts`
+    with tests that execute real, harmless shell commands. This
+    validates the behavior of `runCommand` and `commandExists` against a
+    live environment.
+  - Deletes the redundant, mocked `test/unit/utils/git.test.ts`. - Merges the
+  `isGitRepository` test into the existing integration
+    test suite `test/integration/utils/git.test.ts`, ensuring it is
+    validated against a real filesystem and git repository.
+promptSummary: >-
+  The user requested to execute parts 1 and 2 of the test refactoring plan. This
+  involved removing mocks from `platform.test.ts` and consolidating git tests
+  into a single integration file while deleting the mocked unit test.
+reasoning:
+  - >-
+    Executing. The age of fragile, mocked tests is over. We're building on
+    bedrock now. Real file systems, real git repos.
+  - >-
+    First, I'm gutting the `platform.test.ts` file. All mocks are gone. We're
+    running real shell commands to ensure our lowest-level utility is sound.
+  - >-
+    Next, I'm consolidating the git tests. The mocked `git.test.ts` was useless.
+    I'm adding a proper test for `isGitRepository` to the existing integration
+    test file, where it belongs.
+  - >-
+    Finally, deleting the redundant and misleading mocked git unit test. It
+    serves no purpose now.
+  - >-
+    This completes the first two parts of the refactor. The foundation is
+    stronger.
+operations:
+  - type: write
+    path: test/unit/utils/platform.test.ts
+    content: |-
+      import { posixPlatform } from '../../../src/utils/platform';
+      import os from 'os';
+
+      describe('unit/utils/platform', () => {
+        // Store and restore env vars to ensure test isolation
+        const originalEnv = { ...process.env };
+
+        afterEach(() => {
+          process.env = { ...originalEnv };
+        });
+
+        describe('runCommand', () => {
+          it('should resolve with stdout and code 0 on successful execution', async () => {
+            const result = await posixPlatform.runCommand('echo "hello world"');
+            expect(result.stdout.trim()).toBe('hello world');
+            expect(result.stderr).toBe('');
+            expect(result.code).toBe(0);
+          });
+
+          it('should capture stderr and a non-zero exit code on command failure', async () => {
+            // Using a command that is very likely to fail in a predictable way
+            const result = await posixPlatform.runCommand('ls non_existent_dir_12345');
+            expect(result.stdout).toBe('');
+            expect(result.stderr).toContain('non_existent_dir_12345');
+            expect(result.code).not.toBe(0);
+          });
+        });
+
+        describe('getTmpDir', () => {
+          it('should prioritize TMPDIR environment variable', () => {
+            process.env.TMPDIR = '/tmp/tmpdir_test';
+            process.env.TEMP = '/tmp/temp_test';
+            expect(posixPlatform.getTmpDir()).toBe('/tmp/tmpdir_test');
+          });
+
+          it('should fall back to TEMP if TMPDIR is not set', () => {
+            delete process.env.TMPDIR;
+            process.env.TEMP = '/tmp/temp_test';
+            expect(posixPlatform.getTmpDir()).toBe('/tmp/temp_test');
+          });
+
+          it('should fall back to TMP if TEMP is not set', () => {
+            delete process.env.TMPDIR;
+            delete process.env.TEMP;
+            process.env.TMP = '/tmp/tmp_test';
+            expect(posixPlatform.getTmpDir()).toBe('/tmp/tmp_test');
+          });
+
+          it('should fall back to os.tmpdir() as a last resort', () => {
+            delete process.env.TMPDIR;
+            delete process.env.TEMP;
+            delete process.env.TMP;
+            // This will return the actual OS temp dir, which is correct behavior.
+            expect(posixPlatform.getTmpDir()).toBe(os.tmpdir());
+          });
+        });
+
+        describe('commandExists', () => {
+          it('should return true for a command that exists', async () => {
+            // 'node' is guaranteed to exist since we are running tests with it.
+            const exists = await posixPlatform.commandExists('node');
+            expect(exists).toBe(true);
+          });
+
+          it('should return false for a command that does not exist', async () => {
+            const exists = await posixPlatform.commandExists('nonexistentcommand1234567890');
+            expect(exists).toBe(false);
+          });
+        });
+      });
+    patchStrategy: replace
+  - type: write
+    path: test/integration/utils/git.test.ts
+    content: >+
+      --- test/integration/utils/git.test.ts
+
+      +++ test/integration/utils/git.test.ts
+
+      @@ -1,4 +1,4 @@
+
+      -import { getGitLog } from '../../../src/utils/git';
+
+      +import { getGitLog, isGitRepository } from '../../../src/utils/git';
+       import { setupTestDirectory, initGitRepo } from '../../test.util';
+       import { exec } from 'child_process';
+       import { promisify } from 'util';
+      @@ -7,6 +7,27 @@
+       
+       const promisedExec = promisify(exec);
+       
+      +describe('isGitRepository', () => {
+
+      +  let cleanup: () => Promise<void>;
+
+      +
+
+      +  // Separate setup because we need a non-git directory first.
+
+      +  beforeEach(async () => {
+
+      +    const { cleanup: c } = await setupTestDirectory();
+
+      +    cleanup = c;
+
+      +  });
+
+      +
+
+      +  afterEach(async () => {
+
+      +    await cleanup();
+
+      +  });
+
+      +
+
+      +  it('should return false in a non-git directory and true after init',
+      async () => {
+
+      +    expect(await isGitRepository()).toBe(false);
+
+      +    await initGitRepo();
+
+      +    expect(await isGitRepository()).toBe(true);
+
+      +  });
+
+      +});
+
+      +
+       describe('integration/utils/git', () => {
+         let cleanup: () => Promise<void>;
+         let testDir: string;
+
+    patchStrategy: standard-diff
+  - type: delete
+    path: test/unit/utils/git.test.ts
+snapshot:
+  test/unit/utils/git.test.ts: |-
+    import { isGitRepository } from '../../../src/utils/git';
+    import { platform } from '../../../src/utils/platform';
+
+    jest.mock('../../../src/utils/platform');
+    const mockedPlatform = platform as jest.Mocked<typeof platform>;
+
+    describe('unit/utils/git', () => {
+      afterEach(() => {
+        jest.resetAllMocks();
+      });
+
+      describe('isGitRepository', () => {
+        it('should return true when inside a git repository', async () => {
+          mockedPlatform.runCommand.mockResolvedValue({ stdout: 'true\n', stderr: '', code: 0 });
+          const result = await isGitRepository();
+          expect(result).toBe(true);
+          expect(mockedPlatform.runCommand).toHaveBeenCalledWith('git rev-parse --is-inside-work-tree');
+        });
+
+        it('should return false when not inside a git repository', async () => {
+          mockedPlatform.runCommand.mockResolvedValue({
+            stdout: '',
+            stderr: 'fatal: not a git repository',
+            code: 128,
+          });
+          const result = await isGitRepository();
+          expect(result).toBe(false);
+        });
+
+        it('should return false if the command fails for another reason', async () => {
+          mockedPlatform.runCommand.mockRejectedValue(new Error('some error'));
+          const result = await isGitRepository();
+          expect(result).toBe(false);
+        });
+      });
+    });
+  test/integration/utils/git.test.ts: |-
+    import { getGitLog } from '../../../src/utils/git';
+    import { setupTestDirectory, initGitRepo } from '../../test.util';
+    import { exec } from 'child_process';
+    import { promisify } from 'util';
+    import fs from 'fs/promises';
+    import path from 'path';
+
+    const promisedExec = promisify(exec);
+
+    describe('integration/utils/git', () => {
+      let cleanup: () => Promise<void>;
+      let testDir: string;
+
+      beforeEach(async () => {
+        const { cleanup: c, testDir: td } = await setupTestDirectory();
+        cleanup = c;
+        testDir = td;
+        await initGitRepo();
+      });
+
+      afterEach(async () => {
+        await cleanup();
+      });
+
+      it('should parse commits with worktree information', async () => {
+        const worktreeName = 'my-feature-wt';
+        const worktreePath = path.join(testDir, '..', worktreeName);
+        await promisedExec(`git worktree add ${worktreePath}`);
+
+        const originalCwd = process.cwd();
+        process.chdir(worktreePath);
+        await fs.writeFile('feature.txt', 'data');
+        await promisedExec('git add .');
+        await promisedExec('git commit -m "feat: commit from worktree"');
+        process.chdir(originalCwd);
+
+        const log = await getGitLog(5);
+        const wtCommit = log.find(c => c.message === 'feat: commit from worktree');
+
+        expect(wtCommit).toBeDefined();
+        expect(wtCommit?.worktree).toBe(worktreeName);
+
+        // Cleanup worktree
+        await promisedExec(`git worktree remove ${worktreeName}`);
+      });
+
+      it('should handle commits not associated with a worktree', async () => {
+        await fs.writeFile('main.txt', 'data');
+        await promisedExec('git add .');
+        await promisedExec('git commit -m "feat: commit from main"');
+
+        const log = await getGitLog(5);
+        const mainCommit = log.find(c => c.message === 'feat: commit from main');
+
+        expect(mainCommit).toBeDefined();
+        expect(mainCommit?.worktree).toBeNull();
+      });
+
+      it('should respect the commit limit', async () => {
+        for (let i = 0; i < 5; i++) {
+          await promisedExec(`git commit --allow-empty -m "commit ${i + 1}"`);
+        }
+
+        const log = await getGitLog(3);
+        expect(log).toHaveLength(3);
+      });
+
+      it('should return an empty array for a repository with no commits', async () => {
+        // Need a separate setup that doesn't create an initial commit.
+        await cleanup();
+        const { cleanup: c2 } = await setupTestDirectory();
+        await promisedExec('git init');
+
+        const log = await getGitLog(5);
+        expect(log).toEqual([]);
+
+        await c2(); // Use the new cleanup function
+      });
+
+      it('should handle commit messages with special characters', async () => {
+        const complexMessage = `feat: handle '|' "quotes" and 'apostrophes'\n\nwith a body.`;
+        await promisedExec(`git commit --allow-empty -m ${JSON.stringify(complexMessage)}`);
+
+        const log = await getGitLog(1);
+
+        expect(log).toHaveLength(1);
+        expect(log[0].message).toBe(complexMessage);
+      });
+
+      it('should return an empty array if not in a git repository', async () => {
+        // This requires a non-git directory.
+        await cleanup(); // Get rid of the git repo from beforeEach
+        const { cleanup: c2 } = await setupTestDirectory();
+
+        const log = await getGitLog(5);
+        expect(log).toEqual([]);
+
+        await c2(); // Use the new cleanup function
+      });
+    });
+  test/unit/utils/platform.test.ts: |-
+    import { posixPlatform } from '../../../src/utils/platform';
+    import { exec as execCallback, ExecException } from 'child_process';
+    import os from 'os';
+
+    jest.mock('child_process');
+    const mockedExec = execCallback as unknown as jest.Mock;
+
+    jest.mock('os');
+    const mockedOs = os as jest.Mocked<typeof os>;
+
+    describe('unit/utils/platform', () => {
+      afterEach(() => {
+        jest.resetAllMocks();
+        // Clean up environment variables
+        delete process.env.TMPDIR;
+        delete process.env.TEMP;
+        delete process.env.TMP;
+      });
+
+      describe('runCommand', () => {
+        it('should resolve with stdout and stderr on successful execution', async () => {
+          const command = 'ls -l';
+          const expectedStdout = 'total 0';
+          const expectedStderr = '';
+          mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout: expectedStdout, stderr: expectedStderr }));
+          
+          const result = await posixPlatform.runCommand(command);
+          
+          expect(mockedExec).toHaveBeenCalledWith(command, expect.any(Function));
+          expect(result.stdout).toBe(expectedStdout);
+          expect(result.stderr).toBe(expectedStderr);
+          expect(result.code).toBe(0);
+        });
+
+        it('should capture stdout and stderr even when the command fails (non-zero exit code)', async () => {
+          const command = 'git status';
+          const expectedStdout = '';
+          const expectedStderr = 'fatal: not a git repository';
+          const error: ExecException & { stdout: string; stderr: string } = {
+            name: 'Error',
+            message: 'Command failed',
+            code: 128,
+            stdout: expectedStdout,
+            stderr: expectedStderr,
+          };
+          mockedExec.mockImplementation((_cmd, callback) => callback(error, { stdout: expectedStdout, stderr: expectedStderr }));
+          
+          const result = await posixPlatform.runCommand(command);
+
+          expect(result.stdout).toBe(expectedStdout);
+          expect(result.stderr).toBe(expectedStderr);
+          expect(result.code).toBe(128);
+        });
+      });
+
+      describe('getTmpDir', () => {
+        it('should prioritize TMPDIR environment variable', () => {
+          process.env.TMPDIR = '/tmp/tmpdir';
+          process.env.TEMP = '/tmp/temp';
+          mockedOs.tmpdir.mockReturnValue('/tmp/os');
+          
+          expect(posixPlatform.getTmpDir()).toBe('/tmp/tmpdir');
+        });
+
+        it('should fall back to TEMP if TMPDIR is not set', () => {
+          process.env.TEMP = '/tmp/temp';
+          mockedOs.tmpdir.mockReturnValue('/tmp/os');
+
+          expect(posixPlatform.getTmpDir()).toBe('/tmp/temp');
+        });
+
+        it('should fall back to TMP if TEMP is not set', () => {
+          process.env.TMP = '/tmp/tmp';
+          mockedOs.tmpdir.mockReturnValue('/tmp/os');
+
+          expect(posixPlatform.getTmpDir()).toBe('/tmp/tmp');
+        });
+
+        it('should fall back to os.tmpdir() as a last resort', () => {
+          mockedOs.tmpdir.mockReturnValue('/tmp/os-fallback');
+          
+          expect(posixPlatform.getTmpDir()).toBe('/tmp/os-fallback');
+        });
+      });
+
+      describe('commandExists', () => {
+        it('should return true if command exists (exit code 0)', async () => {
+          mockedExec.mockImplementation((cmd, callback) => {
+            if (cmd.startsWith('command -v')) {
+              return callback(null, { stdout: '/bin/git', stderr: '' });
+            }
+            callback(new Error('unexpected command'));
+          });
+          const exists = await posixPlatform.commandExists('git');
+          expect(exists).toBe(true);
+          expect(mockedExec).toHaveBeenCalledWith('command -v git', expect.any(Function));
+        });
+
+        it('should return false if command does not exist (non-zero exit code)', async () => {
+          const error: ExecException & { stdout: string; stderr: string } = {
+            name: 'Error',
+            message: 'Command failed',
+            code: 1,
+            stdout: '',
+            stderr: 'not found',
+          };
+          mockedExec.mockImplementation((cmd, callback) => {
+            if (cmd.startsWith('command -v')) {
+              return callback(error, { stdout: '', stderr: 'not found' });
+            }
+            callback(new Error('unexpected command'));
+          });
+          const exists = await posixPlatform.commandExists('nonexistent');
+          expect(exists).toBe(false);
+          expect(mockedExec).toHaveBeenCalledWith('command -v nonexistent', expect.any(Function));
+        });
+      });
+    });
+approved: true
+linesAdded: 55
+linesRemoved: 119
+linesDifference: 174
+gitCommittedAt: null
+status: committed
+id: 35
