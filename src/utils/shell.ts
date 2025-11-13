@@ -3,10 +3,12 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import { platform } from './platform';
 
 export interface AgentInfo {
-  phase: 'INIT' | 'DEV' | 'QA' | 'SCAF';
-  id: string; // part_id, plan_id for QA/Scaffold
-  planId: string;
-  partId: string; // Can be 'scaffold' or 'qa'
+  sessionName: string;
+  type: 'WORKER' | 'SCAFFOLDER' | 'QA';
+  // Phase is known for workers and scaffolders, but not for QA agents from session name alone.
+  phase: 'INIT' | 'DEV' | null;
+  planId: string | null;
+  partId: string | null;
   runtime: string;
   pid: string;
 }
@@ -33,8 +35,9 @@ export const getActiveAgents = async (): Promise<AgentInfo[]> => {
       if ((match = sessionName.match(/^init-scaffold-(.+)/))) {
         const planId = match[1];
         agents.push({
-          phase: 'SCAF',
-          id: planId,
+          sessionName,
+          type: 'SCAFFOLDER',
+          phase: 'INIT',
           planId,
           partId: 'scaffold',
           runtime,
@@ -42,15 +45,24 @@ export const getActiveAgents = async (): Promise<AgentInfo[]> => {
         });
       } else if ((match = sessionName.match(/^qa-(.+)/))) {
         const planId = match[1];
-        agents.push({ phase: 'QA', id: planId, planId, partId: 'qa', runtime, pid });
+        agents.push({
+          sessionName,
+          type: 'QA',
+          phase: null,
+          planId,
+          partId: 'qa',
+          runtime,
+          pid,
+        });
       } else if ((match = sessionName.match(/^(init|dev)-(?!scaffold-|qa-)(.+)/))) {
         const phase = match[1].toUpperCase() as 'INIT' | 'DEV';
         const partId = match[2];
         agents.push({
+          sessionName,
+          type: 'WORKER',
           phase,
-          id: partId,
-          planId: 'unknown', // Not available from session name
-          partId: partId,
+          planId: null, // Not available from session name for workers
+          partId,
           runtime,
           pid,
         });

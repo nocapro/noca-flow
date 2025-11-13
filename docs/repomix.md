@@ -1580,337 +1580,6 @@ export const createDummyFailedReport = async (
 };
 ````
 
-## File: src/commands/state.ts
-````typescript
-import chalk from 'chalk';
-import { getPhaseStats, PhaseStats, getFailedReports, FailedReport } from '../utils/fs';
-import { getActiveAgents, AgentInfo } from '../utils/shell';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import { getRecentLogs, LogEntry } from '../utils/logs';
-import { getGitLog, GitCommit } from '../utils/git';
-
-dayjs.extend(relativeTime);
-
-/**
- * @description Renders a progress bar.
- * @param current - The current progress value.
- * @param total - The total value for 100%.
- * @param length - The character length of the bar.
- * @returns A string representing the progress bar.
- */
-export const renderProgressBar = (current: number, total: number, length: number = 20): string => {
-  const percent = total > 0 ? current / total : 0;
-  const filledLength = Math.round(length * percent);
-  const emptyLength = length - filledLength;
-  const filledBar = '▇'.repeat(filledLength);
-  const emptyBar = '-'.repeat(emptyLength);
-  const bar = `[${filledBar}${emptyBar}]`;
-  const text = `(${current}/${total} plans done)`;
-
-  return `${bar} ${text}`;
-};
-
-/**
- * @description Displays the full state report to the console.
- */
-export const handleStateCommand = async (_argv: Record<string, unknown>): Promise<void> => {
-  const phaseStats: PhaseStats = await getPhaseStats();
-  const activeAgents: AgentInfo[] = await getActiveAgents();
-  const recentLogs: LogEntry[] = await getRecentLogs(5);
-  const failedReports: FailedReport[] = await getFailedReports(24);
-  const gitCommits: GitCommit[] = await getGitLog(10);
-  const currentPhase = phaseStats.development?.total > 0 ? 'development' : 'initialization';
-
-  // Header
-  console.log(chalk.bold(`== nocaflow State [${dayjs().format('YYYY-MM-DD HH:mm:ss')}] ==`));
-  console.log(`Current Phase: ${chalk.cyan(currentPhase)}`);
-  
-  // Phase Progress
-  console.log(chalk.bold('\n== Phase Progress =='));
-  for (const phaseName in phaseStats) {
-    const stats = phaseStats[phaseName];
-    const progressBar = renderProgressBar(stats.done, stats.total);
-    console.log(`[${chalk.yellow(phaseName.toUpperCase())}]`.padEnd(18) + progressBar);
-  }
-
-  // Phase Stats
-  console.log(chalk.bold('\n== Phase Stats (Plans) =='));
-  for (const phaseName in phaseStats) {
-    const stats = phaseStats[phaseName];
-    if (stats.total === 0) continue;
-    const statsString = `todo: ${stats.todo}, doing: ${stats.doing}, review: ${stats.review}, failed: ${stats.failed}, done: ${stats.done}`;
-    console.log(`[${chalk.yellow(phaseName.toUpperCase())}]`.padEnd(18) + statsString);
-  }
-
-  // Active Agents
-  console.log(chalk.bold('\n== Active Agents (tmux) =='));
-  if (activeAgents.length === 0) {
-    console.log('No active agents.');
-  } else {
-    for (const agent of activeAgents) {
-      console.log(`[${chalk.blue(agent.phase)}|${chalk.magenta(agent.pid)}]`.padEnd(18) + `id:${agent.id} (running ${agent.runtime})`);
-    }
-  }
-
-  // Recent Agent Activity
-  console.log(chalk.bold('\n== Recent Agent Activity (last 5) =='));
-  if (recentLogs.length === 0) {
-    console.log('No recent activity.');
-  } else {
-    for (const log of recentLogs) {
-      const statusColor = log.status === 'DONE' ? chalk.green : log.status === 'FAIL' ? chalk.red : chalk.gray;
-      const time = dayjs(log.timestamp).fromNow();
-      console.log(`${statusColor(`[${log.status}|${log.phase}|${log.agentId}]`)} plan:${log.planId} - ${log.message} (${chalk.gray(time)})`);
-    }
-  }
-
-  // Stalled / Failed
-  console.log(chalk.bold('\n== Stalled / Failed (last 24h) =='));
-  if (failedReports.length === 0) {
-    console.log('No failed reports in the last 24 hours.');
-  } else {
-    for (const report of failedReports) {
-      console.log(`${chalk.red('[FAILED]')} plan:${report.planId} part:${report.partId} - "${report.reason}"`);
-      console.log(`         Report: ${report.reportPath}`);
-    }
-  }
-
-  // Recent Git Commits
-  console.log(chalk.bold('\n== Recent Git Commits (all worktrees) =='));
-  if (gitCommits.length === 0) {
-    console.log('No recent commits.');
-  } else {
-    for (const commit of gitCommits) {
-      const worktreeInfo = commit.worktree ? `(${chalk.cyan(commit.worktree)}) ` : '';
-      console.log(`${chalk.yellow(commit.hash.slice(0, 7))} ${worktreeInfo}${commit.message}`);
-    }
-  }
-};
-````
-
-## File: src/utils/shell.ts
-````typescript
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import { platform } from './platform';
-
-export interface AgentInfo {
-  phase: 'INIT' | 'DEV' | 'QA' | 'SCAF';
-  id: string; // part_id, plan_id for QA/Scaffold
-  planId: string;
-  partId: string; // Can be 'scaffold' or 'qa'
-  runtime: string;
-  pid: string;
-}
-
-dayjs.extend(relativeTime);
-
-/**
- * @description Lists active tmux sessions and parses them to find agent info.
- * @returns A list of active agents.
- */
-export const getActiveAgents = async (): Promise<AgentInfo[]> => {
-  try {
-    const { stdout } = await platform.runCommand(`tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`);
-    if (!stdout) return [];
-
-    const lines = stdout.trim().split('\n');
-    const agents: AgentInfo[] = [];
-
-    for (const line of lines) {
-      const [sessionName, pid, activity] = line.split(' ');
-      const runtime = dayjs().to(dayjs.unix(parseInt(activity, 10)), true);
-
-      let match;
-      if ((match = sessionName.match(/^init-scaffold-(.+)/))) {
-        const planId = match[1];
-        agents.push({
-          phase: 'SCAF',
-          id: planId,
-          planId,
-          partId: 'scaffold',
-          runtime,
-          pid,
-        });
-      } else if ((match = sessionName.match(/^qa-(.+)/))) {
-        const planId = match[1];
-        agents.push({ phase: 'QA', id: planId, planId, partId: 'qa', runtime, pid });
-      } else if ((match = sessionName.match(/^(init|dev)-(?!scaffold-|qa-)(.+)/))) {
-        const phase = match[1].toUpperCase() as 'INIT' | 'DEV';
-        const partId = match[2];
-        agents.push({
-          phase,
-          id: partId,
-          planId: 'unknown', // Not available from session name
-          partId: partId,
-          runtime,
-          pid,
-        });
-      }
-    }
-    return agents;
-  } catch (error) {
-    return []; // Tmux likely not running or has no sessions.
-  }
-};
-````
-
-## File: test/e2e/cli.test.ts
-````typescript
-import { runCli, setupTestDirectory, createDummyPlanFile, createDummyFailedReport, initGitRepo } from '../test.util';
-import fs from 'fs/promises';
-import { exec as execCallback } from 'child_process';
-import path from 'path';
-import { promisify } from 'util';
-import { platform } from '../../src/utils/platform';
-
-const promisedExec = promisify(execCallback);
-
-
-describe('e2e/cli', () => {
-  let cleanup: () => Promise<void>;
-  let testDir: string;
-
-  beforeAll(async () => {
-    try {
-      await promisedExec('npm run build');
-    } catch (e) {
-      console.error('Failed to build project for E2E tests:', e);
-      process.exit(1);
-    }
-  }, 60000);
-
-  beforeEach(async () => {
-    const { cleanup: c, testDir: td } = await setupTestDirectory();
-    cleanup = c;
-    testDir = td;
-  });
-
-  afterEach(async () => {
-    if (cleanup) {
-      await cleanup();
-    }
-  });
-
-  describe('init command', () => {
-    it('should initialize a new project structure', async () => {
-      const { stdout, code } = await runCli('init');
-
-      expect(stdout).toContain('nocaflow project initialized successfully');
-      expect(code).toBe(0);
-
-      const expectedFile = path.join(testDir, '.nocaflow/initialization/plans/todo/.gitkeep');
-      await expect(fs.access(expectedFile)).resolves.toBeUndefined();
-    });
-
-    it('should show a warning if the project is already initialized', async () => {
-      await fs.mkdir('.nocaflow'); // Manually create the directory
-      const { stderr, code } = await runCli('init');
-
-      expect(stderr).toContain("Warning: '.nocaflow' directory already exists. Initialization skipped.");
-      expect(code).toBe(0); // Graceful exit on warning
-    });
-  });
-
-  describe('state command', () => {
-    it('should display the project state in an initialized directory', async () => {
-      await runCli('init');
-      await createDummyPlanFile('initialization', 'todo', 'plan1.yml');
-
-      const { stdout, code } = await runCli('state');
-
-      expect(stdout).toContain('== nocaflow State');
-      expect(stdout).toContain('Phase Progress');
-      expect(stdout).toContain('Current Phase: initialization');
-      expect(stdout).toContain('todo: 1');
-      expect(code).toBe(0);
-    });
-
-    it('should display a complex, multi-faceted state correctly', async () => {
-      await runCli('init');
-      await initGitRepo();
-
-      // Setup: Create various artifacts
-      await createDummyPlanFile('initialization', 'doing', 'p1.yml');
-      await createDummyPlanFile('development', 'done', 'p2.yml');
-      await createDummyFailedReport('initialization', 'f01', 'pA', 'Test failure');
-
-      const logDir = '.nocaflow/development/agent-log';
-      await fs.mkdir(logDir, { recursive: true });
-      const logContent = `2023-10-27T10:00:00.000Z [DONE|DEV|agent-abc] plan:plan-e2e - Log message`;
-      await fs.writeFile(path.join(logDir, 'test.log'), logContent);
-
-      const tmuxSessionName = 'dev-e2e-part-xyz';
-      const canRunTmux = await platform.commandExists('tmux');
-      if (canRunTmux) {
-        await platform.runCommand(`tmux new-session -d -s ${tmuxSessionName} "sleep 15"`);
-      }
-
-      // Act: Run the state command
-      let stdout: string, code: number;
-      try {
-        const result = await runCli('state');
-        stdout = result.stdout;
-        code = result.code;
-      } finally {
-        // Teardown: ensure tmux session is killed
-        if (canRunTmux) {
-          await platform.runCommand(`tmux kill-session -t ${tmuxSessionName} || true`);
-        }
-      }
-
-      expect(code).toBe(0);
-      // Assert on all sections
-      expect(stdout).toContain('Current Phase: development');
-      expect(stdout).toContain('[INITIALIZATION]'.padEnd(18) + '[----------] (0/1 plans done)');
-      expect(stdout).toContain('[DEVELOPMENT]'.padEnd(18) + '[▇▇▇▇▇▇▇▇▇▇] (1/1 plans done)');
-      if (canRunTmux) {
-        expect(stdout).toContain('id:e2e-part-xyz');
-      }
-      expect(stdout).toContain('plan:plan-e2e - Log message');
-      expect(stdout).toContain('plan:f01 part:pA - "Test failure"');
-      expect(stdout).toContain('Initial commit');
-    });
-
-    it('should show a zero-state when run in a non-initialized directory', async () => {
-      const { stdout, stderr, code } = await runCli('state');
-      
-      expect(stderr).toBe('');
-      expect(code).toBe(0);
-      expect(stdout).toContain('Current Phase: initialization');
-      expect(stdout).toContain('(0/0 plans done)');
-      expect(stdout).toContain('No active agents.');
-      expect(stdout).toContain('No recent activity.');
-      expect(stdout).toContain('No failed reports in the last 24 hours.');
-    });
-  });
-
-  describe('no command', () => {
-    it('should display help when no command is provided', async () => {
-      const { stderr } = await runCli('');
-      expect(stderr).toContain('Commands:');
-      expect(stderr).toContain('init');
-      expect(stderr).toContain('state');
-      expect(stderr).toContain('You need at least one command before moving on');
-    });
-
-    it('should display help when --help flag is used', async () => {
-      const generalHelp = await runCli('--help');
-      expect(generalHelp.stdout).toContain('Show help');
-
-      const stateHelp = await runCli('state --help');
-      expect(stateHelp.stdout).toContain('Display the current state of the nocaflow project');
-    });
-
-    it('should show an error for an unknown command', async () => {
-      const { stderr } = await runCli('nonexistent-command');
-      expect(stderr).toContain('Unknown argument: nonexistent-command');
-    });
-  });
-});
-````
-
 ## File: test/integration/commands/init.test.ts
 ````typescript
 import { handleInitCommand } from '../../../src/commands/init';
@@ -2182,6 +1851,133 @@ describe('unit/utils/fs', () => {
 });
 ````
 
+## File: src/commands/state.ts
+````typescript
+import chalk from 'chalk';
+import { getPhaseStats, PhaseStats, getFailedReports, FailedReport } from '../utils/fs';
+import { getActiveAgents, AgentInfo } from '../utils/shell';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import { getRecentLogs, LogEntry } from '../utils/logs';
+import { getGitLog, GitCommit } from '../utils/git';
+
+dayjs.extend(relativeTime);
+
+/**
+ * @description Renders a progress bar.
+ * @param current - The current progress value.
+ * @param total - The total value for 100%.
+ * @param length - The character length of the bar.
+ * @returns A string representing the progress bar.
+ */
+export const renderProgressBar = (current: number, total: number, length: number = 20): string => {
+  const percent = total > 0 ? current / total : 0;
+  const filledLength = Math.round(length * percent);
+  const emptyLength = length - filledLength;
+  const filledBar = '▇'.repeat(filledLength);
+  const emptyBar = '-'.repeat(emptyLength);
+  const bar = `[${filledBar}${emptyBar}]`;
+  const text = `(${current}/${total} plans done)`;
+
+  return `${bar} ${text}`;
+};
+
+/**
+ * @description Displays the full state report to the console.
+ */
+export const handleStateCommand = async (_argv: Record<string, unknown>): Promise<void> => {
+  const phaseStats: PhaseStats = await getPhaseStats();
+  const activeAgents: AgentInfo[] = await getActiveAgents();
+  const recentLogs: LogEntry[] = await getRecentLogs(5);
+  const failedReports: FailedReport[] = await getFailedReports(24);
+  const gitCommits: GitCommit[] = await getGitLog(10);
+  const currentPhase = phaseStats.development?.total > 0 ? 'development' : 'initialization';
+
+  // Header
+  console.log(chalk.bold(`== nocaflow State [${dayjs().format('YYYY-MM-DD HH:mm:ss')}] ==`));
+  console.log(`Current Phase: ${chalk.cyan(currentPhase)}`);
+  
+  // Phase Progress
+  console.log(chalk.bold('\n== Phase Progress =='));
+  for (const phaseName in phaseStats) {
+    const stats = phaseStats[phaseName];
+    const progressBar = renderProgressBar(stats.done, stats.total);
+    console.log(`[${chalk.yellow(phaseName.toUpperCase())}]`.padEnd(18) + progressBar);
+  }
+
+  // Phase Stats
+  console.log(chalk.bold('\n== Phase Stats (Plans) =='));
+  for (const phaseName in phaseStats) {
+    const stats = phaseStats[phaseName];
+    if (stats.total === 0) continue;
+    const statsString = `todo: ${stats.todo}, doing: ${stats.doing}, review: ${stats.review}, failed: ${stats.failed}, done: ${stats.done}`;
+    console.log(`[${chalk.yellow(phaseName.toUpperCase())}]`.padEnd(18) + statsString);
+  }
+
+  // Active Agents
+  console.log(chalk.bold('\n== Active Agents (tmux) =='));
+  if (activeAgents.length === 0) {
+    console.log('No active agents.');
+  } else {
+    activeAgents.forEach(agent => {
+      let agentTypeInfo = '';
+      let idInfo = '';
+
+      switch (agent.type) {
+        case 'SCAFFOLDER':
+          agentTypeInfo = `[${chalk.blue(agent.type)}|${chalk.yellow(String(agent.phase))}|${chalk.magenta(agent.pid)}]`;
+          idInfo = `plan:${agent.planId}`;
+          break;
+        case 'WORKER':
+          agentTypeInfo = `[${chalk.blue(agent.type)}|${chalk.yellow(String(agent.phase))}|${chalk.magenta(agent.pid)}]`;
+          idInfo = `part:${agent.partId}`;
+          break;
+        case 'QA':
+          // Phase is null for QA, so we omit it.
+          agentTypeInfo = `[${chalk.blue(agent.type)}|${chalk.magenta(agent.pid)}]`;
+          idInfo = `plan:${agent.planId}`;
+          break;
+      }
+      console.log(`${agentTypeInfo.padEnd(28)} ${idInfo} (running ${agent.runtime})`);
+    });
+  }
+
+  // Recent Agent Activity
+  console.log(chalk.bold('\n== Recent Agent Activity (last 5) =='));
+  if (recentLogs.length === 0) {
+    console.log('No recent activity.');
+  } else {
+    for (const log of recentLogs) {
+      const statusColor = log.status === 'DONE' ? chalk.green : log.status === 'FAIL' ? chalk.red : chalk.gray;
+      const time = dayjs(log.timestamp).fromNow();
+      console.log(`${statusColor(`[${log.status}|${log.phase}|${log.agentId}]`)} plan:${log.planId} - ${log.message} (${chalk.gray(time)})`);
+    }
+  }
+
+  // Stalled / Failed
+  console.log(chalk.bold('\n== Stalled / Failed (last 24h) =='));
+  if (failedReports.length === 0) {
+    console.log('No failed reports in the last 24 hours.');
+  } else {
+    for (const report of failedReports) {
+      console.log(`${chalk.red('[FAILED]')} plan:${report.planId} part:${report.partId} - "${report.reason}"`);
+      console.log(`         Report: ${report.reportPath}`);
+    }
+  }
+
+  // Recent Git Commits
+  console.log(chalk.bold('\n== Recent Git Commits (all worktrees) =='));
+  if (gitCommits.length === 0) {
+    console.log('No recent commits.');
+  } else {
+    for (const commit of gitCommits) {
+      const worktreeInfo = commit.worktree ? `(${chalk.cyan(commit.worktree)}) ` : '';
+      console.log(`${chalk.yellow(commit.hash.slice(0, 7))} ${worktreeInfo}${commit.message}`);
+    }
+  }
+};
+````
+
 ## File: src/utils/git.ts
 ````typescript
 import { simpleGit } from 'simple-git';
@@ -2248,7 +2044,7 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
     const isRepo = await git.checkIsRepo();
     if (!isRepo) return [];
 
-    const worktrees = await getWorktreeList();
+    const worktrees = await getWorktreeList(); // for mapping branch to worktree name
     const worktreeMap = new Map<string, string>();
     for (const wt of worktrees) {
       const branchNameMatch = wt.branch.match(/refs\/heads\/(.*)/);
@@ -2261,14 +2057,15 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
       }
     }
 
-    const logResult = await git.log({ '--all': null, maxCount: limit, format: { hash: '%H', refs: '%d' } });
+    const logResult = await git.log({
+      '--all': null,
+      maxCount: limit,
+      format: { hash: '%H', refs: '%d', message: '%B' }, // %B gets the full commit message body
+    });
+
     if (!logResult.all || logResult.total === 0) return [];
 
-    const commits: GitCommit[] = [];
-    for (const commit of logResult.all) {
-      const fullMessageResult = await git.raw(['show', '--format=%B', '--no-patch', commit.hash]);
-      const fullMessage = fullMessageResult.trim();
-
+    const commits = logResult.all.map(commit => {
       let worktree: string | null = null;
       // commit.refs is like ' (HEAD -> my-feature, origin/my-feature)'
       for (const branchName of worktreeMap.keys()) {
@@ -2278,12 +2075,13 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
         }
       }
 
-      commits.push({
+      return {
         hash: commit.hash,
         worktree,
-        message: fullMessage,
-      });
-    }
+        message: commit.message.trim(),
+      };
+    });
+
     return commits;
   } catch (error) {
     return []; // Git not installed, not a git repo, or other error.
@@ -2302,6 +2100,240 @@ export const isGitRepository = async (): Promise<boolean> => {
     return false;
   }
 };
+````
+
+## File: src/utils/shell.ts
+````typescript
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import { platform } from './platform';
+
+export interface AgentInfo {
+  sessionName: string;
+  type: 'WORKER' | 'SCAFFOLDER' | 'QA';
+  // Phase is known for workers and scaffolders, but not for QA agents from session name alone.
+  phase: 'INIT' | 'DEV' | null;
+  planId: string | null;
+  partId: string | null;
+  runtime: string;
+  pid: string;
+}
+
+dayjs.extend(relativeTime);
+
+/**
+ * @description Lists active tmux sessions and parses them to find agent info.
+ * @returns A list of active agents.
+ */
+export const getActiveAgents = async (): Promise<AgentInfo[]> => {
+  try {
+    const { stdout } = await platform.runCommand(`tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`);
+    if (!stdout) return [];
+
+    const lines = stdout.trim().split('\n');
+    const agents: AgentInfo[] = [];
+
+    for (const line of lines) {
+      const [sessionName, pid, activity] = line.split(' ');
+      const runtime = dayjs().to(dayjs.unix(parseInt(activity, 10)), true);
+
+      let match;
+      if ((match = sessionName.match(/^init-scaffold-(.+)/))) {
+        const planId = match[1];
+        agents.push({
+          sessionName,
+          type: 'SCAFFOLDER',
+          phase: 'INIT',
+          planId,
+          partId: 'scaffold',
+          runtime,
+          pid,
+        });
+      } else if ((match = sessionName.match(/^qa-(.+)/))) {
+        const planId = match[1];
+        agents.push({
+          sessionName,
+          type: 'QA',
+          phase: null,
+          planId,
+          partId: 'qa',
+          runtime,
+          pid,
+        });
+      } else if ((match = sessionName.match(/^(init|dev)-(?!scaffold-|qa-)(.+)/))) {
+        const phase = match[1].toUpperCase() as 'INIT' | 'DEV';
+        const partId = match[2];
+        agents.push({
+          sessionName,
+          type: 'WORKER',
+          phase,
+          planId: null, // Not available from session name for workers
+          partId,
+          runtime,
+          pid,
+        });
+      }
+    }
+    return agents;
+  } catch (error) {
+    return []; // Tmux likely not running or has no sessions.
+  }
+};
+````
+
+## File: test/e2e/cli.test.ts
+````typescript
+import { runCli, setupTestDirectory, createDummyPlanFile, createDummyFailedReport, initGitRepo } from '../test.util';
+import fs from 'fs/promises';
+import { exec as execCallback } from 'child_process';
+import path from 'path';
+import { promisify } from 'util';
+import { platform } from '../../src/utils/platform';
+
+const promisedExec = promisify(execCallback);
+
+
+describe('e2e/cli', () => {
+  let cleanup: () => Promise<void>;
+  let testDir: string;
+
+  beforeAll(async () => {
+    try {
+      await promisedExec('npm run build');
+    } catch (e) {
+      console.error('Failed to build project for E2E tests:', e);
+      process.exit(1);
+    }
+  }, 60000);
+
+  beforeEach(async () => {
+    const { cleanup: c, testDir: td } = await setupTestDirectory();
+    cleanup = c;
+    testDir = td;
+  });
+
+  afterEach(async () => {
+    if (cleanup) {
+      await cleanup();
+    }
+  });
+
+  describe('init command', () => {
+    it('should initialize a new project structure', async () => {
+      const { stdout, code } = await runCli('init');
+
+      expect(stdout).toContain('nocaflow project initialized successfully');
+      expect(code).toBe(0);
+
+      const expectedFile = path.join(testDir, '.nocaflow/initialization/plans/todo/.gitkeep');
+      await expect(fs.access(expectedFile)).resolves.toBeUndefined();
+    });
+
+    it('should show a warning if the project is already initialized', async () => {
+      await fs.mkdir('.nocaflow'); // Manually create the directory
+      const { stderr, code } = await runCli('init');
+
+      expect(stderr).toContain("Warning: '.nocaflow' directory already exists. Initialization skipped.");
+      expect(code).toBe(0); // Graceful exit on warning
+    });
+  });
+
+  describe('state command', () => {
+    it('should display the project state in an initialized directory', async () => {
+      await runCli('init');
+      await createDummyPlanFile('initialization', 'todo', 'plan1.yml');
+
+      const { stdout, code } = await runCli('state');
+
+      expect(stdout).toContain('== nocaflow State');
+      expect(stdout).toContain('Phase Progress');
+      expect(stdout).toContain('Current Phase: initialization');
+      expect(stdout).toContain('todo: 1');
+      expect(code).toBe(0);
+    });
+
+    it('should display a complex, multi-faceted state correctly', async () => {
+      await runCli('init');
+      await initGitRepo();
+
+      // Setup: Create various artifacts
+      await createDummyPlanFile('initialization', 'doing', 'p1.yml');
+      await createDummyPlanFile('development', 'done', 'p2.yml');
+      await createDummyFailedReport('initialization', 'f01', 'pA', 'Test failure');
+
+      const logDir = '.nocaflow/development/agent-log';
+      await fs.mkdir(logDir, { recursive: true });
+      const logContent = `2023-10-27T10:00:00.000Z [DONE|DEV|agent-abc] plan:plan-e2e - Log message`;
+      await fs.writeFile(path.join(logDir, 'test.log'), logContent);
+
+      const tmuxSessionName = 'dev-e2e-part-xyz';
+      const canRunTmux = await platform.commandExists('tmux');
+      if (canRunTmux) {
+        await platform.runCommand(`tmux new-session -d -s ${tmuxSessionName} "sleep 15"`);
+      }
+
+      // Act: Run the state command
+      let stdout: string, code: number;
+      try {
+        const result = await runCli('state');
+        stdout = result.stdout;
+        code = result.code;
+      } finally {
+        // Teardown: ensure tmux session is killed
+        if (canRunTmux) {
+          await platform.runCommand(`tmux kill-session -t ${tmuxSessionName} || true`);
+        }
+      }
+
+      expect(code).toBe(0);
+      // Assert on all sections
+      expect(stdout).toContain('Current Phase: development');
+      expect(stdout).toContain('[INITIALIZATION]'.padEnd(18) + '[--------------------] (0/1 plans done)');
+      expect(stdout).toContain('[DEVELOPMENT]'.padEnd(18) + '[▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇] (1/1 plans done)');
+      if (canRunTmux) {
+        expect(stdout).toContain('id:e2e-part-xyz');
+      }
+      expect(stdout).toContain('plan:plan-e2e - Log message');
+      expect(stdout).toContain('plan:f01 part:pA - "Test failure"');
+      expect(stdout).toContain('Initial commit');
+    });
+
+    it('should show a zero-state when run in a non-initialized directory', async () => {
+      const { stdout, stderr, code } = await runCli('state');
+      
+      expect(stderr).toBe('');
+      expect(code).toBe(0);
+      expect(stdout).toContain('Current Phase: initialization');
+      expect(stdout).toContain('(0/0 plans done)');
+      expect(stdout).toContain('No active agents.');
+      expect(stdout).toContain('No recent activity.');
+      expect(stdout).toContain('No failed reports in the last 24 hours.');
+    });
+  });
+
+  describe('no command', () => {
+    it('should display help when no command is provided', async () => {
+      const { stderr } = await runCli('');
+      expect(stderr).toContain('Commands:');
+      expect(stderr).toContain('init');
+      expect(stderr).toContain('state');
+      expect(stderr).toContain('You need at least one command before moving on');
+    });
+
+    it('should display help when --help flag is used', async () => {
+      const generalHelp = await runCli('--help');
+      expect(generalHelp.stdout).toContain('Show help');
+
+      const stateHelp = await runCli('state --help');
+      expect(stateHelp.stdout).toContain('Display the current state of the nocaflow project');
+    });
+
+    it('should show an error for an unknown command', async () => {
+      const { stderr } = await runCli('nonexistent-command');
+      expect(stderr).toContain('Unknown argument: nonexistent-command');
+    });
+  });
+});
 ````
 
 ## File: test/unit/utils/shell.test.ts
@@ -2353,23 +2385,41 @@ describe('unit/utils/shell (integration)', () => {
     it('should parse all types of agent sessions and ignore non-agent sessions', async () => {
       const agents = await getActiveAgents();
       // Filter for agents created in this specific test run to ensure isolation
-      const testAgents = agents.filter(
-        a => a.partId.endsWith(testId) || a.planId.endsWith(testId),
-      );
+      const testAgents = agents.filter(a => a.sessionName.endsWith(testId));
 
       expect(testAgents).toHaveLength(4);
 
       expect(testAgents).toContainEqual(
-        expect.objectContaining({ phase: 'INIT', partId: `part123-${testId}` }),
+        expect.objectContaining({
+          type: 'WORKER',
+          phase: 'INIT',
+          partId: `part123-${testId}`,
+          planId: null,
+        }),
       );
       expect(testAgents).toContainEqual(
-        expect.objectContaining({ phase: 'DEV', partId: `part456-${testId}` }),
+        expect.objectContaining({
+          type: 'WORKER',
+          phase: 'DEV',
+          partId: `part456-${testId}`,
+          planId: null,
+        }),
       );
       expect(testAgents).toContainEqual(
-        expect.objectContaining({ phase: 'SCAF', planId: `plan789-${testId}` }),
+        expect.objectContaining({
+          type: 'SCAFFOLDER',
+          phase: 'INIT',
+          planId: `plan789-${testId}`,
+          partId: 'scaffold',
+        }),
       );
       expect(testAgents).toContainEqual(
-        expect.objectContaining({ phase: 'QA', planId: `planABC-${testId}` }),
+        expect.objectContaining({
+          type: 'QA',
+          phase: null,
+          planId: `planABC-${testId}`,
+          partId: 'qa',
+        }),
       );
     });
 
@@ -2385,7 +2435,9 @@ describe('unit/utils/shell (integration)', () => {
 
     it('should correctly calculate agent runtime', async () => {
       const agents = await getActiveAgents();
-      const devAgent = agents.find(a => a.partId === `part456-${testId}`);
+      const devAgent = agents.find(
+        a => a.sessionName === `dev-part456-${testId}`,
+      );
       expect(devAgent).toBeDefined();
       // The runtime is short and non-deterministic, just check it exists.
       expect(devAgent?.runtime).toContain('a few seconds');

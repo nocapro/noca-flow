@@ -64,9 +64,27 @@ export const handleStateCommand = async (_argv: Record<string, unknown>): Promis
   if (activeAgents.length === 0) {
     console.log('No active agents.');
   } else {
-    for (const agent of activeAgents) {
-      console.log(`[${chalk.blue(agent.phase)}|${chalk.magenta(agent.pid)}]`.padEnd(18) + `id:${agent.id} (running ${agent.runtime})`);
-    }
+    activeAgents.forEach(agent => {
+      let agentTypeInfo = '';
+      let idInfo = '';
+
+      switch (agent.type) {
+        case 'SCAFFOLDER':
+          agentTypeInfo = `[${chalk.blue(agent.type)}|${chalk.yellow(String(agent.phase))}|${chalk.magenta(agent.pid)}]`;
+          idInfo = `plan:${agent.planId}`;
+          break;
+        case 'WORKER':
+          agentTypeInfo = `[${chalk.blue(agent.type)}|${chalk.yellow(String(agent.phase))}|${chalk.magenta(agent.pid)}]`;
+          idInfo = `part:${agent.partId}`;
+          break;
+        case 'QA':
+          // Phase is null for QA, so we omit it.
+          agentTypeInfo = `[${chalk.blue(agent.type)}|${chalk.magenta(agent.pid)}]`;
+          idInfo = `plan:${agent.planId}`;
+          break;
+      }
+      console.log(`${agentTypeInfo.padEnd(28)} ${idInfo} (running ${agent.runtime})`);
+    });
   }
 
   // Recent Agent Activity
