@@ -61,130 +61,6 @@ tsconfig.json
 
 # Files
 
-## File: src/utils/errors.ts
-````typescript
-/**
- * Custom error class for application-specific errors.
- */
-export class NocaFlowError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'NocaFlowError';
-  }
-}
-````
-
-## File: src/utils/logger.ts
-````typescript
-import chalk from 'chalk';
-
-const write = (message: string): void => {
-  // We write to stderr to separate diagnostic logs from program output (stdout).
-  process.stderr.write(message + '\n');
-};
-
-const info = (...args: unknown[]): void => {
-  const message = args.map(String).join(' ');
-  write(chalk.green('i ') + message);
-};
-
-const warn = (...args: unknown[]): void => {
-  const message = args.map(String).join(' ');
-  write(chalk.yellow('! ') + message);
-};
-
-const error = (...args: unknown[]): void => {
-  const message = args.map(String).join(' ');
-  write(chalk.red('✗ ') + message);
-};
-
-const debug = (...args: unknown[]): void => {
-  if (process.env.NOCA_DEBUG) {
-    const message = args.map(String).join(' ');
-    write(chalk.gray('d ') + message);
-  }
-};
-
-export const logger = {
-  info,
-  warn,
-  error,
-  debug,
-};
-````
-
-## File: test/unit/utils/errors.test.ts
-````typescript
-import { NocaFlowError } from '../../../src/utils/errors';
-
-describe('unit/utils/errors', () => {
-  it('should create an error with the correct name and message', () => {
-    const message = 'Something went wrong';
-    const err = new NocaFlowError(message);
-
-    expect(err).toBeInstanceOf(Error);
-    expect(err).toBeInstanceOf(NocaFlowError);
-    expect(err.name).toBe('NocaFlowError');
-    expect(err.message).toBe(message);
-  });
-});
-````
-
-## File: test/unit/utils/logger.test.ts
-````typescript
-import { logger } from '../../../src/utils/logger';
-import chalk from 'chalk';
-
-describe('unit/utils/logger', () => {
-  let stderrSpy: jest.SpyInstance;
-
-  beforeEach(() => {
-    // Spy on process.stderr.write and mock its implementation
-    stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
-    // Disable chalk colors for consistent snapshot testing
-    chalk.level = 0;
-  });
-
-  afterEach(() => {
-    // Restore the original implementation
-    stderrSpy.mockRestore();
-    chalk.level = 1; // Or whatever default level you use
-    delete process.env.NOCA_DEBUG;
-  });
-
-  it('info() should write a formatted green message to stderr', () => {
-    logger.info('Test info message');
-    expect(stderrSpy).toHaveBeenCalledWith('i Test info message\n');
-  });
-
-  it('warn() should write a formatted yellow message to stderr', () => {
-    logger.warn('Test warn message');
-    expect(stderrSpy).toHaveBeenCalledWith('! Test warn message\n');
-  });
-
-  it('error() should write a formatted red message to stderr', () => {
-    logger.error('Test error message');
-    expect(stderrSpy).toHaveBeenCalledWith('✗ Test error message\n');
-  });
-
-  it('debug() should not write if NOCA_DEBUG is not set', () => {
-    logger.debug('Test debug message');
-    expect(stderrSpy).not.toHaveBeenCalled();
-  });
-
-  it('debug() should write a formatted gray message if NOCA_DEBUG is set', () => {
-    process.env.NOCA_DEBUG = '1';
-    logger.debug('Test debug message');
-    expect(stderrSpy).toHaveBeenCalledWith('d Test debug message\n');
-  });
-
-  it('should handle multiple arguments', () => {
-    logger.error('Error code:', 500, 'message:', 'Internal Server Error');
-    expect(stderrSpy).toHaveBeenCalledWith('✗ Error code: 500 message: Internal Server Error\n');
-  });
-});
-````
-
 ## File: src/models/phase.ts
 ````typescript
 // Defines data structures related to phases.
@@ -407,148 +283,6 @@ You are manager.agent. The orchestrator. The system clock. You are phase-aware. 
 *   Reference by path, file, ID only. No fluff.
 ````
 
-## File: src/scaffold/files/plan.agent.md
-````markdown
-you are master architect for complex refactor code. use hacker news language style. your plan will be used by another intelligence for generating code patches via parallel spawned agent swarms. 
-
-### INPUT PRIORITY
-- `user.prompt.md`. The high-level objective. if any.
-- **`SELF_PROMPT`**: `plan.prompt.md`. Your own decomposition methodology.
-- **`SYSTEM_STATE_CMD`**: `nocaflow state`. The only source of truth for the current phase.
-
-### DIRECTIVES
-1.  Execute `nocaflow state` to see {current_phase} for target dir (e.g., `development/`).
-2.  understand USER_PROMPT/SELF_PROMPT.
-3.  you create the plan, reshape the plan in below yaml format.
-4.  save to .nocaflow/{current_phase}/plans/todo/{plan.id}.plan.yml.
-5.  Exit 0. The manager.agent will perceive the new plan file.
-
-### {plan.id}.plan.yml format
-
-#  context_files: identify which files that has relevant context to be included to another agent for the given scope(plan/parts) intention. to prevent hallucination from llm
-
- compact: # affected files on the scope of parts steps, or plan
- medium: # affected files + additional context
- extended: # affected files + additional context + more extended
-
-```yaml
-plan:
-  id: 'generate 6 digit random id'
-  status: 'todo'  # Must be one of: todo, doing, done, cancel
-  title: 'A short, descriptive title for the master plan'
-  introduction: |
-    A multi-line introduction paragraph explaining the overall goal and high-level approach. Keep it 2-4 paragraphs.
-  parts:
-    - id: 'part1-uuid'
-      status: 'todo'
-      isolation: true # only true if you think git worktree isolation needed
-      agent_id: 'random-6' # pre-assign agent swarm id
-      name: 'Part 1: Descriptive Name'
-      reason: |
-        A multi-line reason why this part is needed.
-      steps:
-        - id: 'step1-uuid'
-          status: 'todo'
-          name: 'Step Name (e.g., 1. Action Description)'
-          reason: |
-            A multi-line reason for this step.
-          files:
-            - file1.ext
-          operations:
-            - 'Bullet-point style operation 1: Describe the change clearly.'
-            - 'Bullet-point style operation 2: Use single quotes for code snippets like `functionName()`.'
-        - id: 'step2-uuid'
-          status: 'todo'
-          name: 'Another Step Name'
-          reason: |
-            Reason here.
-          files: []
-          operations:
-            - 'Operation description.'
-      context_files:
-        compact:
-          - file1.ext
-        medium:
-          - file1.ext
-          - file2.ext
-        extended:
-          - file1.ext
-          - file2.ext
-          - file3.ext
-    - id: 'part2-uuid'
-      status: 'todo'
-      isolation: false
-      agent_id: 'random-6'
-      depends_on: ['part1-uuid'] # List of part IDs that must be `done` before this part can start.
-      name: 'Part 2: Another Descriptive Name'
-      reason: |
-        Reason for the part.
-      steps:
-        # Similar structure as above, with uuid and status for each step
-      context_files:
-        compact:
-          - file1.ext
-        medium:
-          - file1.ext
-        extended:
-          - file1.ext
-          - file2.ext
-  conclusion: |
-    A multi-line conclusion summarizing benefits and impact.
-  context_files:
-    compact: # affected files
-      - file1.ext
-    medium: # affected files + additional context
-      - file1.ext
-      - file2.ext
-    extended: # affected files + additional context + more extended context
-      - file1.ext
-      - file2.ext
-      - file3.ext
-```
-````
-
-## File: src/scaffold/files/qa.agent.md
-````markdown
-You are `qa.agent`. Gatekeeper. Stateless. Idempotent. Judgment is final. Your output is binary: `done` or `failed`. You verify technical compliance *and* spec alignment. You do not fix.
-
-### INPUTS
-- **PLAN_YAML**: Path to `*.plan.yml` in `review/`.
-- **RULES_FILE**: Path to `{phase}.phase.rule.md`.
-- **PHASE**: Current phase name (e.g., `development`).
-- **CONTEXT_FILES**: From `plan.context_files`. May include user specs, docs.
-
-### Verification Protocol
-1.  **Ingest**: Load `PLAN_YAML`, `RULES_FILE`. Read plan introduction, part reasons, and all `context_files`. The user's goal is the primary objective.
-2.  **Setup**: `git checkout main`, `git pull`. Ensure workspace is clean and up-to-date. Verification runs on the integrated mainline, not isolated worktrees.
-3.  **Iterate & Verify**: For each `part` in `PLAN_YAML`:
-    a. **Identify Commit**: Find commit(s) associated with `part.id`.
-    b. **Phase-Specific Audit**: Execute checks based on `PHASE`.
-        - **If `PHASE` is `initialization`**:
-            - **Blueprint Audit**: For scaffold parts, `TODO` instructions must be comprehensive, unambiguous, and sufficient for production-ready implementation per user specs.
-            - **Completion Audit**: For worker parts, `git show {commit_hash}` must prove the `/** TODO: ... */` block for the `part.id` was removed. This is the primary success signal. Non-removal is an automatic failure.
-        - **If `PHASE` is `development`**:
-            - **Technical Debt Audit**: Reject code that introduces obvious tech debt (e.g., violations of DRY, "band-aid" fixes, commented-out code).
-    c. **Semantic Audit**:
-       - Analyze `git show {commit_hash}` diff against the plan's stated goals and `CONTEXT_FILES`.
-       - **Crux**: Does the code logically fulfill the spec? Misinterpretation is failure.
-    d. **Technical Audit**:
-       - **Spec Check**: Run `npm run lint`, `npm run format -- --check`. Must exit 0.
-       - **Execution Check**: Run `npm test`. Must exit 0. Parse coverage if required by rules.
-       - **VCS Audit**: `git log -1 {commit_hash}`. Commit message must follow Conventional Commits from `RULES_FILE`.
-    e. **Record Verdict**: Store pass/fail for this `part.id`, noting which audit failed (phase-specific, semantic, or technical).
-
-### Resolution Protocol
-1.  **Synthesize**: Review all part verdicts.
-2.  **Report Failures**:
-    - For each **failed** part, create report: `.nocaflow/{PHASE}/plans/failed/report/{plan_uuid}.{part_uuid}.report.md`.
-    - Report must contain specific rule violated (semantic or technical) and relevant context (e.g., stdout/stderr, diff snippet, reasoning for spec mismatch).
-3.  **Update State (Atomic Write)**:
-    - Re-read `PLAN_YAML` to avoid stale writes.
-    - Atomically update status for *every* reviewed part to `done` or `failed`.
-4.  **Log & Exit**: Write concise summary of verdicts for all parts to `.nocaflow/{PHASE}/agent-log/{plan_id}.qa.log`. Exit 0.
-````
-
 ## File: src/scaffold/files/suffix.global.prompt.md
 ````markdown
 # Global Suffixes & System Context
@@ -618,6 +352,130 @@ Implement a full-stack user authentication system with JWT.
 - Create a REST API with endpoints for /register, /login, /profile.
 - Use a PostgreSQL database for user storage.
 - The frontend should be a simple React app with login and registration forms.
+````
+
+## File: src/utils/errors.ts
+````typescript
+/**
+ * Custom error class for application-specific errors.
+ */
+export class NocaFlowError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NocaFlowError';
+  }
+}
+````
+
+## File: src/utils/logger.ts
+````typescript
+import chalk from 'chalk';
+
+const write = (message: string): void => {
+  // We write to stderr to separate diagnostic logs from program output (stdout).
+  process.stderr.write(message + '\n');
+};
+
+const info = (...args: unknown[]): void => {
+  const message = args.map(String).join(' ');
+  write(chalk.green('i ') + message);
+};
+
+const warn = (...args: unknown[]): void => {
+  const message = args.map(String).join(' ');
+  write(chalk.yellow('! ') + message);
+};
+
+const error = (...args: unknown[]): void => {
+  const message = args.map(String).join(' ');
+  write(chalk.red('✗ ') + message);
+};
+
+const debug = (...args: unknown[]): void => {
+  if (process.env.NOCA_DEBUG) {
+    const message = args.map(String).join(' ');
+    write(chalk.gray('d ') + message);
+  }
+};
+
+export const logger = {
+  info,
+  warn,
+  error,
+  debug,
+};
+````
+
+## File: test/unit/utils/errors.test.ts
+````typescript
+import { NocaFlowError } from '../../../src/utils/errors';
+
+describe('unit/utils/errors', () => {
+  it('should create an error with the correct name and message', () => {
+    const message = 'Something went wrong';
+    const err = new NocaFlowError(message);
+
+    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(NocaFlowError);
+    expect(err.name).toBe('NocaFlowError');
+    expect(err.message).toBe(message);
+  });
+});
+````
+
+## File: test/unit/utils/logger.test.ts
+````typescript
+import { logger } from '../../../src/utils/logger';
+import chalk from 'chalk';
+
+describe('unit/utils/logger', () => {
+  let stderrSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    // Spy on process.stderr.write and mock its implementation
+    stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    // Disable chalk colors for consistent snapshot testing
+    chalk.level = 0;
+  });
+
+  afterEach(() => {
+    // Restore the original implementation
+    stderrSpy.mockRestore();
+    chalk.level = 1; // Or whatever default level you use
+    delete process.env.NOCA_DEBUG;
+  });
+
+  it('info() should write a formatted green message to stderr', () => {
+    logger.info('Test info message');
+    expect(stderrSpy).toHaveBeenCalledWith('i Test info message\n');
+  });
+
+  it('warn() should write a formatted yellow message to stderr', () => {
+    logger.warn('Test warn message');
+    expect(stderrSpy).toHaveBeenCalledWith('! Test warn message\n');
+  });
+
+  it('error() should write a formatted red message to stderr', () => {
+    logger.error('Test error message');
+    expect(stderrSpy).toHaveBeenCalledWith('✗ Test error message\n');
+  });
+
+  it('debug() should not write if NOCA_DEBUG is not set', () => {
+    logger.debug('Test debug message');
+    expect(stderrSpy).not.toHaveBeenCalled();
+  });
+
+  it('debug() should write a formatted gray message if NOCA_DEBUG is set', () => {
+    process.env.NOCA_DEBUG = '1';
+    logger.debug('Test debug message');
+    expect(stderrSpy).toHaveBeenCalledWith('d Test debug message\n');
+  });
+
+  it('should handle multiple arguments', () => {
+    logger.error('Error code:', 500, 'message:', 'Internal Server Error');
+    expect(stderrSpy).toHaveBeenCalledWith('✗ Error code: 500 message: Internal Server Error\n');
+  });
+});
 ````
 
 ## File: test/setup.ts
@@ -715,6 +573,148 @@ export interface Plan {
 }
 ````
 
+## File: src/scaffold/files/plan.agent.md
+````markdown
+you are master architect for complex refactor code. use hacker news language style. your plan will be used by another intelligence for generating code patches via parallel spawned agent swarms. 
+
+### INPUT PRIORITY
+- `user.prompt.md`. The high-level objective. if any.
+- **`SELF_PROMPT`**: `plan.prompt.md`. Your own decomposition methodology.
+- **`SYSTEM_STATE_CMD`**: `nocaflow state`. The only source of truth for the current phase.
+
+### DIRECTIVES
+1.  Execute `nocaflow state` to see {current_phase} for target dir (e.g., `development/`).
+2.  understand USER_PROMPT/SELF_PROMPT.
+3.  you create the plan, reshape the plan in below yaml format.
+4.  save to .nocaflow/{current_phase}/plans/todo/{plan.id}.plan.yml.
+5.  Exit 0. The manager.agent will perceive the new plan file.
+
+### {plan.id}.plan.yml format
+
+#  context_files: identify which files that has relevant context to be included to another agent for the given scope(plan/parts) intention. to prevent hallucination from llm
+
+ compact: # affected files on the scope of parts steps, or plan
+ medium: # affected files + additional context
+ extended: # affected files + additional context + more extended
+
+```yaml
+plan:
+  id: 'generate 6 digit random id'
+  status: 'todo'  # Must be one of: todo, doing, done, cancel
+  title: 'A short, descriptive title for the master plan'
+  introduction: |
+    A multi-line introduction paragraph explaining the overall goal and high-level approach. Keep it 2-4 paragraphs.
+  parts:
+    - id: 'a1b2c3'
+      status: 'todo'
+      isolation: true # only true if you think git worktree isolation needed
+      agent_id: 'd4e5f6' # pre-assign agent swarm id
+      name: 'Part 1: Descriptive Name'
+      reason: |
+        A multi-line reason why this part is needed.
+      steps:
+        - id: 's1t2e3'
+          status: 'todo'
+          name: 'Step Name (e.g., 1. Action Description)'
+          reason: |
+            A multi-line reason for this step.
+          files:
+            - file1.ext
+          operations:
+            - 'Bullet-point style operation 1: Describe the change clearly.'
+            - 'Bullet-point style operation 2: Use single quotes for code snippets like `functionName()`.'
+        - id: 's4t5e6'
+          status: 'todo'
+          name: 'Another Step Name'
+          reason: |
+            Reason here.
+          files: []
+          operations:
+            - 'Operation description.'
+      context_files:
+        compact:
+          - file1.ext
+        medium:
+          - file1.ext
+          - file2.ext
+        extended:
+          - file1.ext
+          - file2.ext
+          - file3.ext
+    - id: 'g7h8i9'
+      status: 'todo'
+      isolation: false
+      agent_id: 'd4e5f6'
+      depends_on: ['a1b2c3'] # List of part IDs that must be `done` before this part can start.
+      name: 'Part 2: Another Descriptive Name'
+      reason: |
+        Reason for the part.
+      steps:
+        # Similar structure as above, with uuid and status for each step
+      context_files:
+        compact:
+          - file1.ext
+        medium:
+          - file1.ext
+        extended:
+          - file1.ext
+          - file2.ext
+  conclusion: |
+    A multi-line conclusion summarizing benefits and impact.
+  context_files:
+    compact: # affected files
+      - file1.ext
+    medium: # affected files + additional context
+      - file1.ext
+      - file2.ext
+    extended: # affected files + additional context + more extended context
+      - file1.ext
+      - file2.ext
+      - file3.ext
+```
+````
+
+## File: src/scaffold/files/qa.agent.md
+````markdown
+You are `qa.agent`. Gatekeeper. Stateless. Idempotent. Judgment is final. Your output is binary: `done` or `failed`. You verify technical compliance *and* spec alignment. You do not fix.
+
+### INPUTS
+- **PLAN_YAML**: Path to `*.plan.yml` in `review/`.
+- **RULES_FILE**: Path to `{phase}.phase.rule.md`.
+- **PHASE**: Current phase name (e.g., `development`).
+- **CONTEXT_FILES**: From `plan.context_files`. May include user specs, docs.
+
+### Verification Protocol
+1.  **Ingest**: Load `PLAN_YAML`, `RULES_FILE`. Read plan introduction, part reasons, and all `context_files`. The user's goal is the primary objective.
+2.  **Setup**: `git checkout main`, `git pull`. Ensure workspace is clean and up-to-date. Verification runs on the integrated mainline, not isolated worktrees.
+3.  **Iterate & Verify**: For each `part` in `PLAN_YAML`:
+    a. **Identify Commit**: Find commit(s) associated with `part.id`.
+    b. **Phase-Specific Audit**: Execute checks based on `PHASE`.
+        - **If `PHASE` is `initialization`**:
+            - **Blueprint Audit**: For scaffold parts, `TODO` instructions must be comprehensive, unambiguous, and sufficient for production-ready implementation per user specs.
+            - **Completion Audit**: For worker parts, `git show {commit_hash}` must prove the `/** TODO: ... */` block for the `part.id` was removed. This is the primary success signal. Non-removal is an automatic failure.
+        - **If `PHASE` is `development`**:
+            - **Technical Debt Audit**: Reject code that introduces obvious tech debt (e.g., violations of DRY, "band-aid" fixes, commented-out code).
+    c. **Semantic Audit**:
+       - Analyze `git show {commit_hash}` diff against the plan's stated goals and `CONTEXT_FILES`.
+       - **Crux**: Does the code logically fulfill the spec? Misinterpretation is failure.
+    d. **Technical Audit**:
+       - **Spec Check**: Run `npm run lint`, `npm run format -- --check`. Must exit 0.
+       - **Execution Check**: Run `npm test`. Must exit 0. Parse coverage if required by rules.
+       - **VCS Audit**: `git log -1 {commit_hash}`. Commit message must follow Conventional Commits from `RULES_FILE`.
+    e. **Record Verdict**: Store pass/fail for this `part.id`, noting which audit failed (phase-specific, semantic, or technical).
+
+### Resolution Protocol
+1.  **Synthesize**: Review all part verdicts.
+2.  **Report Failures**:
+    - For each **failed** part, create report: `.nocaflow/{PHASE}/plans/failed/report/{plan_id}.{part_id}.report.md`.
+    - Report must contain specific rule violated (semantic or technical) and relevant context (e.g., stdout/stderr, diff snippet, reasoning for spec mismatch).
+3.  **Update State (Atomic Write)**:
+    - Re-read `PLAN_YAML` to avoid stale writes.
+    - Atomically update status for *every* reviewed part to `done` or `failed`.
+4.  **Log & Exit**: Write concise summary of verdicts for all parts to `.nocaflow/{PHASE}/agent-log/{plan_id}.qa.log`. Exit 0.
+````
+
 ## File: src/scaffold/templates.ts
 ````typescript
 import fs from 'fs/promises';
@@ -765,68 +765,6 @@ export const copyScaffoldFiles = async (): Promise<void> => {
     })
   );
 };
-````
-
-## File: src/utils/platform.ts
-````typescript
-import { exec as execCallback, ExecException } from 'child_process';
-import { promisify } from 'util';
-import * as os from 'os';
-
-import { logger } from './logger';
-const exec = promisify(execCallback);
-
-export interface CommandResult {
-  stdout: string;
-  stderr: string;
-  code: number;
-}
-
-export interface Platform {
-  runCommand(command: string): Promise<CommandResult>;
-  getTmpDir(): string;
-  commandExists(command: string): Promise<boolean>;
-}
-
-const runCommand = async (command: string): Promise<CommandResult> => {
-  try {
-    const { stdout, stderr } = await exec(command);
-    return { stdout, stderr, code: 0 };
-  } catch (error) {
-    // exec throws an error for non-zero exit codes.
-    // We want to capture stdout/stderr and the code, not crash.
-    const err = error as ExecException & { stdout: string; stderr: string };
-    logger.debug(`Command failed with code ${err.code}: ${command}`, err);
-    return {
-      stdout: err.stdout,
-      stderr: err.stderr,
-      code: err.code ?? 1,
-    };
-  }
-};
-
-const getTmpDir = (): string => {
-  // Respect common environment variables for temp directories.
-  // This is crucial for environments like Termux.
-  return process.env.TMPDIR || process.env.TEMP || process.env.TMP || os.tmpdir();
-};
-
-const commandExists = async (command: string): Promise<boolean> => {
-  // `command -v` is a POSIX standard way to check for command existence.
-  // It has a non-zero exit code if the command is not found.
-  const result = await runCommand(`command -v ${command}`);
-  return result.code === 0;
-};
-
-
-export const posixPlatform: Platform = {
-  runCommand,
-  getTmpDir,
-  commandExists,
-};
-
-// Export a singleton instance for the application to use.
-export const platform: Platform = posixPlatform;
 ````
 
 ## File: src/cli.ts
@@ -1040,6 +978,68 @@ module.exports = {
 };
 ````
 
+## File: src/utils/platform.ts
+````typescript
+import { exec as execCallback, ExecException } from 'child_process';
+import { promisify } from 'util';
+import * as os from 'os';
+
+import { logger } from './logger';
+const exec = promisify(execCallback);
+
+export interface CommandResult {
+  stdout: string;
+  stderr: string;
+  code: number;
+}
+
+export interface Platform {
+  runCommand(command: string): Promise<CommandResult>;
+  getTmpDir(): string;
+  commandExists(command: string): Promise<boolean>;
+}
+
+const runCommand = async (command: string): Promise<CommandResult> => {
+  try {
+    const { stdout, stderr } = await exec(command);
+    return { stdout, stderr, code: 0 };
+  } catch (error) {
+    // exec throws an error for non-zero exit codes.
+    // We want to capture stdout/stderr and the code, not crash.
+    const err = error as ExecException & { stdout: string; stderr: string };
+    logger.debug(`Command failed with code ${err.code}: ${command}`, err);
+    return {
+      stdout: err.stdout,
+      stderr: err.stderr,
+      code: err.code ?? 1,
+    };
+  }
+};
+
+const getTmpDir = (): string => {
+  // Respect common environment variables for temp directories.
+  // This is crucial for environments like Termux.
+  return process.env.TMPDIR || process.env.TEMP || process.env.TMP || os.tmpdir();
+};
+
+const commandExists = async (command: string): Promise<boolean> => {
+  // `command -v` is a POSIX standard way to check for command existence.
+  // It has a non-zero exit code if the command is not found.
+  const result = await runCommand(`command -v ${command}`);
+  return result.code === 0;
+};
+
+
+export const posixPlatform: Platform = {
+  runCommand,
+  getTmpDir,
+  commandExists,
+};
+
+// Export a singleton instance for the application to use.
+export const platform: Platform = posixPlatform;
+````
+
 ## File: test/unit/commands/state.test.ts
 ````typescript
 import { renderProgressBar } from '../../../src/commands/state';
@@ -1139,202 +1139,6 @@ export const getRecentLogs = async (limit: number): Promise<LogEntry[]> => {
 
   allEntries.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   return allEntries.slice(0, limit);
-};
-````
-
-## File: src/commands/init.ts
-````typescript
-import fs from 'fs/promises';
-import path from 'path';
-import { EOL } from 'os';
-import { simpleGit } from 'simple-git';
-import { platform } from '../utils/platform';
-import { isGitRepository } from '../utils/git';
-import { copyScaffoldFiles, scaffoldFiles } from '../scaffold/templates';
-import { logger } from '../utils/logger';
-
-/**
- * @description Handles the logic for the 'init' command.
- */
-export const handleInitCommand = async (_argv: Record<string, unknown>): Promise<void> => {
-  // 1. Prerequisite checks
-  const requiredCommands = ['git', 'tmux'];
-  for (const cmd of requiredCommands) {
-    const exists = await platform.commandExists(cmd);
-    if (!exists) {
-      logger.error(`Error: ${cmd} is not installed. NocaFlow requires git and tmux.`);
-      process.exit(1);
-    }
-  }
-
-  // 2. Check for existing .nocaflow directory
-  const rootDir = '.nocaflow';
-  try {
-    await fs.access(rootDir);
-    logger.warn(`'${rootDir}' directory already exists. Initialization skipped.`);
-    process.exit(0);
-  } catch (error) {
-    // Directory does not exist, proceed.
-  }
-
-  // 3. Initialize git repository if needed
-  try {
-    const isGitRepo = await isGitRepository();
-    if (!isGitRepo) {
-      logger.info('No git repository found. Initializing...');
-      await simpleGit().init();
-      logger.info('Git repository initialized.');
-    } else {
-      logger.info('Existing git repository found.');
-    }
-  } catch (error) {
-    logger.error('Failed to initialize git repository:', EOL, error);
-    process.exit(1);
-  }
-
-  // 4. Create directory structure
-  const phases = ['initialization', 'development'];
-  const planSubDirs = ['todo', 'doing', 'review', 'done', 'failed/report'];
-  const agentLogDir = 'agent-log';
-  const dirsToCreate: string[] = [];
-  const gitkeepFiles: string[] = [];
-
-  for (const phase of phases) {
-    const phaseBase = path.join(rootDir, phase);
-    const agentLogPath = path.join(phaseBase, agentLogDir);
-    dirsToCreate.push(agentLogPath);
-    gitkeepFiles.push(path.join(agentLogPath, '.gitkeep'));
-
-    const plansBase = path.join(phaseBase, 'plans');
-    for (const subDir of planSubDirs) {
-      const dirPath = path.join(plansBase, subDir);
-      dirsToCreate.push(dirPath);
-      gitkeepFiles.push(path.join(dirPath, '.gitkeep'));
-    }
-  }
-
-  try {
-    await Promise.all(dirsToCreate.map(dir => fs.mkdir(dir, { recursive: true })));
-    await Promise.all(gitkeepFiles.map(file => fs.writeFile(file, '')));
-
-    // 5. Scaffold agent and rule files
-    await copyScaffoldFiles();
-
-    logger.info('nocaflow project initialized successfully. ✨');
-    logger.info(
-      `Created '${rootDir}' directory structure and ${scaffoldFiles.length} agent/rule files.`,
-    );
-  } catch (error) {
-    logger.error('Failed to initialize nocaflow project:', EOL, error);
-    process.exit(1);
-  }
-};
-````
-
-## File: src/utils/fs.ts
-````typescript
-import path from 'path';
-import fs from 'fs/promises';
-import yaml from 'js-yaml';
-import dayjs from 'dayjs';
-import { Plan } from '../models/plan';
-
-export interface PhaseStats {
-  [phaseName: string]: {
-    todo: number;
-    doing: number;
-    review: number;
-    failed: number;
-    done: number;
-    total: number;
-  };
-}
-
-export interface FailedReport {
-  planId: string;
-  partId: string | undefined;
-  reason: string;
-  reportPath: string;
-}
-
-/**
- * @description Reads all plan files from all phases and aggregates stats.
- * @returns An object containing plan counts for each status in each phase.
- */
-export const getPhaseStats = async (): Promise<PhaseStats> => {
-  const phases = ['initialization', 'development'];
-  const statuses: (keyof PhaseStats[string])[] = [
-    'todo',
-    'doing',
-    'review',
-    'failed',
-    'done',
-  ];
-  const stats: PhaseStats = {};
-
-  for (const phase of phases) {
-    stats[phase] = { todo: 0, doing: 0, review: 0, failed: 0, done: 0, total: 0 };
-    for (const status of statuses) {
-      const dirPath = path.join('.nocaflow', phase, 'plans', status);
-      try {
-        const files = await fs.readdir(dirPath);
-        // A plan is represented by its .yml file. This counts plans in each state directory.
-        const count = files.filter(f => f.endsWith('.yml')).length;
-        stats[phase][status] = count;
-        stats[phase].total += count;
-      } catch (error) {
-        // Directory likely doesn't exist, count is 0.
-      }
-    }
-  }
-  return stats;
-};
-
-/**
- * @description Scans the failed reports directory for recent failures.
- * @param hours - The lookback period in hours.
- * @returns A list of failed report details.
- */
-export const getFailedReports = async (hours: number): Promise<FailedReport[]> => {
-  const phases = ['initialization', 'development'];
-  const reports: FailedReport[] = [];
-  const since = dayjs().subtract(hours, 'hour');
-
-  for (const phase of phases) {
-    const reportDir = path.join('.nocaflow', phase, 'plans', 'failed', 'report');
-    try {
-      const files = await fs.readdir(reportDir);
-      for (const file of files) {
-        if (!file.endsWith('.report.md')) continue;
-        const filePath = path.join(reportDir, file);
-        const stats = await fs.stat(filePath);
-        if (dayjs(stats.mtime).isAfter(since)) {
-          const content = await fs.readFile(filePath, 'utf-8');
-          const summaryMatch = content.match(/## Summary\s*\n\s*([\s\S]*?)(?=\n##|$)/);
-          const reason = summaryMatch ? summaryMatch[1].trim() : 'Could not parse summary.';
-          const parts = file.split('.');
-          const planId = parts[0] || '';
-          const partId =
-            parts.length >= 4 && parts[parts.length - 2] === 'report' ? parts[1] : undefined;
-          reports.push({ planId, partId, reason, reportPath: filePath });
-        }
-      }
-    } catch (error) {
-      // dir may not exist
-    }
-  }
-  return reports;
-};
-
-/**
- * @description Reads and parses a YAML plan file.
- * @param filePath - The path to the plan.yml file.
- * @returns The parsed Plan object.
- */
-export const readPlan = async (filePath: string): Promise<Plan> => {
-  const fileContent = await fs.readFile(filePath, 'utf-8');
-  const plan = yaml.load(fileContent) as Plan;
-  return plan;
 };
 ````
 
@@ -1631,6 +1435,202 @@ describe('unit/utils/logs', () => {
 }
 ````
 
+## File: src/commands/init.ts
+````typescript
+import fs from 'fs/promises';
+import path from 'path';
+import { EOL } from 'os';
+import { simpleGit } from 'simple-git';
+import { platform } from '../utils/platform';
+import { isGitRepository } from '../utils/git';
+import { copyScaffoldFiles, scaffoldFiles } from '../scaffold/templates';
+import { logger } from '../utils/logger';
+
+/**
+ * @description Handles the logic for the 'init' command.
+ */
+export const handleInitCommand = async (_argv: Record<string, unknown>): Promise<void> => {
+  // 1. Prerequisite checks
+  const requiredCommands = ['git', 'tmux'];
+  for (const cmd of requiredCommands) {
+    const exists = await platform.commandExists(cmd);
+    if (!exists) {
+      logger.error(`Error: ${cmd} is not installed. NocaFlow requires git and tmux.`);
+      process.exit(1);
+    }
+  }
+
+  // 2. Check for existing .nocaflow directory
+  const rootDir = '.nocaflow';
+  try {
+    await fs.access(rootDir);
+    logger.warn(`'${rootDir}' directory already exists. Initialization skipped.`);
+    process.exit(0);
+  } catch (error) {
+    // Directory does not exist, proceed.
+  }
+
+  // 3. Initialize git repository if needed
+  try {
+    const isGitRepo = await isGitRepository();
+    if (!isGitRepo) {
+      logger.info('No git repository found. Initializing...');
+      await simpleGit().init();
+      logger.info('Git repository initialized.');
+    } else {
+      logger.info('Existing git repository found.');
+    }
+  } catch (error) {
+    logger.error('Failed to initialize git repository:', EOL, error);
+    process.exit(1);
+  }
+
+  // 4. Create directory structure
+  const phases = ['initialization', 'development'];
+  const planSubDirs = ['todo', 'doing', 'review', 'done', 'failed/report'];
+  const agentLogDir = 'agent-log';
+  const dirsToCreate: string[] = [];
+  const gitkeepFiles: string[] = [];
+
+  for (const phase of phases) {
+    const phaseBase = path.join(rootDir, phase);
+    const agentLogPath = path.join(phaseBase, agentLogDir);
+    dirsToCreate.push(agentLogPath);
+    gitkeepFiles.push(path.join(agentLogPath, '.gitkeep'));
+
+    const plansBase = path.join(phaseBase, 'plans');
+    for (const subDir of planSubDirs) {
+      const dirPath = path.join(plansBase, subDir);
+      dirsToCreate.push(dirPath);
+      gitkeepFiles.push(path.join(dirPath, '.gitkeep'));
+    }
+  }
+
+  try {
+    await Promise.all(dirsToCreate.map(dir => fs.mkdir(dir, { recursive: true })));
+    await Promise.all(gitkeepFiles.map(file => fs.writeFile(file, '')));
+
+    // 5. Scaffold agent and rule files
+    await copyScaffoldFiles();
+
+    logger.info('nocaflow project initialized successfully. ✨');
+    logger.info(
+      `Created '${rootDir}' directory structure and ${scaffoldFiles.length} agent/rule files.`,
+    );
+  } catch (error) {
+    logger.error('Failed to initialize nocaflow project:', EOL, error);
+    process.exit(1);
+  }
+};
+````
+
+## File: src/utils/fs.ts
+````typescript
+import path from 'path';
+import fs from 'fs/promises';
+import yaml from 'js-yaml';
+import dayjs from 'dayjs';
+import { Plan } from '../models/plan';
+
+export interface PhaseStats {
+  [phaseName: string]: {
+    todo: number;
+    doing: number;
+    review: number;
+    failed: number;
+    done: number;
+    total: number;
+  };
+}
+
+export interface FailedReport {
+  planId: string;
+  partId: string | undefined;
+  reason: string;
+  reportPath: string;
+}
+
+/**
+ * @description Reads all plan files from all phases and aggregates stats.
+ * @returns An object containing plan counts for each status in each phase.
+ */
+export const getPhaseStats = async (): Promise<PhaseStats> => {
+  const phases = ['initialization', 'development'];
+  const statuses: (keyof PhaseStats[string])[] = [
+    'todo',
+    'doing',
+    'review',
+    'failed',
+    'done',
+  ];
+  const stats: PhaseStats = {};
+
+  for (const phase of phases) {
+    stats[phase] = { todo: 0, doing: 0, review: 0, failed: 0, done: 0, total: 0 };
+    for (const status of statuses) {
+      const dirPath = path.join('.nocaflow', phase, 'plans', status);
+      try {
+        const files = await fs.readdir(dirPath);
+        // A plan is represented by its .plan.yml file. This counts plans in each state directory.
+        const count = files.filter(f => f.endsWith('.plan.yml')).length;
+        stats[phase][status] = count;
+        stats[phase].total += count;
+      } catch (error) {
+        // Directory likely doesn't exist, count is 0.
+      }
+    }
+  }
+  return stats;
+};
+
+/**
+ * @description Scans the failed reports directory for recent failures.
+ * @param hours - The lookback period in hours.
+ * @returns A list of failed report details.
+ */
+export const getFailedReports = async (hours: number): Promise<FailedReport[]> => {
+  const phases = ['initialization', 'development'];
+  const reports: FailedReport[] = [];
+  const since = dayjs().subtract(hours, 'hour');
+
+  for (const phase of phases) {
+    const reportDir = path.join('.nocaflow', phase, 'plans', 'failed', 'report');
+    try {
+      const files = await fs.readdir(reportDir);
+      for (const file of files) {
+        if (!file.endsWith('.report.md')) continue;
+        const filePath = path.join(reportDir, file);
+        const stats = await fs.stat(filePath);
+        if (dayjs(stats.mtime).isAfter(since)) {
+          const content = await fs.readFile(filePath, 'utf-8');
+          const summaryMatch = content.match(/## Summary\s*\n\s*([\s\S]*?)(?=\n##|$)/);
+          const reason = summaryMatch ? summaryMatch[1].trim() : 'Could not parse summary.';
+          const parts = file.split('.');
+          const planId = parts[0] || '';
+          const partId =
+            parts.length >= 4 && parts[parts.length - 2] === 'report' ? parts[1] : undefined;
+          reports.push({ planId, partId, reason, reportPath: filePath });
+        }
+      }
+    } catch (error) {
+      // dir may not exist
+    }
+  }
+  return reports;
+};
+
+/**
+ * @description Reads and parses a YAML plan file.
+ * @param filePath - The path to the plan.yml file.
+ * @returns The parsed Plan object.
+ */
+export const readPlan = async (filePath: string): Promise<Plan> => {
+  const fileContent = await fs.readFile(filePath, 'utf-8');
+  const plan = yaml.load(fileContent) as Plan;
+  return plan;
+};
+````
+
 ## File: test/test.util.ts
 ````typescript
 import { exec as execCallback, ExecException } from 'child_process';
@@ -1812,10 +1812,10 @@ describe('unit/utils/fs', () => {
         await fs.mkdir('.nocaflow/initialization/plans/doing', { recursive: true });
         await fs.mkdir('.nocaflow/development/plans/done', { recursive: true });
 
-        await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml', '');
-        await fs.writeFile('.nocaflow/initialization/plans/todo/b.yml', '');
-        await fs.writeFile('.nocaflow/initialization/plans/doing/c.yml', '');
-        await fs.writeFile('.nocaflow/development/plans/done/d.yml', '');
+        await fs.writeFile('.nocaflow/initialization/plans/todo/11aa22.plan.yml', '');
+        await fs.writeFile('.nocaflow/initialization/plans/todo/33bb44.plan.yml', '');
+        await fs.writeFile('.nocaflow/initialization/plans/doing/55cc66.plan.yml', '');
+        await fs.writeFile('.nocaflow/development/plans/done/77dd88.plan.yml', '');
 
         const stats = await getPhaseStats();
 
@@ -1840,7 +1840,7 @@ describe('unit/utils/fs', () => {
 
       it('should handle missing status subdirectories gracefully', async () => {
         await fs.mkdir('.nocaflow/initialization/plans/todo', { recursive: true });
-        await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml', '');
+        await fs.writeFile('.nocaflow/initialization/plans/todo/99ee00.plan.yml', '');
 
         const stats = await getPhaseStats();
 
@@ -1852,7 +1852,7 @@ describe('unit/utils/fs', () => {
 
       it('should handle a missing phase directory gracefully', async () => {
         await fs.mkdir('.nocaflow/initialization/plans/todo', { recursive: true });
-        await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml', '');
+        await fs.writeFile('.nocaflow/initialization/plans/todo/aabbcc.plan.yml', '');
 
         const stats = await getPhaseStats();
 
@@ -1862,7 +1862,7 @@ describe('unit/utils/fs', () => {
 
       it('should ignore non-YAML files', async () => {
         await fs.mkdir('.nocaflow/development/plans/todo', { recursive: true });
-        await fs.writeFile('.nocaflow/development/plans/todo/plan1.yml', '');
+        await fs.writeFile('.nocaflow/development/plans/todo/ddee00.plan.yml', '');
         await fs.writeFile('.nocaflow/development/plans/todo/notes.txt', '');
 
         const stats = await getPhaseStats();
@@ -1877,8 +1877,8 @@ describe('unit/utils/fs', () => {
         const reportDir = '.nocaflow/initialization/plans/failed/report';
         await fs.mkdir(reportDir, { recursive: true });
 
-        const recentReportPath = path.join(reportDir, 'plan1.partA.report.md');
-        const oldReportPath = path.join(reportDir, 'plan2.partB.report.md');
+        const recentReportPath = path.join(reportDir, 'a1b2c3.d4e5f6.report.md');
+        const oldReportPath = path.join(reportDir, 'g7h8i9.j0k1l2.report.md');
         await fs.writeFile(recentReportPath, '## Summary\n\nRecent failure.');
         await fs.writeFile(oldReportPath, '## Summary\n\nOld failure.');
 
@@ -1889,20 +1889,20 @@ describe('unit/utils/fs', () => {
         const reports = await getFailedReports(24);
 
         expect(reports).toHaveLength(1);
-        expect(reports[0].planId).toBe('plan1');
+        expect(reports[0].planId).toBe('a1b2c3');
       });
 
       it('should correctly parse report details from filename and content', async () => {
         const reportDir = '.nocaflow/development/plans/failed/report';
         await fs.mkdir(reportDir, { recursive: true });
-        const reportPath = path.join(reportDir, 'plan1.partA.report.md');
+        const reportPath = path.join(reportDir, 'b2c3d4.e5f6a7.report.md');
         await fs.writeFile(reportPath, '## Summary\n\nThis is the reason.');
 
         const reports = await getFailedReports(1);
 
         expect(reports).toHaveLength(1);
-        expect(reports[0].planId).toBe('plan1');
-        expect(reports[0].partId).toBe('partA');
+        expect(reports[0].planId).toBe('b2c3d4');
+        expect(reports[0].partId).toBe('e5f6a7');
         expect(reports[0].reason).toBe('This is the reason.');
         expect(reports[0].reportPath).toBe(reportPath);
       });
@@ -1910,7 +1910,7 @@ describe('unit/utils/fs', () => {
       it('should handle report files with no summary section', async () => {
         const reportDir = '.nocaflow/initialization/plans/failed/report';
         await fs.mkdir(reportDir, { recursive: true });
-        const reportPath = path.join(reportDir, 'plan1.partA.report.md');
+        const reportPath = path.join(reportDir, 'c3d4e5.f6a7b8.report.md');
         await fs.writeFile(reportPath, 'Some content without a summary header.');
 
         const reports = await getFailedReports(1);
@@ -1940,12 +1940,12 @@ describe('unit/utils/fs', () => {
       it('should ignore non-markdown report files', async () => {
         const reportDir = '.nocaflow/initialization/plans/failed/report';
         await fs.mkdir(reportDir, { recursive: true });
-        await fs.writeFile(path.join(reportDir, 'plan1.partA.report.md'), '## Summary\n\nReport');
+        await fs.writeFile(path.join(reportDir, 'd4e5f6.a7b8c9.report.md'), '## Summary\n\nReport');
         await fs.writeFile(path.join(reportDir, 'notes.txt'), 'some notes');
 
         const reports = await getFailedReports(1);
         expect(reports).toHaveLength(1);
-        expect(reports[0].planId).toBe('plan1');
+        expect(reports[0].planId).toBe('d4e5f6');
       });
     });
 
@@ -2106,6 +2106,85 @@ export const handleStateCommand = async (_argv: Record<string, unknown>): Promis
 };
 ````
 
+## File: src/utils/shell.ts
+````typescript
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import { platform } from './platform';
+
+export interface AgentInfo {
+  sessionName: string;
+  type: 'WORKER' | 'SCAFFOLDER' | 'QA';
+  // Phase is known for workers and scaffolders, but not for QA agents from session name alone.
+  phase: 'INIT' | 'DEV' | null;
+  planId: string | null;
+  partId: string | null;
+  runtime: string;
+  pid: string;
+}
+
+dayjs.extend(relativeTime);
+
+/**
+ * @description Lists active tmux sessions and parses them to find agent info.
+ * @returns A list of active agents.
+ */
+export const getActiveAgents = async (): Promise<AgentInfo[]> => {
+  try {
+    const { stdout } = await platform.runCommand(`tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`);
+    if (!stdout) return [];
+
+    const lines = stdout.trim().split('\n');
+    const agents: AgentInfo[] = [];
+
+    for (const line of lines) {
+      const [sessionName, pid, activity] = line.split(' ');
+      const runtime = dayjs().to(dayjs.unix(parseInt(activity, 10)), true);
+
+      let match;
+      if ((match = sessionName.match(/^init-scaffold-(.+)/))) {
+        const planId = match[1];
+        agents.push({
+          sessionName,
+          type: 'SCAFFOLDER',
+          phase: 'INIT',
+          planId,
+          partId: 'scaffold',
+          runtime,
+          pid,
+        });
+      } else if ((match = sessionName.match(/^qa-(.+)/))) {
+        const planId = match[1];
+        agents.push({
+          sessionName,
+          type: 'QA',
+          phase: null,
+          planId,
+          partId: 'qa',
+          runtime,
+          pid,
+        });
+      } else if ((match = sessionName.match(/^(init|dev)-(?!scaffold-|qa-)(.+)/))) {
+        const phase = match[1].toUpperCase() as 'INIT' | 'DEV';
+        const partId = match[2];
+        agents.push({
+          sessionName,
+          type: 'WORKER',
+          phase,
+          planId: null, // Not available from session name for workers
+          partId,
+          runtime,
+          pid,
+        });
+      }
+    }
+    return agents;
+  } catch (error) {
+    return []; // Tmux likely not running or has no sessions.
+  }
+};
+````
+
 ## File: src/utils/git.ts
 ````typescript
 import { simpleGit } from 'simple-git';
@@ -2234,85 +2313,6 @@ export const isGitRepository = async (): Promise<boolean> => {
 };
 ````
 
-## File: src/utils/shell.ts
-````typescript
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import { platform } from './platform';
-
-export interface AgentInfo {
-  sessionName: string;
-  type: 'WORKER' | 'SCAFFOLDER' | 'QA';
-  // Phase is known for workers and scaffolders, but not for QA agents from session name alone.
-  phase: 'INIT' | 'DEV' | null;
-  planId: string | null;
-  partId: string | null;
-  runtime: string;
-  pid: string;
-}
-
-dayjs.extend(relativeTime);
-
-/**
- * @description Lists active tmux sessions and parses them to find agent info.
- * @returns A list of active agents.
- */
-export const getActiveAgents = async (): Promise<AgentInfo[]> => {
-  try {
-    const { stdout } = await platform.runCommand(`tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`);
-    if (!stdout) return [];
-
-    const lines = stdout.trim().split('\n');
-    const agents: AgentInfo[] = [];
-
-    for (const line of lines) {
-      const [sessionName, pid, activity] = line.split(' ');
-      const runtime = dayjs().to(dayjs.unix(parseInt(activity, 10)), true);
-
-      let match;
-      if ((match = sessionName.match(/^init-scaffold-(.+)/))) {
-        const planId = match[1];
-        agents.push({
-          sessionName,
-          type: 'SCAFFOLDER',
-          phase: 'INIT',
-          planId,
-          partId: 'scaffold',
-          runtime,
-          pid,
-        });
-      } else if ((match = sessionName.match(/^qa-(.+)/))) {
-        const planId = match[1];
-        agents.push({
-          sessionName,
-          type: 'QA',
-          phase: null,
-          planId,
-          partId: 'qa',
-          runtime,
-          pid,
-        });
-      } else if ((match = sessionName.match(/^(init|dev)-(?!scaffold-|qa-)(.+)/))) {
-        const phase = match[1].toUpperCase() as 'INIT' | 'DEV';
-        const partId = match[2];
-        agents.push({
-          sessionName,
-          type: 'WORKER',
-          phase,
-          planId: null, // Not available from session name for workers
-          partId,
-          runtime,
-          pid,
-        });
-      }
-    }
-    return agents;
-  } catch (error) {
-    return []; // Tmux likely not running or has no sessions.
-  }
-};
-````
-
 ## File: test/e2e/cli.test.ts
 ````typescript
 import { runCli, setupTestDirectory, createDummyPlanFile, createDummyFailedReport, initGitRepo } from '../test.util';
@@ -2373,7 +2373,7 @@ describe('e2e/cli', () => {
   describe('state command', () => {
     it('should display the project state in an initialized directory', async () => {
       await runCli('init');
-      await createDummyPlanFile('initialization', 'todo', 'plan1.yml');
+      await createDummyPlanFile('initialization', 'todo', 'e2e001.plan.yml');
 
       const { stdout, code } = await runCli('state');
 
@@ -2389,9 +2389,9 @@ describe('e2e/cli', () => {
       await initGitRepo();
 
       // Setup: Create various artifacts
-      await createDummyPlanFile('initialization', 'doing', 'p1.yml');
-      await createDummyPlanFile('development', 'done', 'p2.yml');
-      await createDummyFailedReport('initialization', 'f01', 'pA', 'Test failure');
+      await createDummyPlanFile('initialization', 'doing', 'e2e002.plan.yml');
+      await createDummyPlanFile('development', 'done', 'e2e003.plan.yml');
+      await createDummyFailedReport('initialization', 'f01e01', 'abcdef', 'Test failure');
 
       const logDir = '.nocaflow/development/agent-log';
       await fs.mkdir(logDir, { recursive: true });
@@ -2426,7 +2426,7 @@ describe('e2e/cli', () => {
         expect(stdout).toContain('part:e2e-part-xyz');
       }
       expect(stdout).toContain('plan:plan-e2e - Log message');
-      expect(stdout).toContain('plan:f01 part:pA - "Test failure"');
+      expect(stdout).toContain('plan:f01e01 part:abcdef - "Test failure"');
       expect(stdout).toContain('Initial commit');
     });
 

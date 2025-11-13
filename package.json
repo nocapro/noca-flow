@@ -2,17 +2,32 @@
   "name": "nocaflow",
   "version": "0.0.1",
   "description": "Filesystem-as-State for Phased LLM Swarms.",
-  "main": "dist/index.js",
+  "main": "dist/cli.js",
   "bin": {
     "nocaflow": "dist/cli.js"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
-    "start": "node dist/cli.js",
-    "build": "node node_modules/typescript/lib/tsc.js",
-    "dev": "node node_modules/ts-node/dist/bin.js src/cli.ts",
-    "test": "node node_modules/jest/bin/jest.js",
-    "lint": "node node_modules/eslint/bin/eslint.js 'src/**/*.ts' 'test/**/*.ts'"
+    "clean": "rm -rf dist",
+    "copy-assets": "mkdir -p dist/scaffold && cp -r src/scaffold/files dist/scaffold/",
+    "build": "npm run clean && tsc && npm run copy-assets",
+    "start": "npm run build && node dist/cli.js",
+    "dev": "ts-node src/cli.ts",
+    "test": "jest",
+    "lint": "eslint 'src/**/*.ts' 'test/**/*.ts'",
+    "prepublishOnly": "npm test && npm run build"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/nocaflow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/nocaflow/issues"
+  },
+  "homepage": "https://github.com/your-username/nocaflow#readme",
   "keywords": [
     "llm",
     "swarm",

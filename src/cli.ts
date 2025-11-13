@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { handleStateCommand } from './commands/state';
@@ -7,11 +9,11 @@ yargs(hideBin(process.argv))
   .command(
     'init',
     'Initialize a nocaflow project in the current directory',
-    () => {},
+    () => { },
     handleInitCommand,
   )
   .command('state', 'Display the current state of the nocaflow project',
-    () => {},
+    () => { },
     handleStateCommand
   )
   .strict()
