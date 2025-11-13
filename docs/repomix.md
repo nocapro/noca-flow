@@ -1012,137 +1012,6 @@ export const getRecentLogs = async (limit: number): Promise<LogEntry[]> => {
 };
 ````
 
-## File: test/integration/utils/git.test.ts
-````typescript
-import { getGitLog, isGitRepository } from '../../../src/utils/git';
-import { setupTestDirectory, initGitRepo } from '../../test.util';
-import { exec as execCallback } from 'child_process';
-import { promisify } from 'util';
-import fs from 'fs/promises';
-import path from 'path';
-import { simpleGit } from 'simple-git';
-
-const promisedExec = promisify(execCallback);
-
-describe('isGitRepository', () => {
-  let cleanup: () => Promise<void>;
-
-  beforeEach(async () => {
-    const { cleanup: c } = await setupTestDirectory();
-    cleanup = c;
-  });
-
-  afterEach(async () => {
-    await cleanup();
-  });
-
-  it('should return false in a non-git directory and true after init', async () => {
-    expect(await isGitRepository()).toBe(false);
-    await initGitRepo();
-    expect(await isGitRepository()).toBe(true);
-  });
-});
-
-describe('integration/utils/git', () => {
-  let cleanup: () => Promise<void>;
-  let testDir: string;
-
-  beforeEach(async () => {
-    const { cleanup: c, testDir: td } = await setupTestDirectory();
-    cleanup = c;
-    testDir = td;
-    await initGitRepo();
-  });
-
-  afterEach(async () => {
-    await cleanup();
-  });
-
-  it('should parse commits with worktree information', async () => {
-    const worktreeName = 'my-feature-wt';
-    const worktreePath = path.join(testDir, worktreeName);
-    const branchName = 'my-feature-branch';
-    
-    await promisedExec(`git worktree add -b ${branchName} ${worktreePath}`);
-    
-    const originalCwd = process.cwd();
-    process.chdir(worktreePath);
-
-    const wtGit = simpleGit();
-    await fs.writeFile('feature.txt', 'data');
-    await wtGit.add('.');
-    await wtGit.commit('feat: commit from worktree');
-    process.chdir(originalCwd);
-
-    const log = await getGitLog(5);
-    const wtCommit = log.find(c => c.message === 'feat: commit from worktree');
-
-    expect(wtCommit).toBeDefined();
-    expect(wtCommit?.worktree).toBe(worktreeName);
-
-    // Cleanup worktree
-    await promisedExec(`git worktree remove --force ${worktreeName}`);
-  });
-
-  it('should handle commits not associated with a worktree', async () => {
-    const git = simpleGit();
-    await fs.writeFile('main.txt', 'data');
-    await git.add('.');
-    await git.commit('feat: commit from main');
-
-    const log = await getGitLog(5);
-    const mainCommit = log.find(c => c.message === 'feat: commit from main');
-
-    expect(mainCommit).toBeDefined();
-    expect(mainCommit?.worktree).toBeNull();
-  });
-
-  it('should respect the commit limit', async () => {
-    const git = simpleGit();
-    for (let i = 0; i < 5; i++) {
-      await git.commit(`commit ${i + 1}`, { '--allow-empty': null });
-    }
-
-    const log = await getGitLog(3);
-    expect(log).toHaveLength(3); // 3 + initial commit
-  });
-
-  it('should return an empty array for a repository with no commits other than initial', async () => {
-    await cleanup();
-    const { cleanup: c2 } = await setupTestDirectory();
-    const git = simpleGit();
-    await git.init();
-    await git.addConfig('user.email', 'test@example.com');
-    await git.addConfig('user.name', 'Test User');
-
-    const log = await getGitLog(5);
-    expect(log).toEqual([]);
-
-    await c2();
-  });
-
-  it('should handle commit messages with special characters and multiple lines', async () => {
-    const complexMessage = `feat: handle '|' "quotes" and 'apostrophes'\n\nwith a body.`;
-    await simpleGit().commit(complexMessage, { '--allow-empty': null });
-
-    const log = await getGitLog(1);
-
-    expect(log).toHaveLength(1);
-    expect(log[0].message).toBe(complexMessage);
-  });
-
-  it('should return an empty array if not in a git repository', async () => {
-    await cleanup();
-    const { cleanup: c2 } = await setupTestDirectory();
-
-    const log = await getGitLog(5);
-    expect(log).toEqual([]);
-
-    await c2();
-  });
-});
-````
-
 ## File: src/commands/init.ts
 ````typescript
 import fs from 'fs/promises';
@@ -1341,6 +1210,137 @@ export const readPlan = async (filePath: string): Promise<Plan> => {
 };
 ````
 
+## File: test/integration/utils/git.test.ts
+````typescript
+import { getGitLog, isGitRepository } from '../../../src/utils/git';
+import { setupTestDirectory, initGitRepo } from '../../test.util';
+import { exec as execCallback } from 'child_process';
+import { promisify } from 'util';
+import fs from 'fs/promises';
+import path from 'path';
+import { simpleGit } from 'simple-git';
+
+const promisedExec = promisify(execCallback);
+
+describe('isGitRepository', () => {
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    const { cleanup: c } = await setupTestDirectory();
+    cleanup = c;
+  });
+
+  afterEach(async () => {
+    await cleanup();
+  });
+
+  it('should return false in a non-git directory and true after init', async () => {
+    expect(await isGitRepository()).toBe(false);
+    await initGitRepo();
+    expect(await isGitRepository()).toBe(true);
+  });
+});
+
+describe('integration/utils/git', () => {
+  let cleanup: () => Promise<void>;
+  let testDir: string;
+
+  beforeEach(async () => {
+    const { cleanup: c, testDir: td } = await setupTestDirectory();
+    cleanup = c;
+    testDir = td;
+    await initGitRepo();
+  });
+
+  afterEach(async () => {
+    await cleanup();
+  });
+
+  it('should parse commits with worktree information', async () => {
+    const worktreeName = 'my-feature-wt';
+    const worktreePath = path.join(testDir, worktreeName);
+    const branchName = 'my-feature-branch';
+    
+    await promisedExec(`git worktree add -b ${branchName} ${worktreePath}`);
+    
+    const originalCwd = process.cwd();
+    process.chdir(worktreePath);
+
+    const wtGit = simpleGit();
+    await fs.writeFile('feature.txt', 'data');
+    await wtGit.add('.');
+    await wtGit.commit('feat: commit from worktree');
+    process.chdir(originalCwd);
+
+    const log = await getGitLog(5);
+    const wtCommit = log.find(c => c.message === 'feat: commit from worktree');
+
+    expect(wtCommit).toBeDefined();
+    expect(wtCommit?.worktree).toBe(worktreeName);
+
+    // Cleanup worktree
+    await promisedExec(`git worktree remove --force ${worktreeName}`);
+  });
+
+  it('should handle commits not associated with a worktree', async () => {
+    const git = simpleGit();
+    await fs.writeFile('main.txt', 'data');
+    await git.add('.');
+    await git.commit('feat: commit from main');
+
+    const log = await getGitLog(5);
+    const mainCommit = log.find(c => c.message === 'feat: commit from main');
+
+    expect(mainCommit).toBeDefined();
+    expect(mainCommit?.worktree).toBeNull();
+  });
+
+  it('should respect the commit limit', async () => {
+    const git = simpleGit();
+    for (let i = 0; i < 5; i++) {
+      await git.commit(`commit ${i + 1}`, { '--allow-empty': null });
+    }
+
+    const log = await getGitLog(3);
+    expect(log).toHaveLength(3); // 3 + initial commit
+  });
+
+  it('should return an empty array for a repository with no commits other than initial', async () => {
+    await cleanup();
+    const { cleanup: c2 } = await setupTestDirectory();
+    const git = simpleGit();
+    await git.init();
+    await git.addConfig('user.email', 'test@example.com');
+    await git.addConfig('user.name', 'Test User');
+
+    const log = await getGitLog(5);
+    expect(log).toEqual([]);
+
+    await c2();
+  });
+
+  it('should handle commit messages with special characters and multiple lines', async () => {
+    const complexMessage = `feat: handle '|' "quotes" and 'apostrophes'\n\nwith a body.`;
+    await simpleGit().commit(complexMessage, { '--allow-empty': null });
+
+    const log = await getGitLog(1);
+
+    expect(log).toHaveLength(1);
+    expect(log[0].message).toBe(complexMessage);
+  });
+
+  it('should return an empty array if not in a git repository', async () => {
+    await cleanup();
+    const { cleanup: c2 } = await setupTestDirectory();
+
+    const log = await getGitLog(5);
+    expect(log).toEqual([]);
+
+    await c2();
+  });
+});
+````
+
 ## File: test/unit/utils/logs.test.ts
 ````typescript
 import { getRecentLogs } from '../../../src/utils/logs';
@@ -1503,6 +1503,259 @@ describe('unit/utils/logs', () => {
 }
 ````
 
+## File: test/test.util.ts
+````typescript
+import { exec as execCallback, ExecException } from 'child_process';
+import { promisify } from 'util';
+import fs from 'fs/promises';
+import path from 'path';
+import { simpleGit } from 'simple-git';
+import { platform } from '../src/utils/platform';
+
+const promisedExec = promisify(execCallback);
+
+export const runCli = async (
+  args: string,
+): Promise<{ stdout: string; stderr: string; code: number }> => {
+  const cliPath = path.join(__dirname, '..', 'dist', 'cli.js');
+  try {
+    const { stdout, stderr } = await promisedExec(`FORCE_COLOR=0 node ${cliPath} ${args}`);
+    return { stdout, stderr, code: 0 };
+  } catch (error) {
+    const err = error as ExecException & { stdout: string; stderr: string };
+    return {
+      stdout: err.stdout,
+      stderr: err.stderr,
+      code: err.code || 1,
+    };
+  }
+};
+
+export const setupTestDirectory = async (): Promise<{
+  testDir: string;
+  cleanup: () => Promise<void>;
+}> => {
+  const originalCwd = process.cwd();
+  const testDir = await fs.mkdtemp(path.join(platform.getTmpDir(), 'nocaflow-test-'));
+  process.chdir(testDir);
+
+  const cleanup = async (): Promise<void> => {
+    process.chdir(originalCwd);
+    await fs.rm(testDir, { recursive: true, force: true });
+  };
+
+  return { testDir, cleanup };
+};
+
+export const initGitRepo = async (): Promise<void> => {
+  const git = simpleGit();
+  await git.init();
+  await git.addConfig('user.email', 'test@example.com');
+  await git.addConfig('user.name', 'Test User');
+  await git.commit('Initial commit', { '--allow-empty': null });
+};
+
+export const createDummyPlanFile = async (
+  phase: 'initialization' | 'development',
+  status: 'todo' | 'doing' | 'done' | 'review' | 'failed',
+  fileName: string,
+): Promise<void> => {
+  const dirPath = path.join('.nocaflow', phase, 'plans', status);
+  await fs.mkdir(dirPath, { recursive: true });
+  await fs.writeFile(path.join(dirPath, fileName), '# dummy plan');
+};
+
+export const createDummyFailedReport = async (
+  phase: 'initialization' | 'development',
+  planId: string,
+  partId: string,
+  summary: string,
+): Promise<string> => {
+  const reportDir = path.join('.nocaflow', phase, 'plans', 'failed', 'report');
+  await fs.mkdir(reportDir, { recursive: true });
+  const reportPath = path.join(reportDir, `${planId}.${partId}.report.md`);
+  const content = `## Summary\n\n${summary}`;
+  await fs.writeFile(reportPath, content);
+  return path.resolve(reportPath);
+};
+````
+
+## File: src/commands/state.ts
+````typescript
+import chalk from 'chalk';
+import { getPhaseStats, PhaseStats, getFailedReports, FailedReport } from '../utils/fs';
+import { getActiveAgents, AgentInfo } from '../utils/shell';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import { getRecentLogs, LogEntry } from '../utils/logs';
+import { getGitLog, GitCommit } from '../utils/git';
+
+dayjs.extend(relativeTime);
+
+/**
+ * @description Renders a progress bar.
+ * @param current - The current progress value.
+ * @param total - The total value for 100%.
+ * @param length - The character length of the bar.
+ * @returns A string representing the progress bar.
+ */
+export const renderProgressBar = (current: number, total: number, length: number = 20): string => {
+  const percent = total > 0 ? current / total : 0;
+  const filledLength = Math.round(length * percent);
+  const emptyLength = length - filledLength;
+  const filledBar = '▇'.repeat(filledLength);
+  const emptyBar = '-'.repeat(emptyLength);
+  const bar = `[${filledBar}${emptyBar}]`;
+  const text = `(${current}/${total} plans done)`;
+
+  return `${bar} ${text}`;
+};
+
+/**
+ * @description Displays the full state report to the console.
+ */
+export const handleStateCommand = async (_argv: Record<string, unknown>): Promise<void> => {
+  const phaseStats: PhaseStats = await getPhaseStats();
+  const activeAgents: AgentInfo[] = await getActiveAgents();
+  const recentLogs: LogEntry[] = await getRecentLogs(5);
+  const failedReports: FailedReport[] = await getFailedReports(24);
+  const gitCommits: GitCommit[] = await getGitLog(10);
+  const currentPhase = phaseStats.development?.total > 0 ? 'development' : 'initialization';
+
+  // Header
+  console.log(chalk.bold(`== nocaflow State [${dayjs().format('YYYY-MM-DD HH:mm:ss')}] ==`));
+  console.log(`Current Phase: ${chalk.cyan(currentPhase)}`);
+  
+  // Phase Progress
+  console.log(chalk.bold('\n== Phase Progress =='));
+  for (const phaseName in phaseStats) {
+    const stats = phaseStats[phaseName];
+    const progressBar = renderProgressBar(stats.done, stats.total);
+    console.log(`[${chalk.yellow(phaseName.toUpperCase())}]`.padEnd(18) + progressBar);
+  }
+
+  // Phase Stats
+  console.log(chalk.bold('\n== Phase Stats (Plans) =='));
+  for (const phaseName in phaseStats) {
+    const stats = phaseStats[phaseName];
+    if (stats.total === 0) continue;
+    const statsString = `todo: ${stats.todo}, doing: ${stats.doing}, review: ${stats.review}, failed: ${stats.failed}, done: ${stats.done}`;
+    console.log(`[${chalk.yellow(phaseName.toUpperCase())}]`.padEnd(18) + statsString);
+  }
+
+  // Active Agents
+  console.log(chalk.bold('\n== Active Agents (tmux) =='));
+  if (activeAgents.length === 0) {
+    console.log('No active agents.');
+  } else {
+    for (const agent of activeAgents) {
+      console.log(`[${chalk.blue(agent.phase)}|${chalk.magenta(agent.pid)}]`.padEnd(18) + `id:${agent.id} (running ${agent.runtime})`);
+    }
+  }
+
+  // Recent Agent Activity
+  console.log(chalk.bold('\n== Recent Agent Activity (last 5) =='));
+  if (recentLogs.length === 0) {
+    console.log('No recent activity.');
+  } else {
+    for (const log of recentLogs) {
+      const statusColor = log.status === 'DONE' ? chalk.green : log.status === 'FAIL' ? chalk.red : chalk.gray;
+      const time = dayjs(log.timestamp).fromNow();
+      console.log(`${statusColor(`[${log.status}|${log.phase}|${log.agentId}]`)} plan:${log.planId} - ${log.message} (${chalk.gray(time)})`);
+    }
+  }
+
+  // Stalled / Failed
+  console.log(chalk.bold('\n== Stalled / Failed (last 24h) =='));
+  if (failedReports.length === 0) {
+    console.log('No failed reports in the last 24 hours.');
+  } else {
+    for (const report of failedReports) {
+      console.log(`${chalk.red('[FAILED]')} plan:${report.planId} part:${report.partId} - "${report.reason}"`);
+      console.log(`         Report: ${report.reportPath}`);
+    }
+  }
+
+  // Recent Git Commits
+  console.log(chalk.bold('\n== Recent Git Commits (all worktrees) =='));
+  if (gitCommits.length === 0) {
+    console.log('No recent commits.');
+  } else {
+    for (const commit of gitCommits) {
+      const worktreeInfo = commit.worktree ? `(${chalk.cyan(commit.worktree)}) ` : '';
+      console.log(`${chalk.yellow(commit.hash.slice(0, 7))} ${worktreeInfo}${commit.message}`);
+    }
+  }
+};
+````
+
+## File: src/utils/shell.ts
+````typescript
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import { platform } from './platform';
+
+export interface AgentInfo {
+  phase: 'INIT' | 'DEV' | 'QA' | 'SCAF';
+  id: string; // part_id, plan_id for QA/Scaffold
+  planId: string;
+  partId: string; // Can be 'scaffold' or 'qa'
+  runtime: string;
+  pid: string;
+}
+
+dayjs.extend(relativeTime);
+
+/**
+ * @description Lists active tmux sessions and parses them to find agent info.
+ * @returns A list of active agents.
+ */
+export const getActiveAgents = async (): Promise<AgentInfo[]> => {
+  try {
+    const { stdout } = await platform.runCommand(`tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`);
+    if (!stdout) return [];
+
+    const lines = stdout.trim().split('\n');
+    const agents: AgentInfo[] = [];
+
+    for (const line of lines) {
+      const [sessionName, pid, activity] = line.split(' ');
+      const runtime = dayjs().to(dayjs.unix(parseInt(activity, 10)), true);
+
+      let match;
+      if ((match = sessionName.match(/^init-scaffold-(.+)/))) {
+        const planId = match[1];
+        agents.push({
+          phase: 'SCAF',
+          id: planId,
+          planId,
+          partId: 'scaffold',
+          runtime,
+          pid,
+        });
+      } else if ((match = sessionName.match(/^qa-(.+)/))) {
+        const planId = match[1];
+        agents.push({ phase: 'QA', id: planId, planId, partId: 'qa', runtime, pid });
+      } else if ((match = sessionName.match(/^(init|dev)-(?!scaffold-|qa-)(.+)/))) {
+        const phase = match[1].toUpperCase() as 'INIT' | 'DEV';
+        const partId = match[2];
+        agents.push({
+          phase,
+          id: partId,
+          planId: 'unknown', // Not available from session name
+          partId: partId,
+          runtime,
+          pid,
+        });
+      }
+    }
+    return agents;
+  } catch (error) {
+    return []; // Tmux likely not running or has no sessions.
+  }
+};
+````
+
 ## File: test/e2e/cli.test.ts
 ````typescript
 import { runCli, setupTestDirectory, createDummyPlanFile, createDummyFailedReport, initGitRepo } from '../test.util';
@@ -1510,7 +1763,7 @@ import fs from 'fs/promises';
 import { exec as execCallback } from 'child_process';
 import path from 'path';
 import { promisify } from 'util';
-import { platform } from '../src/utils/platform';
+import { platform } from '../../src/utils/platform';
 
 const promisedExec = promisify(execCallback);
 
@@ -1654,6 +1907,85 @@ describe('e2e/cli', () => {
       const { stderr } = await runCli('nonexistent-command');
       expect(stderr).toContain('Unknown argument: nonexistent-command');
     });
+  });
+});
+````
+
+## File: test/integration/commands/init.test.ts
+````typescript
+import { handleInitCommand } from '../../../src/commands/init';
+import { setupTestDirectory, initGitRepo } from '../../test.util';
+import fs from 'fs/promises';
+import { isGitRepository } from '../../../src/utils/git';
+
+describe('integration/commands/init', () => {
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    const { cleanup: c } = await setupTestDirectory();
+    cleanup = c;
+  });
+
+  afterEach(async () => {
+    await cleanup();
+  });
+
+  it('should initialize a git repo if not already present', async () => {
+    expect(await isGitRepository()).toBe(false);
+    await handleInitCommand({});
+    expect(await isGitRepository()).toBe(true);
+  });
+
+  it('should skip git init if already in a git repo', async () => {
+    await initGitRepo();
+    expect(await isGitRepository()).toBe(true);
+
+    // This command should be idempotent and not fail if a repo exists.
+    await handleInitCommand({});
+
+    // Verify the repo is still valid.
+    expect(await isGitRepository()).toBe(true);
+  });
+
+  it('should create the full .nocaflow directory and file structure on a fresh run', async () => {
+    await handleInitCommand({});
+
+    const dirsToCheck = [
+      '.nocaflow/initialization/plans/todo',
+      '.nocaflow/initialization/plans/doing',
+      '.nocaflow/initialization/plans/review',
+      '.nocaflow/initialization/plans/done',
+      '.nocaflow/initialization/plans/failed/report',
+      '.nocaflow/initialization/agent-log',
+      '.nocaflow/development/plans/todo',
+      '.nocaflow/development/plans/doing',
+      '.nocaflow/development/plans/review',
+      '.nocaflow/development/plans/done',
+      '.nocaflow/development/plans/failed/report',
+      '.nocaflow/development/agent-log',
+    ];
+    const filesToCheck = [
+      '.nocaflow/manager.agent.md',
+      '.nocaflow/plan.agent.md',
+      '.nocaflow/qa.agent.md',
+      '.nocaflow/suffix.global.prompt.md',
+      '.nocaflow/initialization/init.agent-swarm.md',
+      '.nocaflow/initialization/init.phase.rule.md',
+      '.nocaflow/initialization/scaffolder.agent.md',
+      '.nocaflow/development/dev.agent-swarm.md',
+      '.nocaflow/development/dev.phase.rule.md',
+      'user.prompt.md',
+    ];
+
+    for (const dir of dirsToCheck) {
+      await expect(fs.access(dir)).resolves.toBeUndefined();
+    }
+    for (const file of filesToCheck) {
+      await expect(fs.access(file)).resolves.toBeUndefined();
+    }
+
+    const managerContent = await fs.readFile('.nocaflow/manager.agent.md', 'utf-8');
+    expect(managerContent).toContain('You are manager.agent. The orchestrator.');
   });
 });
 ````
@@ -1850,192 +2182,6 @@ describe('unit/utils/fs', () => {
 });
 ````
 
-## File: test/test.util.ts
-````typescript
-import { exec as execCallback, ExecException } from 'child_process';
-import { promisify } from 'util';
-import fs from 'fs/promises';
-import path from 'path';
-import { simpleGit } from 'simple-git';
-import { platform } from '../src/utils/platform';
-
-const promisedExec = promisify(execCallback);
-
-export const runCli = async (
-  args: string,
-): Promise<{ stdout: string; stderr: string; code: number }> => {
-  const cliPath = path.join(__dirname, '..', 'dist', 'cli.js');
-  try {
-    const { stdout, stderr } = await promisedExec(`FORCE_COLOR=0 node ${cliPath} ${args}`);
-    return { stdout, stderr, code: 0 };
-  } catch (error) {
-    const err = error as ExecException & { stdout: string; stderr: string };
-    return {
-      stdout: err.stdout,
-      stderr: err.stderr,
-      code: err.code || 1,
-    };
-  }
-};
-
-export const setupTestDirectory = async (): Promise<{
-  testDir: string;
-  cleanup: () => Promise<void>;
-}> => {
-  const originalCwd = process.cwd();
-  const testDir = await fs.mkdtemp(path.join(platform.getTmpDir(), 'nocaflow-test-'));
-  process.chdir(testDir);
-
-  const cleanup = async (): Promise<void> => {
-    process.chdir(originalCwd);
-    await fs.rm(testDir, { recursive: true, force: true });
-  };
-
-  return { testDir, cleanup };
-};
-
-export const initGitRepo = async (): Promise<void> => {
-  const git = simpleGit();
-  await git.init();
-  await git.addConfig('user.email', 'test@example.com');
-  await git.addConfig('user.name', 'Test User');
-  await git.commit('Initial commit', { '--allow-empty': null });
-};
-
-export const createDummyPlanFile = async (
-  phase: 'initialization' | 'development',
-  status: 'todo' | 'doing' | 'done' | 'review' | 'failed',
-  fileName: string,
-): Promise<void> => {
-  const dirPath = path.join('.nocaflow', phase, 'plans', status);
-  await fs.mkdir(dirPath, { recursive: true });
-  await fs.writeFile(path.join(dirPath, fileName), '# dummy plan');
-};
-
-export const createDummyFailedReport = async (
-  phase: 'initialization' | 'development',
-  planId: string,
-  partId: string,
-  summary: string,
-): Promise<string> => {
-  const reportDir = path.join('.nocaflow', phase, 'plans', 'failed', 'report');
-  await fs.mkdir(reportDir, { recursive: true });
-  const reportPath = path.join(reportDir, `${planId}.${partId}.report.md`);
-  const content = `## Summary\n\n${summary}`;
-  await fs.writeFile(reportPath, content);
-  return path.resolve(reportPath);
-};
-````
-
-## File: src/commands/state.ts
-````typescript
-import chalk from 'chalk';
-import { getPhaseStats, PhaseStats, getFailedReports, FailedReport } from '../utils/fs';
-import { getActiveAgents, AgentInfo } from '../utils/shell';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import { getRecentLogs, LogEntry } from '../utils/logs';
-import { getGitLog, GitCommit } from '../utils/git';
-
-dayjs.extend(relativeTime as any);
-
-/**
- * @description Renders a progress bar.
- * @param current - The current progress value.
- * @param total - The total value for 100%.
- * @param length - The character length of the bar.
- * @returns A string representing the progress bar.
- */
-export const renderProgressBar = (current: number, total: number, length: number = 20): string => {
-  const percent = total > 0 ? current / total : 0;
-  const filledLength = Math.round(length * percent);
-  const emptyLength = length - filledLength;
-  const filledBar = '▇'.repeat(filledLength);
-  const emptyBar = '-'.repeat(emptyLength);
-  const bar = `[${filledBar}${emptyBar}]`;
-  const text = `(${current}/${total} plans done)`;
-
-  return `${bar} ${text}`;
-};
-
-/**
- * @description Displays the full state report to the console.
- */
-export const handleStateCommand = async (_argv: Record<string, unknown>): Promise<void> => {
-  const phaseStats: PhaseStats = await getPhaseStats();
-  const activeAgents: AgentInfo[] = await getActiveAgents();
-  const recentLogs: LogEntry[] = await getRecentLogs(5);
-  const failedReports: FailedReport[] = await getFailedReports(24);
-  const gitCommits: GitCommit[] = await getGitLog(10);
-  const currentPhase = phaseStats.development?.total > 0 ? 'development' : 'initialization';
-
-  // Header
-  console.log(chalk.bold(`== nocaflow State [${dayjs().format('YYYY-MM-DD HH:mm:ss')}] ==`));
-  console.log(`Current Phase: ${chalk.cyan(currentPhase)}`);
-  
-  // Phase Progress
-  console.log(chalk.bold('\n== Phase Progress =='));
-  for (const phaseName in phaseStats) {
-    const stats = phaseStats[phaseName];
-    const progressBar = renderProgressBar(stats.done, stats.total);
-    console.log(`[${chalk.yellow(phaseName.toUpperCase())}]`.padEnd(18) + progressBar);
-  }
-
-  // Phase Stats
-  console.log(chalk.bold('\n== Phase Stats (Plans) =='));
-  for (const phaseName in phaseStats) {
-    const stats = phaseStats[phaseName];
-    if (stats.total === 0) continue;
-    const statsString = `todo: ${stats.todo}, doing: ${stats.doing}, review: ${stats.review}, failed: ${stats.failed}, done: ${stats.done}`;
-    console.log(`[${chalk.yellow(phaseName.toUpperCase())}]`.padEnd(18) + statsString);
-  }
-
-  // Active Agents
-  console.log(chalk.bold('\n== Active Agents (tmux) =='));
-  if (activeAgents.length === 0) {
-    console.log('No active agents.');
-  } else {
-    for (const agent of activeAgents) {
-      console.log(`[${chalk.blue(agent.phase)}|${chalk.magenta(agent.pid)}]`.padEnd(18) + `id:${agent.id} (running ${agent.runtime})`);
-    }
-  }
-
-  // Recent Agent Activity
-  console.log(chalk.bold('\n== Recent Agent Activity (last 5) =='));
-  if (recentLogs.length === 0) {
-    console.log('No recent activity.');
-  } else {
-    for (const log of recentLogs) {
-      const statusColor = log.status === 'DONE' ? chalk.green : log.status === 'FAIL' ? chalk.red : chalk.gray;
-      const time = dayjs(log.timestamp).fromNow();
-      console.log(`${statusColor(`[${log.status}|${log.phase}|${log.agentId}]`)} plan:${log.planId} - ${log.message} (${chalk.gray(time)})`);
-    }
-  }
-
-  // Stalled / Failed
-  console.log(chalk.bold('\n== Stalled / Failed (last 24h) =='));
-  if (failedReports.length === 0) {
-    console.log('No failed reports in the last 24 hours.');
-  } else {
-    for (const report of failedReports) {
-      console.log(`${chalk.red('[FAILED]')} plan:${report.planId} part:${report.partId} - "${report.reason}"`);
-      console.log(`         Report: ${report.reportPath}`);
-    }
-  }
-
-  // Recent Git Commits
-  console.log(chalk.bold('\n== Recent Git Commits (all worktrees) =='));
-  if (gitCommits.length === 0) {
-    console.log('No recent commits.');
-  } else {
-    for (const commit of gitCommits) {
-      const worktreeInfo = commit.worktree ? `(${chalk.cyan(commit.worktree)}) ` : '';
-      console.log(`${chalk.yellow(commit.hash.slice(0, 7))} ${worktreeInfo}${commit.message}`);
-    }
-  }
-};
-````
-
 ## File: src/utils/git.ts
 ````typescript
 import { simpleGit } from 'simple-git';
@@ -2158,152 +2304,6 @@ export const isGitRepository = async (): Promise<boolean> => {
 };
 ````
 
-## File: src/utils/shell.ts
-````typescript
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import { platform } from './platform';
-
-export interface AgentInfo {
-  phase: 'INIT' | 'DEV' | 'QA' | 'SCAF';
-  id: string; // part_id, plan_id for QA/Scaffold
-  planId: string;
-  partId: string; // Can be 'scaffold' or 'qa'
-  runtime: string;
-  pid: string;
-}
-
-dayjs.extend(relativeTime as any);
-
-/**
- * @description Lists active tmux sessions and parses them to find agent info.
- * @returns A list of active agents.
- */
-export const getActiveAgents = async (): Promise<AgentInfo[]> => {
-  try {
-    const { stdout } = await platform.runCommand(`tmux ls -F "#{session_name} #{pane_pid} #{session_activity}"`);
-    if (!stdout) return [];
-
-    const lines = stdout.trim().split('\n');
-    const agents: AgentInfo[] = [];
-
-    for (const line of lines) {
-      const [sessionName, pid, activity] = line.split(' ');
-      const runtime = dayjs().to(dayjs.unix(parseInt(activity, 10)), true);
-
-      let match;
-      if ((match = sessionName.match(/^init-scaffold-(.+)/))) {
-        const planId = match[1];
-        agents.push({
-          phase: 'SCAF',
-          id: planId,
-          planId,
-          partId: 'scaffold',
-          runtime,
-          pid,
-        });
-      } else if ((match = sessionName.match(/^qa-(.+)/))) {
-        const planId = match[1];
-        agents.push({ phase: 'QA', id: planId, planId, partId: 'qa', runtime, pid });
-      } else if ((match = sessionName.match(/^(init|dev)-(?!scaffold-|qa-)(.+)/))) {
-        const phase = match[1].toUpperCase() as 'INIT' | 'DEV';
-        const partId = match[2];
-        agents.push({
-          phase,
-          id: partId,
-          planId: 'unknown', // Not available from session name
-          partId: partId,
-          runtime,
-          pid,
-        });
-      }
-    }
-    return agents;
-  } catch (error) {
-    return []; // Tmux likely not running or has no sessions.
-  }
-};
-````
-
-## File: test/integration/commands/init.test.ts
-````typescript
-import { handleInitCommand } from '../../../src/commands/init';
-import { setupTestDirectory, initGitRepo } from '../../test.util';
-import fs from 'fs/promises';
-import { isGitRepository } from '../../../src/utils/git';
-
-describe('integration/commands/init', () => {
-  let cleanup: () => Promise<void>;
-
-  beforeEach(async () => {
-    const { cleanup: c } = await setupTestDirectory();
-    cleanup = c;
-  });
-
-  afterEach(async () => {
-    await cleanup();
-  });
-
-  it('should initialize a git repo if not already present', async () => {
-    expect(await isGitRepository()).toBe(false);
-    await handleInitCommand({});
-    expect(await isGitRepository()).toBe(true);
-  });
-
-  it('should skip git init if already in a git repo', async () => {
-    await initGitRepo();
-    expect(await isGitRepository()).toBe(true);
-
-    // This command should be idempotent and not fail if a repo exists.
-    await handleInitCommand({});
-
-    // Verify the repo is still valid.
-    expect(await isGitRepository()).toBe(true);
-  });
-
-  it('should create the full .nocaflow directory and file structure on a fresh run', async () => {
-    await handleInitCommand({});
-
-    const dirsToCheck = [
-      '.nocaflow/initialization/plans/todo',
-      '.nocaflow/initialization/plans/doing',
-      '.nocaflow/initialization/plans/review',
-      '.nocaflow/initialization/plans/done',
-      '.nocaflow/initialization/plans/failed/report',
-      '.nocaflow/initialization/agent-log',
-      '.nocaflow/development/plans/todo',
-      '.nocaflow/development/plans/doing',
-      '.nocaflow/development/plans/review',
-      '.nocaflow/development/plans/done',
-      '.nocaflow/development/plans/failed/report',
-      '.nocaflow/development/agent-log',
-    ];
-    const filesToCheck = [
-      '.nocaflow/manager.agent.md',
-      '.nocaflow/plan.agent.md',
-      '.nocaflow/qa.agent.md',
-      '.nocaflow/suffix.global.prompt.md',
-      '.nocaflow/initialization/init.agent-swarm.md',
-      '.nocaflow/initialization/init.phase.rule.md',
-      '.nocaflow/initialization/scaffolder.agent.md',
-      '.nocaflow/development/dev.agent-swarm.md',
-      '.nocaflow/development/dev.phase.rule.md',
-      'user.prompt.md',
-    ];
-
-    for (const dir of dirsToCheck) {
-      await expect(fs.access(dir)).resolves.toBeUndefined();
-    }
-    for (const file of filesToCheck) {
-      await expect(fs.access(file)).resolves.toBeUndefined();
-    }
-
-    const managerContent = await fs.readFile('.nocaflow/manager.agent.md', 'utf-8');
-    expect(managerContent).toContain('You are manager.agent. The orchestrator.');
-  });
-});
-````
-
 ## File: test/unit/utils/shell.test.ts
 ````typescript
 import { getActiveAgents } from '../../../src/utils/shell';
@@ -2312,7 +2312,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import * as crypto from 'crypto';
 
-dayjs.extend(relativeTime as any);
+dayjs.extend(relativeTime);
 
 describe('unit/utils/shell (integration)', () => {
   const testId = crypto.randomBytes(4).toString('hex');
@@ -2334,7 +2334,6 @@ describe('unit/utils/shell (integration)', () => {
   });
 
   beforeEach(async () => {
-    if (!canRun) return;
     // Start detached sessions that will self-terminate
     for (const name of sessionNames) {
       await platform.runCommand(`tmux new-session -d -s ${name} "sleep 10"`);
@@ -2344,7 +2343,6 @@ describe('unit/utils/shell (integration)', () => {
   });
 
   afterEach(async () => {
-    if (!canRun) return;
     for (const name of sessionNames) {
       // Use `|| true` to ignore errors if session has already terminated or been killed
       await platform.runCommand(`tmux kill-session -t ${name} || true`);
@@ -2352,9 +2350,7 @@ describe('unit/utils/shell (integration)', () => {
   });
 
   describe('getActiveAgents', () => {
-    const itif = (condition: boolean) => (condition ? it : it.skip);
-
-    itif(canRun)('should parse all types of agent sessions and ignore non-agent sessions', async () => {
+    it('should parse all types of agent sessions and ignore non-agent sessions', async () => {
       const agents = await getActiveAgents();
       // Filter for agents created in this specific test run to ensure isolation
       const testAgents = agents.filter(
@@ -2377,7 +2373,7 @@ describe('unit/utils/shell (integration)', () => {
       );
     });
 
-    itif(canRun)('should return an empty array if tmux has no sessions', async () => {
+    it('should return an empty array if tmux has no sessions', async () => {
       // Kill the sessions from beforeEach to create an empty state
       for (const name of sessionNames) {
         await platform.runCommand(`tmux kill-session -t ${name} || true`);
@@ -2387,7 +2383,7 @@ describe('unit/utils/shell (integration)', () => {
       expect(agents).toEqual([]);
     });
 
-    itif(canRun)('should correctly calculate agent runtime', async () => {
+    it('should correctly calculate agent runtime', async () => {
       const agents = await getActiveAgents();
       const devAgent = agents.find(a => a.partId === `part456-${testId}`);
       expect(devAgent).toBeDefined();
