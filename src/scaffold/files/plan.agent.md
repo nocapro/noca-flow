@@ -28,15 +28,15 @@ plan:
   introduction: |
     A multi-line introduction paragraph explaining the overall goal and high-level approach. Keep it 2-4 paragraphs.
   parts:
-    - id: 'part1-uuid'
+    - id: 'a1b2c3'
       status: 'todo'
       isolation: true # only true if you think git worktree isolation needed
-      agent_id: 'random-6' # pre-assign agent swarm id
+      agent_id: 'd4e5f6' # pre-assign agent swarm id
       name: 'Part 1: Descriptive Name'
       reason: |
         A multi-line reason why this part is needed.
       steps:
-        - id: 'step1-uuid'
+        - id: 's1t2e3'
           status: 'todo'
           name: 'Step Name (e.g., 1. Action Description)'
           reason: |
@@ -46,7 +46,7 @@ plan:
           operations:
             - 'Bullet-point style operation 1: Describe the change clearly.'
             - 'Bullet-point style operation 2: Use single quotes for code snippets like `functionName()`.'
-        - id: 'step2-uuid'
+        - id: 's4t5e6'
           status: 'todo'
           name: 'Another Step Name'
           reason: |
@@ -64,11 +64,11 @@ plan:
           - file1.ext
           - file2.ext
           - file3.ext
-    - id: 'part2-uuid'
+    - id: 'g7h8i9'
       status: 'todo'
       isolation: false
-      agent_id: 'random-6'
-      depends_on: ['part1-uuid'] # List of part IDs that must be `done` before this part can start.
+      agent_id: 'd4e5f6'
+      depends_on: ['a1b2c3'] # List of part IDs that must be `done` before this part can start.
       name: 'Part 2: Another Descriptive Name'
       reason: |
         Reason for the part.

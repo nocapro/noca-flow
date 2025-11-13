@@ -2,6 +2,7 @@ import { exec as execCallback, ExecException } from 'child_process';
 import { promisify } from 'util';
 import * as os from 'os';
 
+import { logger } from './logger';
 const exec = promisify(execCallback);
 
 export interface CommandResult {
@@ -24,6 +25,7 @@ const runCommand = async (command: string): Promise<CommandResult> => {
     // exec throws an error for non-zero exit codes.
     // We want to capture stdout/stderr and the code, not crash.
     const err = error as ExecException & { stdout: string; stderr: string };
+    logger.debug(`Command failed with code ${err.code}: ${command}`, err);
     return {
       stdout: err.stdout,
       stderr: err.stderr,
