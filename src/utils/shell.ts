@@ -11,7 +11,7 @@ export interface AgentInfo {
   pid: string;
 }
 
-dayjs.extend(relativeTime as any);
+dayjs.extend(relativeTime);
 
 /**
  * @description Lists active tmux sessions and parses them to find agent info.

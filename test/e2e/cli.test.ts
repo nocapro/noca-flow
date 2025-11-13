@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import { exec as execCallback } from 'child_process';
 import path from 'path';
 import { promisify } from 'util';
-import { platform } from '../src/utils/platform';
+import { platform } from '../../src/utils/platform';
 
 const promisedExec = promisify(execCallback);
 
@@ -103,8 +103,8 @@ describe('e2e/cli', () => {
       expect(code).toBe(0);
       // Assert on all sections
       expect(stdout).toContain('Current Phase: development');
-      expect(stdout).toContain('[INITIALIZATION]'.padEnd(18) + '[----------] (0/1 plans done)');
-      expect(stdout).toContain('[DEVELOPMENT]'.padEnd(18) + '[▇▇▇▇▇▇▇▇▇▇] (1/1 plans done)');
+      expect(stdout).toContain('[INITIALIZATION]'.padEnd(18) + '[--------------------] (0/1 plans done)');
+      expect(stdout).toContain('[DEVELOPMENT]'.padEnd(18) + '[▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇] (1/1 plans done)');
       if (canRunTmux) {
         expect(stdout).toContain('id:e2e-part-xyz');
       }
