@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import chalk from 'chalk';
 import { EOL } from 'os';
+import { simpleGit } from 'simple-git';
 import { platform } from '../utils/platform';
 import { isGitRepository } from '../utils/git';
 import { copyScaffoldFiles, scaffoldFiles } from '../scaffold/templates';
@@ -31,17 +32,18 @@ export const handleInitCommand = async (_argv: Record<string, unknown>): Promise
   }
 
   // 3. Initialize git repository if needed
-  const isGitRepo = await isGitRepository();
-  if (!isGitRepo) {
-    console.log('No git repository found. Initializing...');
-    const { code, stderr } = await platform.runCommand('git init');
-    if (code !== 0) {
-      console.error(chalk.red('Failed to initialize git repository:'), EOL, stderr);
-      process.exit(1);
+  try {
+    const isGitRepo = await isGitRepository();
+    if (!isGitRepo) {
+      console.log('No git repository found. Initializing...');
+      await simpleGit().init();
+      console.log(chalk.green('Git repository initialized.'));
+    } else {
+      console.log('Existing git repository found.');
     }
-    console.log(chalk.green('Git repository initialized.'));
-  } else {
-    console.log('Existing git repository found.');
+  } catch (error) {
+    console.error(chalk.red('Failed to initialize git repository:'), EOL, error);
+    process.exit(1);
   }
 
   // 4. Create directory structure

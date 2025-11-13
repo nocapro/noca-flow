@@ -25,6 +25,7 @@
     "chalk": "^4.1.2",
     "dayjs": "^1.11.10",
     "js-yaml": "^4.1.0",
+    "simple-git": "^3.22.0",
     "yargs": "^17.7.2"
   },
   "devDependencies": {

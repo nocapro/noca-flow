@@ -2,6 +2,7 @@ import { exec as execCallback, ExecException } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
+import { simpleGit } from 'simple-git';
 import { platform } from '../src/utils/platform';
 
 const promisedExec = promisify(execCallback);
@@ -40,10 +41,11 @@ export const setupTestDirectory = async (): Promise<{
 };
 
 export const initGitRepo = async (): Promise<void> => {
-  await promisedExec('git init');
-  await promisedExec('git config user.email "test@example.com"');
-  await promisedExec('git config user.name "Test User"');
-  await promisedExec('git commit --allow-empty -m "Initial commit"');
+  const git = simpleGit();
+  await git.init();
+  await git.addConfig('user.email', 'test@example.com');
+  await git.addConfig('user.name', 'Test User');
+  await git.commit('Initial commit', { '--allow-empty': null });
 };
 
 export const createDummyPlanFile = async (
