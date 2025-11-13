@@ -1,3 +1,6 @@
+===
+
+implement multi-level logger and error implement accross codebase. all without causing fail tests
 
 === DONE
 
@@ -44,6 +47,10 @@ Evidence
      Missing information about active agents, recent activity, and failure reports
      No integration with tmux to show active sessions
 
+
+=== DONE
+
+all about git should use programmatic api based from simplegit or else, so not regex based again. make sure not causing fail test cases
 
 
 === DONE

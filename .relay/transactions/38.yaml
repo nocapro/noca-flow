@@ -1,0 +1,773 @@
+uuid: 4a259d28-091f-4422-9092-224422f28b40
+projectId: noca-flow
+createdAt: '2025-11-13T02:31:41.939Z'
+gitCommitMsg: >-
+  refactor(git): migrate from shell commands to simple-git library
+
+  Replaced all git command executions via `child_process` with the `simple-git`
+  library. This eliminates fragile regex-based parsing of `git log` and `git
+  worktree` output.
+
+  Key changes: - Added `simple-git` as a dependency. - Rewrote `getGitLog` and
+  `isGitRepository` in `src/utils/git.ts` to use programmatic APIs, providing
+  structured data and better error handling. - Updated `handleInitCommand` and
+  the `initGitRepo` test utility to use `simple-git`. - Refactored git
+  integration tests to be more robust and consistent by using `simple-git` for
+  test setup operations like commits.
+
+  This change significantly improves the reliability and maintainability of all
+  features that interact with the git repository.
+promptSummary: >-
+  Refactor all git interactions to use the `simple-git` library instead of
+  shelling out and parsing stdout, improving robustness and maintainability.
+reasoning:
+  - >-
+    ok, moving to `simple-git`. parsing git stdout is brittle af. this refactor
+    makes our git utils robust and type-safe. it's just good engineering.
+  - first, adding the dep.
+  - >-
+    next, gutting `src/utils/git.ts` and replacing it with the `simple-git`
+    implementation. no more regex.
+  - now, update `init` command to use the new api.
+  - refactoring the test utility for git repo setup. keep it clean.
+  - >-
+    finally, adapting the integration tests. they now use `simple-git` for
+    setup, which is more consistent and robust.
+operations:
+  - type: write
+    path: package.json
+    content: |
+      <<<<<<< SEARCH
+          "js-yaml": "^4.1.0",
+          "yargs": "^17.7.2"
+        },
+        "devDependencies": {
+      =======
+          "js-yaml": "^4.1.0",
+          "simple-git": "^3.22.0",
+          "yargs": "^17.7.2"
+        },
+        "devDependencies": {
+      >>>>>>> REPLACE
+    patchStrategy: search-replace
+  - type: write
+    path: src/utils/git.ts
+    content: |-
+      import { simpleGit, SimpleGit, LogResult } from 'simple-git';
+      import path from 'path';
+
+      export interface GitCommit {
+        hash: string;
+        worktree: string | null;
+        message: string;
+      }
+
+      const git: SimpleGit = simpleGit();
+
+      /**
+       * @description Executes 'git log' to get recent commit history across all worktrees.
+       * @param limit - The maximum number of commits to return.
+       * @returns A list of recent git commits.
+       */
+      export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
+        try {
+          const isRepo = await git.checkIsRepo();
+          if (!isRepo) return [];
+
+          const worktrees = await git.worktreeList();
+          const worktreeMap = new Map<string, string>();
+          for (const wt of worktrees) {
+            // Branch is like 'refs/heads/feature-branch', we want 'feature-branch'
+            const branchNameMatch = wt.branch.match(/refs\/heads\/(.*)/);
+            if (branchNameMatch && branchNameMatch[1]) {
+              const branchName = branchNameMatch[1];
+              if (branchName !== 'main' && branchName !== 'master') {
+                worktreeMap.set(branchName, path.basename(wt.path));
+              }
+            }
+          }
+
+          const log: LogResult = await git.log({ '--all': null, '-n': limit });
+
+          if (!log.all || log.total === 0) return [];
+
+          return log.all.map(commit => {
+            let worktree: string | null = null;
+            for (const branchName of worktreeMap.keys()) {
+              if (commit.refs.includes(branchName)) {
+                worktree = worktreeMap.get(branchName) || null;
+                break;
+              }
+            }
+
+            return {
+              hash: commit.hash,
+              worktree,
+              message: commit.message,
+            };
+          });
+        } catch (error) {
+          return []; // Git not installed, not a git repo, or other error.
+        }
+      };
+
+      /**
+       * @description Checks if the current directory is a git repository.
+       * @returns {Promise<boolean>}
+       */
+      export const isGitRepository = async (): Promise<boolean> => {
+        try {
+          return await git.checkIsRepo();
+        } catch (error) {
+          return false;
+        }
+      };
+    patchStrategy: replace
+  - type: write
+    path: src/commands/init.ts
+    content: >+
+      --- src/commands/init.ts
+
+      +++ src/commands/init.ts
+
+      @@ -2,8 +2,8 @@
+       import path from 'path';
+       import chalk from 'chalk';
+       import { EOL } from 'os';
+      +import { simpleGit } from 'simple-git';
+       import { platform } from '../utils/platform';
+       import { isGitRepository } from '../utils/git';
+       import { copyScaffoldFiles, scaffoldFiles } from '../scaffold/templates';
+       
+      @@ -26,19 +26,19 @@
+         }
+       
+         // 3. Initialize git repository if needed
+      -  const isGitRepo = await isGitRepository();
+
+      -  if (!isGitRepo) {
+
+      -    console.log('No git repository found. Initializing...');
+
+      -    const { code, stderr } = await platform.runCommand('git init');
+
+      -    if (code !== 0) {
+
+      -      console.error(chalk.red('Failed to initialize git repository:'),
+      EOL, stderr);
+
+      -      process.exit(1);
+
+      +  try {
+
+      +    const isGitRepo = await isGitRepository();
+
+      +    if (!isGitRepo) {
+
+      +      console.log('No git repository found. Initializing...');
+
+      +      await simpleGit().init();
+
+      +      console.log(chalk.green('Git repository initialized.'));
+
+      +    } else {
+
+      +      console.log('Existing git repository found.');
+           }
+      -    console.log(chalk.green('Git repository initialized.'));
+
+      -  } else {
+
+      -    console.log('Existing git repository found.');
+
+      +  } catch (error) {
+
+      +    console.error(chalk.red('Failed to initialize git repository:'), EOL,
+      error);
+
+      +    process.exit(1);
+         }
+       
+         // 4. Create directory structure
+         const phases = ['initialization', 'development'];
+
+    patchStrategy: standard-diff
+  - type: write
+    path: test/test.util.ts
+    content: |+
+      --- test/test.util.ts
+      +++ test/test.util.ts
+      @@ -2,6 +2,7 @@
+       import { promisify } from 'util';
+       import fs from 'fs/promises';
+       import path from 'path';
+      +import { simpleGit } from 'simple-git';
+       import { platform } from '../src/utils/platform';
+       
+       const promisedExec = promisify(execCallback);
+      @@ -34,11 +35,11 @@
+       };
+       
+       export const initGitRepo = async (): Promise<void> => {
+      -  await promisedExec('git init');
+      -  await promisedExec('git config user.email "test@example.com"');
+      -  await promisedExec('git config user.name "Test User"');
+      -  await promisedExec('git commit --allow-empty -m "Initial commit"');
+      +  const git = simpleGit();
+      +  await git.init();
+      +  await git.addConfig('user.email', 'test@example.com');
+      +  await git.addConfig('user.name', 'Test User');
+      +  await git.commit('Initial commit', { '--allow-empty': null });
+       };
+       
+       export const createDummyPlanFile = async (
+
+    patchStrategy: standard-diff
+  - type: write
+    path: test/integration/utils/git.test.ts
+    content: |-
+      import { getGitLog, isGitRepository } from '../../../src/utils/git';
+      import { setupTestDirectory, initGitRepo } from '../../test.util';
+      import { exec as execCallback } from 'child_process';
+      import { promisify } from 'util';
+      import fs from 'fs/promises';
+      import path from 'path';
+      import { simpleGit } from 'simple-git';
+
+      const promisedExec = promisify(execCallback);
+
+      describe('isGitRepository', () => {
+        let cleanup: () => Promise<void>;
+
+        // Separate setup because we need a non-git directory first.
+        beforeEach(async () => {
+          const { cleanup: c } = await setupTestDirectory();
+          cleanup = c;
+        });
+
+        afterEach(async () => {
+          await cleanup();
+        });
+
+        it('should return false in a non-git directory and true after init', async () => {
+          expect(await isGitRepository()).toBe(false);
+          await initGitRepo();
+          expect(await isGitRepository()).toBe(true);
+        });
+      });
+
+      describe('integration/utils/git', () => {
+        let cleanup: () => Promise<void>;
+        let testDir: string;
+
+        beforeEach(async () => {
+          const { cleanup: c, testDir: td } = await setupTestDirectory();
+          cleanup = c;
+          testDir = td;
+          await initGitRepo();
+        });
+
+        afterEach(async () => {
+          await cleanup();
+        });
+
+        it('should parse commits with worktree information', async () => {
+          const worktreeName = 'my-feature-wt';
+          const worktreePath = path.join(testDir, '..', worktreeName);
+          // Use exec for worktree commands as simple-git support can be complex across versions
+          await promisedExec(`git worktree add ${worktreePath}`);
+
+          const originalCwd = process.cwd();
+          process.chdir(worktreePath);
+
+          const wtGit = simpleGit();
+          await fs.writeFile('feature.txt', 'data');
+          await wtGit.add('.');
+          await wtGit.commit('feat: commit from worktree');
+          process.chdir(originalCwd);
+
+          const log = await getGitLog(5);
+          const wtCommit = log.find(c => c.message === 'feat: commit from worktree');
+
+          expect(wtCommit).toBeDefined();
+          expect(wtCommit?.worktree).toBe(worktreeName);
+
+          // Cleanup worktree
+          await promisedExec(`git worktree remove ${worktreeName}`);
+        });
+
+        it('should handle commits not associated with a worktree', async () => {
+          const git = simpleGit();
+          await fs.writeFile('main.txt', 'data');
+          await git.add('.');
+          await git.commit('feat: commit from main');
+
+          const log = await getGitLog(5);
+          const mainCommit = log.find(c => c.message === 'feat: commit from main');
+
+          expect(mainCommit).toBeDefined();
+          expect(mainCommit?.worktree).toBeNull();
+        });
+
+        it('should respect the commit limit', async () => {
+          const git = simpleGit();
+          for (let i = 0; i < 5; i++) {
+            await git.commit(`commit ${i + 1}`, { '--allow-empty': null });
+          }
+
+          const log = await getGitLog(3);
+          expect(log).toHaveLength(3);
+        });
+
+        it('should return an empty array for a repository with no commits', async () => {
+          // Need a separate setup that doesn't create an initial commit.
+          await cleanup();
+          const { cleanup: c2 } = await setupTestDirectory();
+          await simpleGit().init();
+
+          const log = await getGitLog(5);
+          expect(log).toEqual([]);
+
+          await c2(); // Use the new cleanup function
+        });
+
+        it('should handle commit messages with special characters', async () => {
+          const complexMessage = `feat: handle '|' "quotes" and 'apostrophes'\n\nwith a body.`;
+          await simpleGit().commit(complexMessage, { '--allow-empty': null });
+
+          const log = await getGitLog(1);
+
+          expect(log).toHaveLength(1);
+          expect(log[0].message).toBe(complexMessage);
+        });
+
+        it('should return an empty array if not in a git repository', async () => {
+          // This requires a non-git directory.
+          await cleanup(); // Get rid of the git repo from beforeEach
+          const { cleanup: c2 } = await setupTestDirectory();
+
+          const log = await getGitLog(5);
+          expect(log).toEqual([]);
+
+          await c2(); // Use the new cleanup function
+        });
+      });
+    patchStrategy: replace
+snapshot:
+  test/test.util.ts: |-
+    import { exec as execCallback, ExecException } from 'child_process';
+    import { promisify } from 'util';
+    import fs from 'fs/promises';
+    import path from 'path';
+    import { platform } from '../src/utils/platform';
+
+    const promisedExec = promisify(execCallback);
+
+    export const runCli = async (
+      args: string,
+    ): Promise<{ stdout: string; stderr: string; code: number }> => {
+      const cliPath = path.join(__dirname, '..', 'dist', 'cli.js');
+      try {
+        const { stdout, stderr } = await promisedExec(`FORCE_COLOR=0 node ${cliPath} ${args}`);
+        return { stdout, stderr, code: 0 };
+      } catch (error) {
+        const err = error as ExecException & { stdout: string; stderr: string };
+        return {
+          stdout: err.stdout,
+          stderr: err.stderr,
+          code: err.code || 1,
+        };
+      }
+    };
+
+    export const setupTestDirectory = async (): Promise<{
+      testDir: string;
+      cleanup: () => Promise<void>;
+    }> => {
+      const originalCwd = process.cwd();
+      const testDir = await fs.mkdtemp(path.join(platform.getTmpDir(), 'nocaflow-test-'));
+      process.chdir(testDir);
+
+      const cleanup = async (): Promise<void> => {
+        process.chdir(originalCwd);
+        await fs.rm(testDir, { recursive: true, force: true });
+      };
+
+      return { testDir, cleanup };
+    };
+
+    export const initGitRepo = async (): Promise<void> => {
+      await promisedExec('git init');
+      await promisedExec('git config user.email "test@example.com"');
+      await promisedExec('git config user.name "Test User"');
+      await promisedExec('git commit --allow-empty -m "Initial commit"');
+    };
+
+    export const createDummyPlanFile = async (
+      phase: 'initialization' | 'development',
+      status: 'todo' | 'doing' | 'done' | 'review' | 'failed',
+      fileName: string,
+    ): Promise<void> => {
+      const dirPath = path.join('.nocaflow', phase, 'plans', status);
+      await fs.mkdir(dirPath, { recursive: true });
+      await fs.writeFile(path.join(dirPath, fileName), '# dummy plan');
+    };
+
+    export const createDummyFailedReport = async (
+      phase: 'initialization' | 'development',
+      planId: string,
+      partId: string,
+      summary: string,
+    ): Promise<string> => {
+      const reportDir = path.join('.nocaflow', phase, 'plans', 'failed', 'report');
+      await fs.mkdir(reportDir, { recursive: true });
+      const reportPath = path.join(reportDir, `${planId}.${partId}.report.md`);
+      const content = `## Summary\n\n${summary}`;
+      await fs.writeFile(reportPath, content);
+      return path.resolve(reportPath);
+    };
+  test/integration/utils/git.test.ts: |-
+    import { getGitLog, isGitRepository } from '../../../src/utils/git';
+    import { setupTestDirectory, initGitRepo } from '../../test.util';
+    import { exec } from 'child_process';
+    import { promisify } from 'util';
+    import fs from 'fs/promises';
+    import path from 'path';
+
+    const promisedExec = promisify(exec);
+
+    describe('isGitRepository', () => {
+      let cleanup: () => Promise<void>;
+
+      // Separate setup because we need a non-git directory first.
+      beforeEach(async () => {
+        const { cleanup: c } = await setupTestDirectory();
+        cleanup = c;
+      });
+
+      afterEach(async () => {
+        await cleanup();
+      });
+
+      it('should return false in a non-git directory and true after init', async () => {
+        expect(await isGitRepository()).toBe(false);
+        await initGitRepo();
+        expect(await isGitRepository()).toBe(true);
+      });
+    });
+
+    describe('integration/utils/git', () => {
+      let cleanup: () => Promise<void>;
+      let testDir: string;
+
+      beforeEach(async () => {
+        const { cleanup: c, testDir: td } = await setupTestDirectory();
+        cleanup = c;
+        testDir = td;
+        await initGitRepo();
+      });
+
+      afterEach(async () => {
+        await cleanup();
+      });
+
+      it('should parse commits with worktree information', async () => {
+        const worktreeName = 'my-feature-wt';
+        const worktreePath = path.join(testDir, '..', worktreeName);
+        await promisedExec(`git worktree add ${worktreePath}`);
+
+        const originalCwd = process.cwd();
+        process.chdir(worktreePath);
+        await fs.writeFile('feature.txt', 'data');
+        await promisedExec('git add .');
+        await promisedExec('git commit -m "feat: commit from worktree"');
+        process.chdir(originalCwd);
+
+        const log = await getGitLog(5);
+        const wtCommit = log.find(c => c.message === 'feat: commit from worktree');
+
+        expect(wtCommit).toBeDefined();
+        expect(wtCommit?.worktree).toBe(worktreeName);
+
+        // Cleanup worktree
+        await promisedExec(`git worktree remove ${worktreeName}`);
+      });
+
+      it('should handle commits not associated with a worktree', async () => {
+        await fs.writeFile('main.txt', 'data');
+        await promisedExec('git add .');
+        await promisedExec('git commit -m "feat: commit from main"');
+
+        const log = await getGitLog(5);
+        const mainCommit = log.find(c => c.message === 'feat: commit from main');
+
+        expect(mainCommit).toBeDefined();
+        expect(mainCommit?.worktree).toBeNull();
+      });
+
+      it('should respect the commit limit', async () => {
+        for (let i = 0; i < 5; i++) {
+          await promisedExec(`git commit --allow-empty -m "commit ${i + 1}"`);
+        }
+
+        const log = await getGitLog(3);
+        expect(log).toHaveLength(3);
+      });
+
+      it('should return an empty array for a repository with no commits', async () => {
+        // Need a separate setup that doesn't create an initial commit.
+        await cleanup();
+        const { cleanup: c2 } = await setupTestDirectory();
+        await promisedExec('git init');
+
+        const log = await getGitLog(5);
+        expect(log).toEqual([]);
+
+        await c2(); // Use the new cleanup function
+      });
+
+      it('should handle commit messages with special characters', async () => {
+        const complexMessage = `feat: handle '|' "quotes" and 'apostrophes'\n\nwith a body.`;
+        await promisedExec(`git commit --allow-empty -m ${JSON.stringify(complexMessage)}`);
+
+        const log = await getGitLog(1);
+
+        expect(log).toHaveLength(1);
+        expect(log[0].message).toBe(complexMessage);
+      });
+
+      it('should return an empty array if not in a git repository', async () => {
+        // This requires a non-git directory.
+        await cleanup(); // Get rid of the git repo from beforeEach
+        const { cleanup: c2 } = await setupTestDirectory();
+
+        const log = await getGitLog(5);
+        expect(log).toEqual([]);
+
+        await c2(); // Use the new cleanup function
+      });
+    });
+  package.json: |-
+    {
+      "name": "nocaflow",
+      "version": "0.0.1",
+      "description": "Filesystem-as-State for Phased LLM Swarms.",
+      "main": "dist/index.js",
+      "bin": {
+        "nocaflow": "dist/cli.js"
+      },
+      "scripts": {
+        "start": "node dist/cli.js",
+        "build": "node node_modules/typescript/lib/tsc.js",
+        "dev": "node node_modules/ts-node/dist/bin.js src/cli.ts",
+        "test": "node node_modules/jest/bin/jest.js",
+        "lint": "node node_modules/eslint/bin/eslint.js 'src/**/*.ts' 'test/**/*.ts'"
+      },
+      "keywords": [
+        "llm",
+        "swarm",
+        "agent",
+        "orchestration"
+      ],
+      "author": "",
+      "license": "ISC",
+      "dependencies": {
+        "chalk": "^4.1.2",
+        "dayjs": "^1.11.10",
+        "js-yaml": "^4.1.0",
+        "yargs": "^17.7.2"
+      },
+      "devDependencies": {
+        "@types/js-yaml": "^4.0.9",
+        "@types/node": "^20.10.4",
+        "@types/yargs": "^17.0.32",
+        "@types/jest": "^29.5.11",
+        "@typescript-eslint/eslint-plugin": "^6.14.0",
+        "@typescript-eslint/parser": "^6.14.0",
+        "eslint": "^8.55.0",
+        "jest": "^29.7.0",
+        "ts-jest": "^29.1.1",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.3.3"
+      }
+    }
+  src/commands/init.ts: >-
+    import fs from 'fs/promises';
+
+    import path from 'path';
+
+    import chalk from 'chalk';
+
+    import { EOL } from 'os';
+
+    import { platform } from '../utils/platform';
+
+    import { isGitRepository } from '../utils/git';
+
+    import { copyScaffoldFiles, scaffoldFiles } from '../scaffold/templates';
+
+
+    /**
+     * @description Handles the logic for the 'init' command.
+     */
+    export const handleInitCommand = async (_argv: Record<string, unknown>):
+    Promise<void> => {
+      // 1. Prerequisite checks
+      const requiredCommands = ['git', 'tmux'];
+      for (const cmd of requiredCommands) {
+        const exists = await platform.commandExists(cmd);
+        if (!exists) {
+          console.error(chalk.red(`Error: ${cmd} is not installed. NocaFlow requires git and tmux.`));
+          process.exit(1);
+        }
+      }
+
+      // 2. Check for existing .nocaflow directory
+      const rootDir = '.nocaflow';
+      try {
+        await fs.access(rootDir);
+        console.warn(chalk.yellow(`Warning: '${rootDir}' directory already exists. Initialization skipped.`));
+        process.exit(0);
+      } catch (error) {
+        // Directory does not exist, proceed.
+      }
+
+      // 3. Initialize git repository if needed
+      const isGitRepo = await isGitRepository();
+      if (!isGitRepo) {
+        console.log('No git repository found. Initializing...');
+        const { code, stderr } = await platform.runCommand('git init');
+        if (code !== 0) {
+          console.error(chalk.red('Failed to initialize git repository:'), EOL, stderr);
+          process.exit(1);
+        }
+        console.log(chalk.green('Git repository initialized.'));
+      } else {
+        console.log('Existing git repository found.');
+      }
+
+      // 4. Create directory structure
+      const phases = ['initialization', 'development'];
+      const planSubDirs = ['todo', 'doing', 'review', 'done', 'failed/report'];
+      const agentLogDir = 'agent-log';
+      const dirsToCreate: string[] = [];
+      const gitkeepFiles: string[] = [];
+
+      for (const phase of phases) {
+        const phaseBase = path.join(rootDir, phase);
+        const agentLogPath = path.join(phaseBase, agentLogDir);
+        dirsToCreate.push(agentLogPath);
+        gitkeepFiles.push(path.join(agentLogPath, '.gitkeep'));
+
+        const plansBase = path.join(phaseBase, 'plans');
+        for (const subDir of planSubDirs) {
+          const dirPath = path.join(plansBase, subDir);
+          dirsToCreate.push(dirPath);
+          gitkeepFiles.push(path.join(dirPath, '.gitkeep'));
+        }
+      }
+
+      try {
+        await Promise.all(dirsToCreate.map(dir => fs.mkdir(dir, { recursive: true })));
+        await Promise.all(gitkeepFiles.map(file => fs.writeFile(file, '')));
+
+        // 5. Scaffold agent and rule files
+        await copyScaffoldFiles();
+
+        console.log(chalk.green(' nocaflow project initialized successfully. ✨'));
+        console.log(
+          `Created ${chalk.bold(rootDir)} directory structure and ${chalk.bold(
+            scaffoldFiles.length,
+          )} agent/rule files.`,
+        );
+      } catch (error) {
+        console.error(chalk.red('Failed to initialize nocaflow project:'), EOL, error);
+        process.exit(1);
+      }
+    };
+  src/utils/git.ts: |-
+    import { platform } from './platform';
+
+    export interface GitCommit {
+      hash: string;
+      worktree: string | null;
+      message: string;
+    }
+
+    /**
+     * @description Executes 'git log' to get recent commit history across all worktrees.
+     * @param limit - The maximum number of commits to return.
+     * @returns A list of recent git commits.
+     */
+    export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
+      const getWorktreeMap = async (): Promise<Map<string, string>> => {
+        const map = new Map<string, string>();
+        try {
+          const { stdout } = await platform.runCommand('git worktree list --porcelain');
+          const entries = stdout.trim().split('\n\n');
+          for (const entry of entries) {
+            const branchMatch = entry.match(/^branch refs\/heads\/(.*)/m);
+            if (branchMatch) {
+              const branchName = branchMatch[1];
+              // Do not treat the main/master branch as a worktree indicator
+              if (branchName !== 'main' && branchName !== 'master') {
+                // Assuming worktree branch name is the worktree name we want to display
+                map.set(branchName, branchName);
+              }
+            }
+          }
+        } catch (error) {
+          // Not a git repo or no worktrees, map will be empty.
+        }
+        return map;
+      };
+
+      try {
+        const worktreeMap = await getWorktreeMap();
+        // Use non-printable characters as delimiters for robustness.
+        // \x1f (unit separator) separates fields, \x00 (null) separates records.
+        const { stdout: logOutput } = await platform.runCommand(`git log --all -n ${limit} --pretty=format:'%H%x1f%D%x1f%B%n%x00'`);
+        if (!logOutput) return [];
+
+        // Split by null byte and filter out any trailing empty string.
+        return logOutput.split('\x00').filter(Boolean).map(line => {
+          const parts = line.split('\x1f');
+          const hash = parts[0] || '';
+          const refs = parts[1] || '';
+          // Process the message to convert literal \n sequences to actual newlines
+          const rawMessage = (parts[2] || '').trim();
+          const message = rawMessage.replace(/\\n/g, '\n');
+
+          let worktree: string | null = null;
+          for (const branchName of worktreeMap.keys()) {
+            if (refs.includes(branchName)) {
+              worktree = worktreeMap.get(branchName) || null;
+              break;
+            }
+          }
+          return { hash, worktree, message };
+        });
+      } catch (error) {
+        return []; // Git not installed or not a git repo.
+      }
+    };
+
+    /**
+     * @description Checks if the current directory is a git repository.
+     * @returns {Promise<boolean>}
+     */
+    export const isGitRepository = async (): Promise<boolean> => {
+      try {
+        const { stdout, code } = await platform.runCommand('git rev-parse --is-inside-work-tree');
+        return code === 0 && stdout.trim() === 'true';
+      } catch (error) {
+        return false;
+      }
+    };
+approved: true
+linesAdded: 63
+linesRemoved: 61
+linesDifference: 124
+gitCommittedAt: null
+status: committed
+id: 38
