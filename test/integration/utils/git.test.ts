@@ -11,7 +11,6 @@ const promisedExec = promisify(execCallback);
 describe('isGitRepository', () => {
   let cleanup: () => Promise<void>;
 
-  // Separate setup because we need a non-git directory first.
   beforeEach(async () => {
     const { cleanup: c } = await setupTestDirectory();
     cleanup = c;
@@ -45,19 +44,11 @@ describe('integration/utils/git', () => {
 
   it('should parse commits with worktree information', async () => {
     const worktreeName = 'my-feature-wt';
-    const worktreePath = path.join(testDir, '..', worktreeName);
+    const worktreePath = path.join(testDir, worktreeName);
+    const branchName = 'my-feature-branch';
     
-    // Clean up any existing worktree directory first
-    try {
-      await promisedExec(`git worktree remove ${worktreePath} 2>/dev/null || true`);
-      await fs.rm(worktreePath, { recursive: true, force: true });
-    } catch (error) {
-      // Ignore cleanup errors
-    }
+    await promisedExec(`git worktree add -b ${branchName} ${worktreePath}`);
     
-    // Use exec for worktree commands as simple-git support can be complex across versions
-    await promisedExec(`git worktree add ${worktreePath}`);
-
     const originalCwd = process.cwd();
     process.chdir(worktreePath);
 
@@ -74,7 +65,7 @@ describe('integration/utils/git', () => {
     expect(wtCommit?.worktree).toBe(worktreeName);
 
     // Cleanup worktree
-    await promisedExec(`git worktree remove ${worktreeName}`);
+    await promisedExec(`git worktree remove --force ${worktreeName}`);
   });
 
   it('should handle commits not associated with a worktree', async () => {
@@ -97,22 +88,24 @@ describe('integration/utils/git', () => {
     }
 
     const log = await getGitLog(3);
-    expect(log).toHaveLength(3);
+    expect(log).toHaveLength(3); // 3 + initial commit
   });
 
-  it('should return an empty array for a repository with no commits', async () => {
-    // Need a separate setup that doesn't create an initial commit.
+  it('should return an empty array for a repository with no commits other than initial', async () => {
     await cleanup();
     const { cleanup: c2 } = await setupTestDirectory();
-    await simpleGit().init();
+    const git = simpleGit();
+    await git.init();
+    await git.addConfig('user.email', 'test@example.com');
+    await git.addConfig('user.name', 'Test User');
 
     const log = await getGitLog(5);
     expect(log).toEqual([]);
 
-    await c2(); // Use the new cleanup function
+    await c2();
   });
 
-  it('should handle commit messages with special characters', async () => {
+  it('should handle commit messages with special characters and multiple lines', async () => {
     const complexMessage = `feat: handle '|' "quotes" and 'apostrophes'\n\nwith a body.`;
     await simpleGit().commit(complexMessage, { '--allow-empty': null });
 
@@ -123,13 +116,12 @@ describe('integration/utils/git', () => {
   });
 
   it('should return an empty array if not in a git repository', async () => {
-    // This requires a non-git directory.
-    await cleanup(); // Get rid of the git repo from beforeEach
+    await cleanup();
     const { cleanup: c2 } = await setupTestDirectory();
 
     const log = await getGitLog(5);
     expect(log).toEqual([]);
 
-    await c2(); // Use the new cleanup function
+    await c2();
   });
 });

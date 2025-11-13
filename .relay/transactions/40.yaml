@@ -1,0 +1,790 @@
+uuid: 4a2b9e8c-8d1f-4a3b-9e8c-1f2a3b4c5d6e
+projectId: noca-flow
+createdAt: '2025-11-13T03:14:37.425Z'
+gitCommitMsg: >-
+  feat(state): implement git and harden fs data providers
+
+  - Implement `getGitLog` utility to parse commit history across all
+    worktrees, providing crucial context for parallel agent work.
+  - Add `isGitRepository` helper. - Create comprehensive integration tests for
+  the new git utilities,
+    validating behavior against a live repository with worktrees.
+  - Enhance `getFailedReports` unit tests to cover edge cases, such as
+    reports lacking a summary section, ensuring parser robustness.
+promptSummary: >-
+  The user wants to continue with Part 2 of the plan to enhance `nocaflow
+  state`. This involves implementing and testing utilities to get data from Git
+  (including worktrees) and hardening the filesystem tests for failure reports.
+reasoning:
+  - >-
+    Roger that. Part 1 is done. Now for Part 2: locking down the Git and
+    filesystem data providers. We need to be able to trust the data coming from
+    the repo and failure reports. No shortcuts.
+  - >-
+    First, I'll create the git utility to parse logs, correctly identifying
+    commits from worktrees. This is critical for observability in a parallelized
+    system. Then, I'll build a corresponding integration test that spins up a
+    real git repo with a worktree to prove the logic holds.
+  - >-
+    Next, I'll harden the filesystem tests. The plan called for adding several
+    checks to the failure report parser. The existing code is surprisingly
+    robust, handling malformed names gracefully. However, it's missing a check
+    for reports without a proper `## Summary` section. I'll add that test case
+    to ensure the parser never crashes and always returns a sensible reason.
+  - Let's start with the new git utility.
+  - >-
+    Now, the integration test to validate it against a real repository. This
+    will live in `test/integration/utils/git.test.ts`.
+  - >-
+    Finally, adding the new test case to `test/unit/utils/fs.test.ts` to ensure
+    our failure report parsing is solid.
+  - '---'
+operations:
+  - type: write
+    path: src/utils/git.ts
+    content: |-
+      import { simpleGit } from 'simple-git';
+      import path from 'path';
+      import { platform } from './platform';
+
+      export interface GitCommit {
+        hash: string;
+        worktree: string | null;
+        message: string;
+      }
+
+      interface WorktreeInfo {
+        path: string;
+        branch: string;
+        commit: string;
+      }
+
+      /**
+       * Get worktree information by parsing git worktree list output
+       */
+      const getWorktreeList = async (): Promise<WorktreeInfo[]> => {
+        try {
+          const result = await platform.runCommand('git worktree list --porcelain');
+          if (result.code !== 0) {
+            return [];
+          }
+
+          const lines = result.stdout.trim().split('\n');
+          const worktrees: WorktreeInfo[] = [];
+          let currentWorktree: Partial<WorktreeInfo> = {};
+
+          for (const line of lines) {
+            if (line.startsWith('worktree ')) {
+              if (currentWorktree.path) {
+                worktrees.push(currentWorktree as WorktreeInfo);
+              }
+              currentWorktree = { path: line.substring(9) };
+            } else if (line.startsWith('branch ')) {
+              currentWorktree.branch = line.substring(7);
+            } else if (line.startsWith('HEAD ')) {
+              currentWorktree.commit = line.substring(5);
+            }
+          }
+
+          if (currentWorktree.path) {
+            worktrees.push(currentWorktree as WorktreeInfo);
+          }
+
+          return worktrees;
+        } catch (error) {
+          return [];
+        }
+      };
+
+      /**
+       * @description Executes 'git log' to get recent commit history across all worktrees.
+       * @param limit - The maximum number of commits to return.
+       * @returns A list of recent git commits.
+       */
+      export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
+        try {
+          const git = simpleGit();
+          const isRepo = await git.checkIsRepo();
+          if (!isRepo) return [];
+
+          const worktrees = await getWorktreeList();
+          const worktreeMap = new Map<string, string>();
+          for (const wt of worktrees) {
+            const branchNameMatch = wt.branch.match(/refs\/heads\/(.*)/);
+            if (branchNameMatch && branchNameMatch[1]) {
+              const branchName = branchNameMatch[1];
+              // The main worktree is not a named worktree, so we only map auxiliary ones
+              if (branchName !== 'main' && branchName !== 'master') {
+                worktreeMap.set(branchName, path.basename(wt.path));
+              }
+            }
+          }
+
+          const logResult = await git.log({ '--all': null, maxCount: limit, format: { hash: '%H', refs: '%d' } });
+          if (!logResult.all || logResult.total === 0) return [];
+
+          const commits: GitCommit[] = [];
+          for (const commit of logResult.all) {
+            const fullMessageResult = await git.raw(['show', '--format=%B', '--no-patch', commit.hash]);
+            const fullMessage = fullMessageResult.trim();
+
+            let worktree: string | null = null;
+            // commit.refs is like ' (HEAD -> my-feature, origin/my-feature)'
+            for (const branchName of worktreeMap.keys()) {
+              if (commit.refs.includes(branchName)) {
+                worktree = worktreeMap.get(branchName) || null;
+                break;
+              }
+            }
+
+            commits.push({
+              hash: commit.hash,
+              worktree,
+              message: fullMessage,
+            });
+          }
+          return commits;
+        } catch (error) {
+          return []; // Git not installed, not a git repo, or other error.
+        }
+      };
+
+      /**
+       * @description Checks if the current directory is a git repository.
+       * @returns {Promise<boolean>}
+       */
+      export const isGitRepository = async (): Promise<boolean> => {
+        try {
+          const git = simpleGit();
+          return await git.checkIsRepo();
+        } catch (error) {
+          return false;
+        }
+      };
+    patchStrategy: replace
+  - type: write
+    path: test/integration/utils/git.test.ts
+    content: |-
+      import { getGitLog, isGitRepository } from '../../../src/utils/git';
+      import { setupTestDirectory, initGitRepo } from '../../test.util';
+      import { exec as execCallback } from 'child_process';
+      import { promisify } from 'util';
+      import fs from 'fs/promises';
+      import path from 'path';
+      import { simpleGit } from 'simple-git';
+
+      const promisedExec = promisify(execCallback);
+
+      describe('isGitRepository', () => {
+        let cleanup: () => Promise<void>;
+
+        beforeEach(async () => {
+          const { cleanup: c } = await setupTestDirectory();
+          cleanup = c;
+        });
+
+        afterEach(async () => {
+          await cleanup();
+        });
+
+        it('should return false in a non-git directory and true after init', async () => {
+          expect(await isGitRepository()).toBe(false);
+          await initGitRepo();
+          expect(await isGitRepository()).toBe(true);
+        });
+      });
+
+      describe('integration/utils/git', () => {
+        let cleanup: () => Promise<void>;
+        let testDir: string;
+
+        beforeEach(async () => {
+          const { cleanup: c, testDir: td } = await setupTestDirectory();
+          cleanup = c;
+          testDir = td;
+          await initGitRepo();
+        });
+
+        afterEach(async () => {
+          await cleanup();
+        });
+
+        it('should parse commits with worktree information', async () => {
+          const worktreeName = 'my-feature-wt';
+          const worktreePath = path.join(testDir, worktreeName);
+          const branchName = 'my-feature-branch';
+          
+          await promisedExec(`git worktree add -b ${branchName} ${worktreePath}`);
+          
+          const originalCwd = process.cwd();
+          process.chdir(worktreePath);
+
+          const wtGit = simpleGit();
+          await fs.writeFile('feature.txt', 'data');
+          await wtGit.add('.');
+          await wtGit.commit('feat: commit from worktree');
+          process.chdir(originalCwd);
+
+          const log = await getGitLog(5);
+          const wtCommit = log.find(c => c.message === 'feat: commit from worktree');
+
+          expect(wtCommit).toBeDefined();
+          expect(wtCommit?.worktree).toBe(worktreeName);
+
+          // Cleanup worktree
+          await promisedExec(`git worktree remove --force ${worktreeName}`);
+        });
+
+        it('should handle commits not associated with a worktree', async () => {
+          const git = simpleGit();
+          await fs.writeFile('main.txt', 'data');
+          await git.add('.');
+          await git.commit('feat: commit from main');
+
+          const log = await getGitLog(5);
+          const mainCommit = log.find(c => c.message === 'feat: commit from main');
+
+          expect(mainCommit).toBeDefined();
+          expect(mainCommit?.worktree).toBeNull();
+        });
+
+        it('should respect the commit limit', async () => {
+          const git = simpleGit();
+          for (let i = 0; i < 5; i++) {
+            await git.commit(`commit ${i + 1}`, { '--allow-empty': null });
+          }
+
+          const log = await getGitLog(3);
+          expect(log).toHaveLength(3); // 3 + initial commit
+        });
+
+        it('should return an empty array for a repository with no commits other than initial', async () => {
+          await cleanup();
+          const { cleanup: c2 } = await setupTestDirectory();
+          const git = simpleGit();
+          await git.init();
+          await git.addConfig('user.email', 'test@example.com');
+          await git.addConfig('user.name', 'Test User');
+
+          const log = await getGitLog(5);
+          expect(log).toEqual([]);
+
+          await c2();
+        });
+
+        it('should handle commit messages with special characters and multiple lines', async () => {
+          const complexMessage = `feat: handle '|' "quotes" and 'apostrophes'\n\nwith a body.`;
+          await simpleGit().commit(complexMessage, { '--allow-empty': null });
+
+          const log = await getGitLog(1);
+
+          expect(log).toHaveLength(1);
+          expect(log[0].message).toBe(complexMessage);
+        });
+
+        it('should return an empty array if not in a git repository', async () => {
+          await cleanup();
+          const { cleanup: c2 } = await setupTestDirectory();
+
+          const log = await getGitLog(5);
+          expect(log).toEqual([]);
+
+          await c2();
+        });
+      });
+    patchStrategy: replace
+  - type: write
+    path: test/unit/utils/fs.test.ts
+    content: >+
+      --- test/unit/utils/fs.test.ts
+
+      +++ test/unit/utils/fs.test.ts
+
+      @@ -87,6 +87,18 @@
+               expect(reports[0].reportPath).toBe(reportPath);
+             });
+       
+      +      it('should handle report files with no summary section', async ()
+      => {
+
+      +        const reportDir = '.nocaflow/initialization/plans/failed/report';
+
+      +        await fs.mkdir(reportDir, { recursive: true });
+
+      +        const reportPath = path.join(reportDir, 'plan1.partA.report.md');
+
+      +        await fs.writeFile(reportPath, 'Some content without a summary
+      header.');
+
+      +
+
+      +        const reports = await getFailedReports(1);
+
+      +
+
+      +        expect(reports).toHaveLength(1);
+
+      +        expect(reports[0].reason).toBe('Could not parse summary.');
+
+      +      });
+
+      +
+             it('should return an empty array if the report directory does not exist', async () => {
+               const reports = await getFailedReports(24);
+               expect(reports).toEqual([]);
+
+    patchStrategy: standard-diff
+snapshot:
+  src/utils/git.ts: |-
+    import { simpleGit, SimpleGit, LogResult } from 'simple-git';
+    import path from 'path';
+    import { platform } from './platform';
+
+    export interface GitCommit {
+      hash: string;
+      worktree: string | null;
+      message: string;
+    }
+
+
+
+    interface WorktreeInfo {
+      path: string;
+      branch: string;
+      commit: string;
+    }
+
+    /**
+     * Get worktree information by parsing git worktree list output
+     */
+    const getWorktreeList = async (): Promise<WorktreeInfo[]> => {
+      try {
+        const result = await platform.runCommand('git worktree list --porcelain');
+        if (result.code !== 0) {
+          return [];
+        }
+
+        const lines = result.stdout.trim().split('\n');
+        const worktrees: WorktreeInfo[] = [];
+        let currentWorktree: Partial<WorktreeInfo> = {};
+
+        for (const line of lines) {
+          if (line.startsWith('worktree ')) {
+            // Save previous worktree if complete
+            if (currentWorktree.path && currentWorktree.branch) {
+              worktrees.push(currentWorktree as WorktreeInfo);
+            }
+            // Start new worktree
+            currentWorktree = { path: line.substring(9) };
+          } else if (line.startsWith('branch ')) {
+            currentWorktree.branch = line.substring(7);
+          } else if (line.startsWith('HEAD ')) {
+            currentWorktree.commit = line.substring(5);
+          }
+        }
+
+        // Add the last worktree if there is one
+        if (currentWorktree.path) {
+          worktrees.push(currentWorktree as WorktreeInfo);
+        }
+
+        return worktrees;
+      } catch (error) {
+        return [];
+      }
+    };
+
+    /**
+     * @description Executes 'git log' to get recent commit history across all worktrees.
+     * @param limit - The maximum number of commits to return.
+     * @returns A list of recent git commits.
+     */
+    export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
+      try {
+        const git = simpleGit();
+        const isRepo = await git.checkIsRepo();
+        if (!isRepo) return [];
+
+        const worktrees = await getWorktreeList();
+        const worktreeMap = new Map<string, string>();
+        for (const wt of worktrees) {
+          // Branch is like 'refs/heads/feature-branch', we want 'feature-branch'
+          const branchNameMatch = wt.branch.match(/refs\/heads\/(.*)/);
+          if (branchNameMatch && branchNameMatch[1]) {
+            const branchName = branchNameMatch[1];
+            if (branchName !== 'main' && branchName !== 'master') {
+              worktreeMap.set(branchName, path.basename(wt.path));
+            }
+          }
+        }
+
+        // Get commit hashes first with basic format
+        const basicLogResult = await git.log({ '--all': null, maxCount: limit });
+        
+        if (!basicLogResult.all || basicLogResult.total === 0) return [];
+
+        const commits: GitCommit[] = [];
+        
+        for (const commit of basicLogResult.all) {
+          // Get the full commit message using raw git command for each commit
+          const fullMessageResult = await git.raw(['show', '--format=%B', '--no-patch', commit.hash]);
+          const fullMessage = fullMessageResult.trim();
+          
+          let worktree: string | null = null;
+          for (const branchName of worktreeMap.keys()) {
+            if (commit.refs.includes(branchName)) {
+              worktree = worktreeMap.get(branchName) || null;
+              break;
+            }
+          }
+
+          commits.push({
+            hash: commit.hash,
+            worktree,
+            message: fullMessage,
+          });
+        }
+
+        return commits;
+      } catch (error) {
+        return []; // Git not installed, not a git repo, or other error.
+      }
+    };
+
+    /**
+     * @description Checks if the current directory is a git repository.
+     * @returns {Promise<boolean>}
+     */
+    export const isGitRepository = async (): Promise<boolean> => {
+      try {
+        const git = simpleGit();
+        return await git.checkIsRepo();
+      } catch (error) {
+        return false;
+      }
+    };
+  test/integration/utils/git.test.ts: |-
+    import { getGitLog, isGitRepository } from '../../../src/utils/git';
+    import { setupTestDirectory, initGitRepo } from '../../test.util';
+    import { exec as execCallback } from 'child_process';
+    import { promisify } from 'util';
+    import fs from 'fs/promises';
+    import path from 'path';
+    import { simpleGit } from 'simple-git';
+
+    const promisedExec = promisify(execCallback);
+
+    describe('isGitRepository', () => {
+      let cleanup: () => Promise<void>;
+
+      // Separate setup because we need a non-git directory first.
+      beforeEach(async () => {
+        const { cleanup: c } = await setupTestDirectory();
+        cleanup = c;
+      });
+
+      afterEach(async () => {
+        await cleanup();
+      });
+
+      it('should return false in a non-git directory and true after init', async () => {
+        expect(await isGitRepository()).toBe(false);
+        await initGitRepo();
+        expect(await isGitRepository()).toBe(true);
+      });
+    });
+
+    describe('integration/utils/git', () => {
+      let cleanup: () => Promise<void>;
+      let testDir: string;
+
+      beforeEach(async () => {
+        const { cleanup: c, testDir: td } = await setupTestDirectory();
+        cleanup = c;
+        testDir = td;
+        await initGitRepo();
+      });
+
+      afterEach(async () => {
+        await cleanup();
+      });
+
+      it('should parse commits with worktree information', async () => {
+        const worktreeName = 'my-feature-wt';
+        const worktreePath = path.join(testDir, '..', worktreeName);
+        
+        // Clean up any existing worktree directory first
+        try {
+          await promisedExec(`git worktree remove ${worktreePath} 2>/dev/null || true`);
+          await fs.rm(worktreePath, { recursive: true, force: true });
+        } catch (error) {
+          // Ignore cleanup errors
+        }
+        
+        // Use exec for worktree commands as simple-git support can be complex across versions
+        await promisedExec(`git worktree add ${worktreePath}`);
+
+        const originalCwd = process.cwd();
+        process.chdir(worktreePath);
+
+        const wtGit = simpleGit();
+        await fs.writeFile('feature.txt', 'data');
+        await wtGit.add('.');
+        await wtGit.commit('feat: commit from worktree');
+        process.chdir(originalCwd);
+
+        const log = await getGitLog(5);
+        const wtCommit = log.find(c => c.message === 'feat: commit from worktree');
+
+        expect(wtCommit).toBeDefined();
+        expect(wtCommit?.worktree).toBe(worktreeName);
+
+        // Cleanup worktree
+        await promisedExec(`git worktree remove ${worktreeName}`);
+      });
+
+      it('should handle commits not associated with a worktree', async () => {
+        const git = simpleGit();
+        await fs.writeFile('main.txt', 'data');
+        await git.add('.');
+        await git.commit('feat: commit from main');
+
+        const log = await getGitLog(5);
+        const mainCommit = log.find(c => c.message === 'feat: commit from main');
+
+        expect(mainCommit).toBeDefined();
+        expect(mainCommit?.worktree).toBeNull();
+      });
+
+      it('should respect the commit limit', async () => {
+        const git = simpleGit();
+        for (let i = 0; i < 5; i++) {
+          await git.commit(`commit ${i + 1}`, { '--allow-empty': null });
+        }
+
+        const log = await getGitLog(3);
+        expect(log).toHaveLength(3);
+      });
+
+      it('should return an empty array for a repository with no commits', async () => {
+        // Need a separate setup that doesn't create an initial commit.
+        await cleanup();
+        const { cleanup: c2 } = await setupTestDirectory();
+        await simpleGit().init();
+
+        const log = await getGitLog(5);
+        expect(log).toEqual([]);
+
+        await c2(); // Use the new cleanup function
+      });
+
+      it('should handle commit messages with special characters', async () => {
+        const complexMessage = `feat: handle '|' "quotes" and 'apostrophes'\n\nwith a body.`;
+        await simpleGit().commit(complexMessage, { '--allow-empty': null });
+
+        const log = await getGitLog(1);
+
+        expect(log).toHaveLength(1);
+        expect(log[0].message).toBe(complexMessage);
+      });
+
+      it('should return an empty array if not in a git repository', async () => {
+        // This requires a non-git directory.
+        await cleanup(); // Get rid of the git repo from beforeEach
+        const { cleanup: c2 } = await setupTestDirectory();
+
+        const log = await getGitLog(5);
+        expect(log).toEqual([]);
+
+        await c2(); // Use the new cleanup function
+      });
+    });
+  test/unit/utils/fs.test.ts: >-
+    import { getPhaseStats, getFailedReports, readPlan } from
+    '../../../src/utils/fs';
+
+    import { setupTestDirectory } from '../../test.util';
+
+    import fs from 'fs/promises';
+
+    import path from 'path';
+
+
+    describe('unit/utils/fs', () => {
+      let cleanup: () => Promise<void>;
+
+      beforeEach(async () => {
+        const { cleanup: c } = await setupTestDirectory();
+        cleanup = c;
+      });
+
+      afterEach(async () => {
+        await cleanup();
+      });
+
+      describe('getPhaseStats', () => {
+          it('should correctly count plans across different statuses and phases', async () => {
+            await fs.mkdir('.nocaflow/initialization/plans/todo', { recursive: true });
+            await fs.mkdir('.nocaflow/initialization/plans/doing', { recursive: true });
+            await fs.mkdir('.nocaflow/development/plans/done', { recursive: true });
+
+            await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml', '');
+            await fs.writeFile('.nocaflow/initialization/plans/todo/b.yml', '');
+            await fs.writeFile('.nocaflow/initialization/plans/doing/c.yml', '');
+            await fs.writeFile('.nocaflow/development/plans/done/d.yml', '');
+
+            const stats = await getPhaseStats();
+
+            expect(stats.initialization.todo).toBe(2);
+            expect(stats.initialization.doing).toBe(1);
+            expect(stats.initialization.done).toBe(0);
+            expect(stats.initialization.total).toBe(3);
+
+            expect(stats.development.done).toBe(1);
+            expect(stats.development.total).toBe(1);
+          });
+
+          it('should return all zeros for an empty directory structure', async () => {
+            await fs.mkdir('.nocaflow/initialization/plans', { recursive: true });
+            await fs.mkdir('.nocaflow/development/plans', { recursive: true });
+
+            const stats = await getPhaseStats();
+
+            expect(stats.initialization.total).toBe(0);
+            expect(stats.development.total).toBe(0);
+          });
+
+          it('should handle missing status subdirectories gracefully', async () => {
+            await fs.mkdir('.nocaflow/initialization/plans/todo', { recursive: true });
+            await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml', '');
+
+            const stats = await getPhaseStats();
+
+            expect(stats.initialization.todo).toBe(1);
+            expect(stats.initialization.doing).toBe(0);
+            expect(stats.initialization.done).toBe(0);
+            expect(stats.initialization.total).toBe(1);
+          });
+
+          it('should handle a missing phase directory gracefully', async () => {
+            await fs.mkdir('.nocaflow/initialization/plans/todo', { recursive: true });
+            await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml', '');
+
+            const stats = await getPhaseStats();
+
+            expect(stats.initialization.total).toBe(1);
+            expect(stats.development.total).toBe(0);
+          });
+
+          it('should ignore non-YAML files', async () => {
+            await fs.mkdir('.nocaflow/development/plans/todo', { recursive: true });
+            await fs.writeFile('.nocaflow/development/plans/todo/plan1.yml', '');
+            await fs.writeFile('.nocaflow/development/plans/todo/notes.txt', '');
+
+            const stats = await getPhaseStats();
+
+            expect(stats.development.todo).toBe(1);
+            expect(stats.development.total).toBe(1);
+          });
+        });
+
+        describe('getFailedReports', () => {
+          it('should only return reports within the lookback period', async () => {
+            const reportDir = '.nocaflow/initialization/plans/failed/report';
+            await fs.mkdir(reportDir, { recursive: true });
+
+            const recentReportPath = path.join(reportDir, 'plan1.partA.report.md');
+            const oldReportPath = path.join(reportDir, 'plan2.partB.report.md');
+            await fs.writeFile(recentReportPath, '## Summary\n\nRecent failure.');
+            await fs.writeFile(oldReportPath, '## Summary\n\nOld failure.');
+
+            const twoDaysAgo = new Date();
+            twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+            await fs.utimes(oldReportPath, twoDaysAgo, twoDaysAgo);
+
+            const reports = await getFailedReports(24);
+
+            expect(reports).toHaveLength(1);
+            expect(reports[0].planId).toBe('plan1');
+          });
+
+          it('should correctly parse report details from filename and content', async () => {
+            const reportDir = '.nocaflow/development/plans/failed/report';
+            await fs.mkdir(reportDir, { recursive: true });
+            const reportPath = path.join(reportDir, 'plan1.partA.report.md');
+            await fs.writeFile(reportPath, '## Summary\n\nThis is the reason.');
+
+            const reports = await getFailedReports(1);
+
+            expect(reports).toHaveLength(1);
+            expect(reports[0].planId).toBe('plan1');
+            expect(reports[0].partId).toBe('partA');
+            expect(reports[0].reason).toBe('This is the reason.');
+            expect(reports[0].reportPath).toBe(reportPath);
+          });
+
+          it('should return an empty array if the report directory does not exist', async () => {
+            const reports = await getFailedReports(24);
+            expect(reports).toEqual([]);
+          });
+
+          it('should gracefully handle malformed report filenames', async () => {
+            const reportDir = '.nocaflow/development/plans/failed/report';
+            await fs.mkdir(reportDir, { recursive: true });
+            const reportPath = path.join(reportDir, 'malformed.report.md');
+            await fs.writeFile(reportPath, '## Summary\n\nReason.');
+
+            const reports = await getFailedReports(1);
+
+            expect(reports).toHaveLength(1);
+            expect(reports[0].planId).toBe('malformed');
+            expect(reports[0].partId).toBeUndefined();
+          });
+
+          it('should ignore non-markdown report files', async () => {
+            const reportDir = '.nocaflow/initialization/plans/failed/report';
+            await fs.mkdir(reportDir, { recursive: true });
+            await fs.writeFile(path.join(reportDir, 'plan1.partA.report.md'), '## Summary\n\nReport');
+            await fs.writeFile(path.join(reportDir, 'notes.txt'), 'some notes');
+
+            const reports = await getFailedReports(1);
+            expect(reports).toHaveLength(1);
+            expect(reports[0].planId).toBe('plan1');
+          });
+        });
+
+        describe('readPlan', () => {
+          it('should parse a valid plan file', async () => {
+            const planContent = `
+      plan:
+        id: 'test-plan'
+        status: 'todo'
+        title: 'Test Plan'
+        introduction: 'Intro'
+        parts: []
+        conclusion: 'Conclusion'
+        context_files: { compact: [], medium: [], extended: [] }
+      `;
+            await fs.writeFile('plan.yml', planContent);
+            const plan = await readPlan('plan.yml');
+            expect(plan.plan.id).toBe('test-plan');
+            expect(plan.plan.title).toBe('Test Plan');
+          });
+
+          it('should throw an error for a non-existent file', async () => {
+            await expect(readPlan('non-existent-plan.yml')).rejects.toThrow();
+          });
+
+          it('should throw an error for invalid YAML', async () => {
+            await fs.writeFile('bad-plan.yml', 'key: [a, b,');
+            await expect(readPlan('bad-plan.yml')).rejects.toThrow();
+          });
+      });
+    });
+approved: true
+linesAdded: 34
+linesRemoved: 39
+linesDifference: 73
+gitCommittedAt: null
+status: committed
+id: 40

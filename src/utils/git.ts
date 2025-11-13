@@ -1,4 +1,4 @@
-import { simpleGit, SimpleGit, LogResult } from 'simple-git';
+import { simpleGit } from 'simple-git';
 import path from 'path';
 import { platform } from './platform';
 
@@ -7,8 +7,6 @@ export interface GitCommit {
   worktree: string | null;
   message: string;
 }
-
-
 
 interface WorktreeInfo {
   path: string;
@@ -32,11 +30,9 @@ const getWorktreeList = async (): Promise<WorktreeInfo[]> => {
 
     for (const line of lines) {
       if (line.startsWith('worktree ')) {
-        // Save previous worktree if complete
-        if (currentWorktree.path && currentWorktree.branch) {
+        if (currentWorktree.path) {
           worktrees.push(currentWorktree as WorktreeInfo);
         }
-        // Start new worktree
         currentWorktree = { path: line.substring(9) };
       } else if (line.startsWith('branch ')) {
         currentWorktree.branch = line.substring(7);
@@ -45,7 +41,6 @@ const getWorktreeList = async (): Promise<WorktreeInfo[]> => {
       }
     }
 
-    // Add the last worktree if there is one
     if (currentWorktree.path) {
       worktrees.push(currentWorktree as WorktreeInfo);
     }
@@ -70,29 +65,26 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
     const worktrees = await getWorktreeList();
     const worktreeMap = new Map<string, string>();
     for (const wt of worktrees) {
-      // Branch is like 'refs/heads/feature-branch', we want 'feature-branch'
       const branchNameMatch = wt.branch.match(/refs\/heads\/(.*)/);
       if (branchNameMatch && branchNameMatch[1]) {
         const branchName = branchNameMatch[1];
+        // The main worktree is not a named worktree, so we only map auxiliary ones
         if (branchName !== 'main' && branchName !== 'master') {
           worktreeMap.set(branchName, path.basename(wt.path));
         }
       }
     }
 
-    // Get commit hashes first with basic format
-    const basicLogResult = await git.log({ '--all': null, maxCount: limit });
-    
-    if (!basicLogResult.all || basicLogResult.total === 0) return [];
+    const logResult = await git.log({ '--all': null, maxCount: limit, format: { hash: '%H', refs: '%d' } });
+    if (!logResult.all || logResult.total === 0) return [];
 
     const commits: GitCommit[] = [];
-    
-    for (const commit of basicLogResult.all) {
-      // Get the full commit message using raw git command for each commit
+    for (const commit of logResult.all) {
       const fullMessageResult = await git.raw(['show', '--format=%B', '--no-patch', commit.hash]);
       const fullMessage = fullMessageResult.trim();
-      
+
       let worktree: string | null = null;
+      // commit.refs is like ' (HEAD -> my-feature, origin/my-feature)'
       for (const branchName of worktreeMap.keys()) {
         if (commit.refs.includes(branchName)) {
           worktree = worktreeMap.get(branchName) || null;
@@ -106,7 +98,6 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
         message: fullMessage,
       });
     }
-
     return commits;
   } catch (error) {
     return []; // Git not installed, not a git repo, or other error.
