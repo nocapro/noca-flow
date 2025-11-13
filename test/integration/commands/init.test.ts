@@ -37,13 +37,28 @@ describe('integration/commands/init', () => {
 
     const dirsToCheck = [
       '.nocaflow/initialization/plans/todo',
-      '.nocaflow/development/plans/failed/report',
+      '.nocaflow/initialization/plans/doing',
+      '.nocaflow/initialization/plans/review',
+      '.nocaflow/initialization/plans/done',
+      '.nocaflow/initialization/plans/failed/report',
       '.nocaflow/initialization/agent-log',
+      '.nocaflow/development/plans/todo',
+      '.nocaflow/development/plans/doing',
+      '.nocaflow/development/plans/review',
+      '.nocaflow/development/plans/done',
+      '.nocaflow/development/plans/failed/report',
+      '.nocaflow/development/agent-log',
     ];
     const filesToCheck = [
       '.nocaflow/manager.agent.md',
+      '.nocaflow/plan.agent.md',
+      '.nocaflow/qa.agent.md',
+      '.nocaflow/suffix.global.prompt.md',
+      '.nocaflow/initialization/init.agent-swarm.md',
       '.nocaflow/initialization/init.phase.rule.md',
+      '.nocaflow/initialization/scaffolder.agent.md',
       '.nocaflow/development/dev.agent-swarm.md',
+      '.nocaflow/development/dev.phase.rule.md',
       'user.prompt.md',
     ];
 

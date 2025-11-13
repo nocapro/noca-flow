@@ -1,5 +1,52 @@
 
+=== DONE
+
+discrepancy analysis;
+
+1.  Inconsistent File Locations
+Issue
+
+Agent files exist in both .nocaflow/ and src/scaffold/files/ directories, creating confusion about which is the source of truth.
+Evidence
+
+     Duplicate files like manager.agent.md in both locations
+     No clear documentation about which location should be used
+
+2. Incomplete Directory Structure Management
+Issue
+
+The README.md describes a specific directory structure for tracking state, but the implementation doesn't fully create or manage this structure.
+Evidence
+
+     src/commands/init.ts creates some directories but not the complete structure
+     Missing directories like .nocaflow/{phase}/plans/review, .nocaflow/{phase}/plans/failed/report
+     No code to manage plan movement between directories as described in the README
+
+
+Impact
+
+The filesystem-as-state-machine concept is not fully implemented, breaking the core state management approach.
+
+
 ===
+
+I want all stats and data for nocaflow state is accurate and high integrity. if there is no existing test cases to guardrails them, then do it.
+
+because I hate : Incomplete Observability
+Issue
+
+example
+
+The README.md describes detailed observability through the nocaflow state command, showing active agents, recent activity, and failed reports. The implementation provides a basic state command but lacks the full observability features.
+Evidence
+
+     src/commands/state.ts provides basic state information
+     Missing information about active agents, recent activity, and failure reports
+     No integration with tmux to show active sessions
+
+
+
+=== DONE
 
 fix fail test
 
