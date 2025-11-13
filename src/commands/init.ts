@@ -2,11 +2,25 @@ import fs from 'fs/promises';
 import path from 'path';
 import chalk from 'chalk';
 import { EOL } from 'os';
+import { platform } from '../utils/platform';
+import { isGitRepository } from '../utils/git';
+import { copyScaffoldFiles, scaffoldFiles } from '../scaffold/templates';
 
 /**
  * @description Handles the logic for the 'init' command.
  */
 export const handleInitCommand = async (_argv: Record<string, unknown>): Promise<void> => {
+  // 1. Prerequisite checks
+  const requiredCommands = ['git', 'tmux'];
+  for (const cmd of requiredCommands) {
+    const exists = await platform.commandExists(cmd);
+    if (!exists) {
+      console.error(chalk.red(`Error: ${cmd} is not installed. NocaFlow requires git and tmux.`));
+      process.exit(1);
+    }
+  }
+
+  // 2. Check for existing .nocaflow directory
   const rootDir = '.nocaflow';
   try {
     await fs.access(rootDir);
@@ -16,10 +30,24 @@ export const handleInitCommand = async (_argv: Record<string, unknown>): Promise
     // Directory does not exist, proceed.
   }
 
+  // 3. Initialize git repository if needed
+  const isGitRepo = await isGitRepository();
+  if (!isGitRepo) {
+    console.log('No git repository found. Initializing...');
+    const { code, stderr } = await platform.runCommand('git init');
+    if (code !== 0) {
+      console.error(chalk.red('Failed to initialize git repository:'), EOL, stderr);
+      process.exit(1);
+    }
+    console.log(chalk.green('Git repository initialized.'));
+  } else {
+    console.log('Existing git repository found.');
+  }
+
+  // 4. Create directory structure
   const phases = ['initialization', 'development'];
   const planSubDirs = ['todo', 'doing', 'review', 'done', 'failed/report'];
   const agentLogDir = 'agent-log';
-
   const dirsToCreate: string[] = [];
   const gitkeepFiles: string[] = [];
 
@@ -41,8 +69,15 @@ export const handleInitCommand = async (_argv: Record<string, unknown>): Promise
     await Promise.all(dirsToCreate.map(dir => fs.mkdir(dir, { recursive: true })));
     await Promise.all(gitkeepFiles.map(file => fs.writeFile(file, '')));
 
+    // 5. Scaffold agent and rule files
+    await copyScaffoldFiles();
+
     console.log(chalk.green(' nocaflow project initialized successfully. ✨'));
-    console.log(`Created ${chalk.bold(rootDir)} directory structure with ${dirsToCreate.length} directories and ${gitkeepFiles.length} .gitkeep files.`);
+    console.log(
+      `Created ${chalk.bold(rootDir)} directory structure and ${chalk.bold(
+        scaffoldFiles.length,
+      )} agent/rule files.`,
+    );
   } catch (error) {
     console.error(chalk.red('Failed to initialize nocaflow project:'), EOL, error);
     process.exit(1);

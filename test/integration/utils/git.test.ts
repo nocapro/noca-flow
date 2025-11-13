@@ -1,4 +1,4 @@
-import { getGitLog } from '../../../src/utils/git';
+import { getGitLog, isGitRepository } from '../../../src/utils/git';
 import { setupTestDirectory, initGitRepo } from '../../test.util';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -6,6 +6,26 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const promisedExec = promisify(exec);
+
+describe('isGitRepository', () => {
+  let cleanup: () => Promise<void>;
+
+  // Separate setup because we need a non-git directory first.
+  beforeEach(async () => {
+    const { cleanup: c } = await setupTestDirectory();
+    cleanup = c;
+  });
+
+  afterEach(async () => {
+    await cleanup();
+  });
+
+  it('should return false in a non-git directory and true after init', async () => {
+    expect(await isGitRepository()).toBe(false);
+    await initGitRepo();
+    expect(await isGitRepository()).toBe(true);
+  });
+});
 
 describe('integration/utils/git', () => {
   let cleanup: () => Promise<void>;

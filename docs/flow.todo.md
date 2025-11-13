@@ -1,21 +1,45 @@
 
+===
+
+fix fail test
+
+fix all fail test without bandaids fake fix to comply with readme.md spec and real Implementation verification
+
+=== DOING
+
+should be no mock and spy in test cases, even bash run should be real, and each cases should isolated idompent and clean on every run
+
+=== DONE
+
+discrepancy;
+
+1. README.md claims git init + dep checks (git, tmux). src/commands/init.ts shows only fs.mkdir.
+
+2. Dependency Graph Ignored: The plan.ts model defines depends_on, and the README highlights it. But without the manager.agent logic, nothing parses this DAG to serialize dependent tasks. It's a data field without a consumer.
+
+3. Another README.md vs src/commands/init.ts gap.
+
+    README says: init "Scaffolds [...] placeholder agent/rule files."
+
+    init.ts shows: Only creates directories and empty .gitkeep files.
+
+Result: a user running nocaflow init gets an empty structure. They must manually create manager.agent.md, plan.agent.md, phase rules, etc. The system is non-functional out-of-the-box.
+
+init builds the stage, but not the actors or the script.
+
+=== DONE
 
 fix eslint problems
 
-
-===
+=== DONE
 
 implement multi env compability. don't forget termux env
 
-===
-
+=== DONE
 
 Implement eslint
 
-
-
-
-=== DONE 
+=== DONE
 
 Lets make codebase production ready by implementing embeeded blueprint todos/placeholders/mock etc, the only quality is test cases compliance and aligned with specs
 

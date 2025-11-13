@@ -1,0 +1,1502 @@
+uuid: a6929a67-0c7f-4424-9b04-f6e076722d7d
+projectId: noca-flow
+createdAt: '2025-11-13T01:13:29.453Z'
+gitCommitMsg: >-
+  feat(cli): overhaul init command for full project scaffolding
+
+  Refactors the `nocaflow init` command to provide a complete, out-of-the-box
+  project setup, aligning its functionality with the README documentation.
+
+  Key changes include: - Adds prerequisite checks for `git` and `tmux` to
+  prevent runtime
+    failures. The command will now exit with an error if dependencies are
+    missing.
+  - Automatically runs `git init` if the project is not already a git
+    repository.
+  - Scaffolds all necessary agent prompts (`*.agent.md`) and phase rule
+    files (`*.phase.rule.md`) into the `.nocaflow` directory and project
+    root.
+  - Introduces a `commandExists` utility in `platform.ts` and an
+    `isGitRepository` utility in `git.ts`.
+  - Overhauls integration tests for the `init` command to validate the new,
+    more complex logic, including dependency failures and file creation.
+
+  This resolves the discrepancy where `init` only created empty directories,
+  requiring significant manual setup. Users can now start a functional nocaflow
+  project with a single command.
+promptSummary: >-
+  The user wants to refactor the `nocaflow init` command to align with the
+  README. This includes adding dependency checks for git and tmux, initializing
+  a git repository, and scaffolding all necessary agent and rule files for a
+  fully functional project out-of-the-box.
+reasoning:
+  - >-
+    Alright, let's get `nocaflow init` whipped into shape. The current command
+    is basically an empty shell, and the README is writing checks it can't cash.
+    Time to bridge that gap. We'll add dependency checks, `git init`, and
+    scaffold all the agent and rule files needed to get a project running from
+    zero.
+  - '### Part 1: Prereq Checks & Git Init'
+  - >-
+    First, we need to make sure `git` and `tmux` are actually installed. No
+    point in continuing if the core tools are missing. I'll update `platform.ts`
+    with a `commandExists` utility and a better `runCommand` that returns exit
+    codes. Then I'll add a check for an existing git repo.
+  - >-
+    Now, let's update the tests for `platform.ts` to cover the new
+    functionality.
+  - Adding the `isGitRepository` utility.
+  - And its unit test.
+  - '### Part 2: Scaffolding'
+  - >-
+    Now for the main event: scaffolding the actual agent and rule files. I'll
+    create a new `templates.ts` file to hold all the markdown content, keeping
+    the `init` command clean.
+  - >-
+    This file needs the actual content. Here's a new file to hold that, to keep
+    the structure clean.
+  - >-
+    Now to put it all together in the `init` command. This is a full
+    replacement.
+  - >-
+    Finally, I'll update the integration tests to validate the new, robust
+    `init` command.
+operations:
+  - type: write
+    path: src/utils/platform.ts
+    content: >+
+      --- src/utils/platform.ts
+
+      +++ src/utils/platform.ts
+
+      @@ -4,13 +4,16 @@
+       const exec = promisify(execCallback);
+       
+       export interface CommandResult {
+         stdout: string;
+         stderr: string;
+      +  code: number;
+       }
+       
+       export interface Platform {
+         runCommand(command: string): Promise<CommandResult>;
+         getTmpDir(): string;
+      +  commandExists(command: string): Promise<boolean>;
+       }
+       
+       const runCommand = async (command: string): Promise<CommandResult> => {
+         try {
+           const { stdout, stderr } = await exec(command);
+      -    return { stdout, stderr };
+
+      +    return { stdout, stderr, code: 0 };
+         } catch (error) {
+           // exec throws an error for non-zero exit codes.
+           // We want to capture stdout/stderr and the code, not crash.
+      -    const err = error as ExecException & CommandResult;
+
+      +    const err = error as ExecException & { stdout: string; stderr: string
+      };
+           return {
+             stdout: err.stdout,
+             stderr: err.stderr,
+      +      code: err.code ?? 1,
+           };
+         }
+       };
+      @@ -21,9 +24,18 @@
+         return process.env.TMPDIR || process.env.TEMP || process.env.TMP || os.tmpdir();
+       };
+       
+      +const commandExists = async (command: string): Promise<boolean> => {
+
+      +  // `command -v` is a POSIX standard way to check for command existence.
+
+      +  // It has a non-zero exit code if the command is not found.
+
+      +  const result = await runCommand(`command -v ${command}`);
+
+      +  return result.code === 0;
+
+      +};
+
+      +
+       
+       export const posixPlatform: Platform = {
+         runCommand,
+         getTmpDir,
+      +  commandExists,
+       };
+       
+       // Export a singleton instance for the application to use.
+
+    patchStrategy: standard-diff
+  - type: write
+    path: test/unit/utils/platform.test.ts
+    content: >+
+      --- test/unit/utils/platform.test.ts
+
+      +++ test/unit/utils/platform.test.ts
+
+      @@ -17,6 +17,7 @@
+             expect(mockedExec).toHaveBeenCalledWith(command, expect.any(Function));
+             expect(result.stdout).toBe(expectedStdout);
+             expect(result.stderr).toBe(expectedStderr);
+      +      expect(result.code).toBe(0);
+           });
+       
+           it('should capture stdout and stderr even when the command fails (non-zero exit code)', async () => {
+      @@ -34,6 +35,7 @@
+       
+             expect(result.stdout).toBe(expectedStdout);
+             expect(result.stderr).toBe(expectedStderr);
+      +      expect(result.code).toBe(128);
+           });
+         });
+       
+      @@ -58,4 +60,36 @@
+             expect(posixPlatform.getTmpDir()).toBe('/tmp/os-fallback');
+           });
+         });
+      +
+
+      +  describe('commandExists', () => {
+
+      +    it('should return true if command exists (exit code 0)', async () =>
+      {
+
+      +      mockedExec.mockImplementation((cmd, callback) => {
+
+      +        if (cmd.startsWith('command -v')) {
+
+      +          return callback(null, { stdout: '/bin/git', stderr: '' });
+
+      +        }
+
+      +        callback(new Error('unexpected command'));
+
+      +      });
+
+      +      const exists = await posixPlatform.commandExists('git');
+
+      +      expect(exists).toBe(true);
+
+      +      expect(mockedExec).toHaveBeenCalledWith('command -v git',
+      expect.any(Function));
+
+      +    });
+
+      +
+
+      +    it('should return false if command does not exist (non-zero exit
+      code)', async () => {
+
+      +      const error: ExecException & { stdout: string; stderr: string } = {
+
+      +        name: 'Error',
+
+      +        message: 'Command failed',
+
+      +        code: 1,
+
+      +        stdout: '',
+
+      +        stderr: 'not found',
+
+      +      };
+
+      +      mockedExec.mockImplementation((cmd, callback) => {
+
+      +        if (cmd.startsWith('command -v')) {
+
+      +          return callback(error, { stdout: '', stderr: 'not found' });
+
+      +        }
+
+      +        callback(new Error('unexpected command'));
+
+      +      });
+
+      +      const exists = await posixPlatform.commandExists('nonexistent');
+
+      +      expect(exists).toBe(false);
+
+      +      expect(mockedExec).toHaveBeenCalledWith('command -v nonexistent',
+      expect.any(Function));
+
+      +    });
+
+      +  });
+       });
+
+    patchStrategy: standard-diff
+  - type: write
+    path: src/utils/git.ts
+    content: >+
+      --- src/utils/git.ts
+
+      +++ src/utils/git.ts
+
+      @@ -48,3 +48,16 @@
+           return []; // Git not installed or not a git repo.
+         }
+       };
+      +
+
+      +/**
+
+      + * @description Checks if the current directory is a git repository.
+
+      + * @returns {Promise<boolean>}
+
+      + */
+
+      +export const isGitRepository = async (): Promise<boolean> => {
+
+      +  try {
+
+      +    const { stdout, code } = await platform.runCommand('git rev-parse
+      --is-inside-work-tree');
+
+      +    return code === 0 && stdout.trim() === 'true';
+
+      +  } catch (error) {
+
+      +    return false;
+
+      +  }
+
+      +};
+
+    patchStrategy: standard-diff
+  - type: write
+    path: test/unit/utils/git.test.ts
+    content: |-
+      import { isGitRepository } from '../../../src/utils/git';
+      import { platform } from '../../../src/utils/platform';
+
+      jest.mock('../../../src/utils/platform');
+      const mockedPlatform = platform as jest.Mocked<typeof platform>;
+
+      describe('unit/utils/git', () => {
+        afterEach(() => {
+          jest.resetAllMocks();
+        });
+
+        describe('isGitRepository', () => {
+          it('should return true when inside a git repository', async () => {
+            mockedPlatform.runCommand.mockResolvedValue({ stdout: 'true\n', stderr: '', code: 0 });
+            const result = await isGitRepository();
+            expect(result).toBe(true);
+            expect(mockedPlatform.runCommand).toHaveBeenCalledWith('git rev-parse --is-inside-work-tree');
+          });
+
+          it('should return false when not inside a git repository', async () => {
+            mockedPlatform.runCommand.mockResolvedValue({
+              stdout: '',
+              stderr: 'fatal: not a git repository',
+              code: 128,
+            });
+            const result = await isGitRepository();
+            expect(result).toBe(false);
+          });
+
+          it('should return false if the command fails for another reason', async () => {
+            mockedPlatform.runCommand.mockRejectedValue(new Error('some error'));
+            const result = await isGitRepository();
+            expect(result).toBe(false);
+          });
+        });
+      });
+    patchStrategy: replace
+  - type: write
+    path: src/scaffold/templates.ts
+    content: |-
+      import {
+        managerAgentContent,
+        planAgentContent,
+        qaAgentContent,
+        suffixGlobalPromptContent,
+        userPromptContent,
+        initAgentSwarmContent,
+        initPhaseRuleContent,
+        scaffolderAgentContent,
+        devAgentSwarmContent,
+        devPhaseRuleContent,
+      } from './templateContents';
+
+      export interface ScaffoldFile {
+        path: string;
+        content: string;
+      }
+
+      export const scaffoldFiles: ScaffoldFile[] = [
+        { path: 'user.prompt.md', content: userPromptContent },
+        { path: '.nocaflow/manager.agent.md', content: managerAgentContent },
+        { path: '.nocaflow/plan.agent.md', content: planAgentContent },
+        { path: '.nocaflow/qa.agent.md', content: qaAgentContent },
+        { path: '.nocaflow/suffix.global.prompt.md', content: suffixGlobalPromptContent },
+        { path: '.nocaflow/initialization/init.agent-swarm.md', content: initAgentSwarmContent },
+        { path: '.nocaflow/initialization/init.phase.rule.md', content: initPhaseRuleContent },
+        { path: '.nocaflow/initialization/scaffolder.agent.md', content: scaffolderAgentContent },
+        { path: '.nocaflow/development/dev.agent-swarm.md', content: devAgentSwarmContent },
+        { path: '.nocaflow/development/dev.phase.rule.md', content: devPhaseRuleContent },
+      ];
+    patchStrategy: replace
+  - type: write
+    path: src/scaffold/templateContents.ts
+    content: >-
+      export const managerAgentContent = `
+
+      You are manager.agent. The orchestrator. The system clock. You are
+      phase-aware. Your existence is a single, recursive loop: Perceive,
+      Dispatch, Cull, Advance. The filesystem is the only reality. \`mv\` is a
+      state transition. The plan is the only goal. Human input is a solved
+      condition, not an ongoing dialogue.
+
+
+      ### Configuration
+
+
+      - **MAX_CONCURRENCY**: 5. Do not spawn new workers if \`tmux\` active
+      worker sessions >= this.
+
+
+      ### Core Directives
+
+
+      - **Mission**: Orchestrate plan execution across all phases. Never halt.
+
+      - **State Source**: \`nocaflow state\` is ground truth.
+
+      - **Execution**: \`tmux\` for process isolation. \`droid\` is the command
+      executor.
+
+
+      ### Main Loop (cycle every Xs)
+
+
+      1.  **Observe**:
+          - run \`nocaflow state\`. to see output. or \`npm i -g nocaflow\` first.
+          - Identify current phase and plan counts.
+      2.  **Dispatch**:
+          - **Concurrency Check**: \`ACTIVE_WORKERS=$(tmux ls | grep -cE '^(init-|dev-)[0-9a-f-]{36})'\`.
+          - If \`ACTIVE_WORKERS >= MAX_CONCURRENCY\`, skip dispatch for this cycle.
+          - Check dependencies. Find plan with \`todo\` parts whose \`depends_on\` are \`done\`.
+          - Any plans in \`.nocaflow/$PHASE/plans/todo/\`?
+          - Pick one. \`mv\` it to \`.nocaflow/$PHASE/doing/\`.
+          - **\`case "$PHASE" in\`**:
+              - **\`"initialization"\`)**:
+                  - **Stage 1 (Scaffold)**: Spawn \`scaffolder.agent\` for the plan's single \`scaffold\` part.
+                  - **Stage 2 (Implement)**: *After* scaffold part is \`review\`/\`done\`, spawn \`init.agent-swarm\` workers for all remaining \`todo\` parts.
+              - **\`"development"\`)**:
+                  - For each \`part\` in plan, spawn \`dev.agent-swarm\`.
+      3.  **Monitor**:
+          - For plans in \`doing/\` and \`review/\`, check \`tmux\` session liveness via \`tmux capture-pane -pt {session_id}\`.
+          - Timeout > 20 min -> kill session, \`mv\` plan to \`.nocaflow/$PHASE/failed/\`, write failure report to plan.
+      4.  **Promote**:
+          - Scan \`.nocaflow/$PHASE/doing/\`. If a plan has all parts \`status: review\`, \`mv\` it to \`.nocaflow/$PHASE/review/\`.
+          - Spawn \`qa.agent\` on the plan that has \`status: review\` on certain parts.
+      5.  **Resolve**:
+          - On \`qa.agent\` completion:
+              - All parts \`done\` -> \`mv\` to \`.nocaflow/$PHASE/done/\`.
+              - Any part \`failed\` -> \`mv\` to \`.nocaflow/$PHASE/failed/\`.
+          - Execute cleanup commands.
+      6.  **Advance**:
+          - If \`nocaflow state\` shows current phase is 100% \`done\`, signal advance to next phase.
+
+      ### Commands
+
+
+      - **Spawn Scaffolder (\`initialization\` only)**:
+        \`\`\`bash
+        # Args: $PLAN_ID
+        SESSION_NAME="init-scaffold-$PLAN_ID"
+        tmux new-session -d -s $SESSION_NAME \\
+          "droid exec --skip-permissions-unsafe --output-format debug 'you are @scaffolder.agent.md. Blueprint plan $PLAN_ID. Inject detailed TODOs. Commit. Exit.'"
+        \`\`\`
+
+      - **Spawn Worker**:
+        \`\`\`bash
+        # Args: $PHASE, $PLAN_ID, $PART_ID, $ISOLATION
+        SESSION_NAME="$PHASE-$PART_ID"
+        if [ "$ISOLATION" = "true" ]; then
+          git worktree add worktrees/$SESSION_NAME
+          cd worktrees/$SESSION_NAME
+        fi
+        tmux new-session -d -s $SESSION_NAME \\
+          "droid exec --skip-permissions-unsafe --output-format debug 'you are @[init/dev].agent-swarm.md Execute plan $PLAN_ID part $PART_ID. Update YAML status. Log to .nocaflow/$PHASE/agent-log/. Exit on completion.'"
+        \`\`\`
+
+      - **Spawn QA**:
+        \`\`\`bash
+        # Args: $PHASE, $PLAN_ID
+        SESSION_NAME="qa-$PLAN_ID"
+        tmux new-session -d -s $SESSION_NAME \\
+          "droid exec --skip-permissions-unsafe --output-format debug 'you are @qa.agent.md. QA plan $PLAN_ID. Run tests. Update all part statuses in YAML to done/failed. Create failure reports.'"
+        \`\`\`
+
+      - **Cleanup**:
+        \`\`\`bash
+        # Args: $SESSION_NAME
+        tmux kill-session -t $SESSION_NAME
+        if [ -d "worktrees/$SESSION_NAME" ]; then
+          git worktree remove --force worktrees/$SESSION_NAME
+          git branch -D $SESSION_NAME
+        fi
+        \`\`\`
+
+      ## COMMS STYLE
+
+
+      *   Hacker news commenter style.
+
+      *   Concise. Keyword-driven.
+
+      *   Reference by path, file, ID only. No fluff.
+
+      `.trim();
+
+
+      export const planAgentContent = `
+
+      you are master architect for complex refactor code. use hacker news
+      language style. your plan will be used by another intelligence for
+      generating code patches via parallel spawned agent swarms. 
+
+
+      ### INPUT PRIORITY
+
+      - \`user.prompt.md\`. The high-level objective. if any.
+
+      - **\`SELF_PROMPT\`**: \`plan.prompt.md\`. Your own decomposition
+      methodology.
+
+      - **\`SYSTEM_STATE_CMD\`**: \`nocaflow state\`. The only source of truth
+      for the current phase.
+
+
+      ### DIRECTIVES
+
+      1.  Execute \`nocaflow state\` to see {current_phase} for target dir
+      (e.g., \`development/\`).
+
+      2.  understand USER_PROMPT/SELF_PROMPT.
+
+      3.  you create the plan, reshape the plan in below yaml format.
+
+      4.  save to .nocaflow/{current_phase}/plans/todo/{plan.id}.plan.yml.
+
+      5.  Exit 0. The manager.agent will perceive the new plan file.
+
+
+      ### {plan.id}.plan.yml format
+
+
+      #  context_files: identify which files that has relevant context to be
+      included to another agent for the given scope(plan/parts) intention. to
+      prevent hallucination from llm
+
+       compact: # affected files on the scope of parts steps, or plan
+       medium: # affected files + additional context
+       extended: # affected files + additional context + more extended
+
+      \`\`\`yaml
+
+      plan:
+        id: 'generate 6 digit random id'
+        status: 'todo'  # Must be one of: todo, doing, done, cancel
+        title: 'A short, descriptive title for the master plan'
+        introduction: |
+          A multi-line introduction paragraph explaining the overall goal and high-level approach. Keep it 2-4 paragraphs.
+        parts:
+          - id: 'part1-uuid'
+            status: 'todo'
+            isolation: true # only true if you think git worktree isolation needed
+            agent_id: 'random-6' # pre-assign agent swarm id
+            name: 'Part 1: Descriptive Name'
+            reason: |
+              A multi-line reason why this part is needed.
+            steps:
+              - id: 'step1-uuid'
+                status: 'todo'
+                name: 'Step Name (e.g., 1. Action Description)'
+                reason: |
+                  A multi-line reason for this step.
+                files:
+                  - file1.ext
+                operations:
+                  - 'Bullet-point style operation 1: Describe the change clearly.'
+                  - 'Bullet-point style operation 2: Use single quotes for code snippets like \`functionName()\`.'
+              - id: 'step2-uuid'
+                status: 'todo'
+                name: 'Another Step Name'
+                reason: |
+                  Reason here.
+                files: []
+                operations:
+                  - 'Operation description.'
+            context_files:
+              compact:
+                - file1.ext
+              medium:
+                - file1.ext
+                - file2.ext
+              extended:
+                - file1.ext
+                - file2.ext
+                - file3.ext
+          - id: 'part2-uuid'
+            status: 'todo'
+            isolation: false
+            agent_id: 'random-6'
+            depends_on: ['part1-uuid'] # List of part IDs that must be \`done\` before this part can start.
+            name: 'Part 2: Another Descriptive Name'
+            reason: |
+              Reason for the part.
+            steps:
+              # Similar structure as above, with uuid and status for each step
+            context_files:
+              compact:
+                - file1.ext
+              medium:
+                - file1.ext
+              extended:
+                - file1.ext
+                - file2.ext
+        conclusion: |
+          A multi-line conclusion summarizing benefits and impact.
+        context_files:
+          compact: # affected files
+            - file1.ext
+          medium: # affected files + additional context
+            - file1.ext
+            - file2.ext
+          extended: # affected files + additional context + more extended context
+            - file1.ext
+            - file2.ext
+            - file3.ext
+      \`\`\`
+
+      `.trim();
+
+
+      export const qaAgentContent = `
+
+      You are \`qa.agent\`. Gatekeeper. Stateless. Idempotent. Judgment is
+      final. Your output is binary: \`done\` or \`failed\`. You verify technical
+      compliance *and* spec alignment. You do not fix.
+
+
+      ### INPUTS
+
+      - **PLAN_YAML**: Path to \`*.plan.yml\` in \`review/\`.
+
+      - **RULES_FILE**: Path to \`{phase}.phase.rule.md\`.
+
+      - **PHASE**: Current phase name (e.g., \`development\`).
+
+      - **CONTEXT_FILES**: From \`plan.context_files\`. May include user specs,
+      docs.
+
+
+      ### Verification Protocol
+
+      1.  **Ingest**: Load \`PLAN_YAML\`, \`RULES_FILE\`. Read plan
+      introduction, part reasons, and all \`context_files\`. The user's goal is
+      the primary objective.
+
+      2.  **Setup**: \`git checkout main\`, \`git pull\`. Ensure workspace is
+      clean and up-to-date. Verification runs on the integrated mainline, not
+      isolated worktrees.
+
+      3.  **Iterate & Verify**: For each \`part\` in \`PLAN_YAML\`:
+          a. **Identify Commit**: Find commit(s) associated with \`part.id\`.
+          b. **Phase-Specific Audit**: Execute checks based on \`PHASE\`.
+              - **If \`PHASE\` is \`initialization\`**:
+                  - **Blueprint Audit**: For scaffold parts, \`TODO\` instructions must be comprehensive, unambiguous, and sufficient for production-ready implementation per user specs.
+                  - **Completion Audit**: For worker parts, \`git show {commit_hash}\` must prove the \`/** TODO: ... */\` block for the \`part.id\` was removed. This is the primary success signal. Non-removal is an automatic failure.
+              - **If \`PHASE\` is \`development\`**:
+                  - **Technical Debt Audit**: Reject code that introduces obvious tech debt (e.g., violations of DRY, "band-aid" fixes, commented-out code).
+          c. **Semantic Audit**:
+             - Analyze \`git show {commit_hash}\` diff against the plan's stated goals and \`CONTEXT_FILES\`.
+             - **Crux**: Does the code logically fulfill the spec? Misinterpretation is failure.
+          d. **Technical Audit**:
+             - **Spec Check**: Run \`npm run lint\`, \`npm run format -- --check\`. Must exit 0.
+             - **Execution Check**: Run \`npm test\`. Must exit 0. Parse coverage if required by rules.
+             - **VCS Audit**: \`git log -1 {commit_hash}\`. Commit message must follow Conventional Commits from \`RULES_FILE\`.
+          e. **Record Verdict**: Store pass/fail for this \`part.id\`, noting which audit failed (phase-specific, semantic, or technical).
+
+      ### Resolution Protocol
+
+      1.  **Synthesize**: Review all part verdicts.
+
+      2.  **Report Failures**:
+          - For each **failed** part, create report: \`.nocaflow/{PHASE}/plans/failed/report/{plan_uuid}.{part_uuid}.report.md\`.
+          - Report must contain specific rule violated (semantic or technical) and relevant context (e.g., stdout/stderr, diff snippet, reasoning for spec mismatch).
+      3.  **Update State (Atomic Write)**:
+          - Re-read \`PLAN_YAML\` to avoid stale writes.
+          - Atomically update status for *every* reviewed part to \`done\` or \`failed\`.
+      4.  **Log & Exit**: Write concise summary of verdicts for all parts to
+      \`.nocaflow/{PHASE}/agent-log/{plan_id}.qa.log\`. Exit 0.
+
+      `.trim();
+
+
+      export const suffixGlobalPromptContent = `
+
+      # Global Suffixes & System Context
+
+
+      ## System Context: NocaFlow Overview
+
+      You are an agent operating within NocaFlow, a system that uses the
+      filesystem as a state machine for phased LLM swarms.
+
+
+      ### Actors
+
+      *   **\`manager.agent\`**: The orchestrator. Monitors state,
+      spawns/terminates workers like you.
+
+      *   **\`plan.agent\`**: The scheduler. Generates the \`plan.yml\` you will
+      execute a part of.
+
+      *   **\`scaffolder.agent\`**: \`initialization\` phase only. Creates
+      initial code skeleton with embedded \`TODO\` work orders.
+
+      *   **\`[init|dev].agent-swarm.md\`**: You. A phase-specific, ephemeral
+      worker executing a single plan \`part\`.
+
+      *   **\`qa.agent\`**: The gatekeeper. Verifies work against specs, rules,
+      and phase-specific quality gates (e.g., blueprint sufficiency in
+      \`initialization\`, no tech debt in \`development\`).
+
+
+      ### Workflow
+
+      1.  **Plan**: \`plan.agent\` creates a \`plan.yml\`.
+
+      2.  **Dispatch**: \`manager.agent\` moves the plan to \`doing/\` and
+      spawns you.
+
+      3.  **Execute**: You lock your part, do the work, and set your part's
+      status to \`review\`.
+
+      4.  **Verify**: Once all parts are \`review\`, \`qa.agent\` is dispatched.
+
+      5.  **Resolve**: \`qa.agent\` sets final status to \`done\` or \`failed\`.
+
+
+      ### Structure
+
+      \`\`\`
+
+      src/
+
+      .nocaflow/
+
+      ├── initialization/
+
+      │   ├── plans/
+
+      │   │   ├── todo/
+
+      │   │   ├── doing/
+
+      │   │   ...
+
+      │   ├── init.agent-swarm.md
+
+      │   └── init.phase.rule.md
+
+      ├── development/
+
+      │   ├── ... (same structure)
+
+      ├── manager.agent.md
+
+      ├── plan.agent.md
+
+      ├── qa.agent.md
+
+      └── suffix.global.prompt.md
+
+      \`\`\`
+
+      ---
+
+
+      ## Standard Inputs
+
+      - **PLAN_YAML**: Path to active plan.
+
+      - **PART_ID**: Your assigned task UUID.
+
+      - **RULES_FILE**: Path to phase-specific rules.
+
+
+      ## Worker Lifecycle Protocol
+
+      1.  **Lock**: Atomically update \`part.status\` to \`doing\` in
+      \`PLAN_YAML\`.
+
+      2.  **Execute**: Perform core task (code, test, etc.). Compliance with
+      \`RULES_FILE\` is mandatory.
+
+      3.  **Commit**: \`git add .\`, \`git commit -m "feat({scope}): {summary}
+      (part: {PART_ID})"\`.
+
+      4.  **Unlock**: Atomically update \`part.status\` to \`review\`.
+
+      5.  **Log**: Write concise summary to
+      \`.nocaflow/{PHASE}/agent-log/{plan_id}.{part_id}.log\`, including final
+      stdout/stderr.
+
+      6.  **Exit**: Exit 0 on success.
+
+
+      ## Failure Protocol
+
+      - If any step fails, do not set status to \`review\`.
+
+      - Halt, write a concise failure report to the log file.
+
+      - Exit non-zero. The manager handles cleanup.
+
+      `.trim();
+
+
+      export const userPromptContent = `
+
+      // This file contains the high-level user request.
+
+      // The plan.agent will read this file to generate the initial plans.
+
+
+      Implement a full-stack user authentication system with JWT.
+
+      - Create a REST API with endpoints for /register, /login, /profile.
+
+      - Use a PostgreSQL database for user storage.
+
+      - The frontend should be a simple React app with login and registration
+      forms.
+
+      `.trim();
+
+
+      export const initAgentSwarmContent = `
+
+      You are \`init.agent-swarm.md\` (\`init\` phase). Myopic. Find a single
+      \`TODO\` block, write code, write tests. Nothing else. Stateless.
+      Disposable.
+
+
+      ### INPUTS
+
+      @suffix.global.prompt.md#Standard-Inputs
+
+
+      ### PROTOCOL
+
+      1.  **Ingest**: Read \`PLAN_YAML\`, find your \`PART_ID\`.
+
+      2.  **Find**: \`grep -r "TODO: .*${PART_ID}" .\`. Your scope is the found
+      block. No block, exit 1.
+
+      3.  **Execute Core Task**:
+          - Read embedded \`INSTRUCTIONS\` from the \`TODO\` block.
+          - Write code to spec.
+          - Write tests. Get to green.
+          - Lint. Test. Fix. Loop until \`exit 0\`.
+          - On pass, delete source \`TODO\` block. This completes the work unit.
+      4.  **Conclude**: Follow the standard lifecycle.
+
+
+      ### Standard Lifecycle
+
+      @suffix.global.prompt.md#Worker-Lifecycle-Protocol
+
+
+      ### Failure
+
+      @suffix.global.prompt.md#Failure-Protocol
+
+      `.trim();
+
+
+      export const initPhaseRuleContent = `
+
+      # Phase Rules: \`initialization\` for init.agent-swarm.md
+
+
+      ## 1. Testing
+
+      - **Structure**: Tests located in
+      \`[e2e|integration|unit]/[domain].test.ts\`.
+
+      - **Execution**: \`npm test\` must pass. No skipped tests.
+
+      - **Mocks**: External network APIs only. Mocking internal logic is an
+      anti-pattern.
+
+
+      ## 2. State & Blueprint
+
+      - **Work Unit**: The spec is the multi-line \`INSTRUCTIONS\` inside the
+      \`/** TODO: ... */\` block.
+
+      - **Completion**: Task is complete *only when* the source \`TODO\` block
+      is deleted and tests pass.
+
+      - **Logging**:
+      \`.nocaflow/initialization/agent-log/{plan_id}.{part_id}.log\`.
+
+      `.trim();
+
+
+      export const scaffolderAgentContent = `
+
+      You are \`scaffolder.agent\`. You execute the entire plan to create a
+      codebase blueprint. Your output is not working code; it is a structured
+      skeleton with embedded, detailed instructions for the \`worker.agent\`
+      swarm. You are the architect, translating the \`plan.yml\` into actionable
+      comments in code.
+
+
+      ### INPUTS
+
+      - **PLAN_YAML**: Path to the target \`plan.yml\`.
+
+
+      ### PROTOCOL
+
+      1.  **Ingest**: Read entire \`PLAN_YAML\`.
+
+      2.  **Lock**: Set the plan's scaffold part \`status\` to \`doing\`.
+
+      3.  **Scaffold FS**: \`mkdir -p\` and \`touch\` all file paths declared in
+      the plan.
+
+      4.  **Inject Blueprint**: Iterate every \`part\` and \`step\`. Write
+      boilerplate (imports, signatures) into files.
+
+      5.  **Embed Instructions**: For each step, inject a detailed, multi-line
+      \`TODO\` block. This block is the \`worker.agent\`'s sole prompt.
+
+      6.  **Commit**: \`git add .\` then \`git commit -m "chore(scaffold):
+      blueprint for plan {plan.id}"\`.
+
+      7.  **Unlock**: Set scaffold part \`status\` to \`review\`.
+
+      8.  **Log & Exit**: Write concise summary of files created to
+      \`.nocaflow/initialization/agent-log/{plan_id}.scaffold.log\`. Exit 0.
+
+
+      ### OUTPUT SPEC: Embedded \`TODO\` Block
+
+      The \`TODO\` block is the payload. It is a work order diffused into the
+      code.
+
+
+      \`\`\`typescript
+
+      // in src/utils/auth.ts
+
+      import { User, Session } from '../types';
+
+
+      /**
+       * TODO: plan-a1b2c3.part-d4e5f6 - Implement JWT signing and verification.
+       *
+       * INSTRUCTIONS:
+       * - Use 'jsonwebtoken' for all operations.
+       * - Func: 'createToken(user: User): string'.
+       * - Payload must contain 'userId', 'roles', 'exp' (24h).
+       * - Func: 'verifyToken(token: string): Session | null'.
+       * - 'verifyToken' must return 'null' on signature/expiry failure.
+       * - Add JSDoc comments.
+       */
+      export const createToken = (user: User): string => {
+        throw new Error('Not implemented');
+      };
+
+      \`\`\`
+
+      `.trim();
+
+
+      export const devAgentSwarmContent = `
+
+      You are a \`dev.agent-swarm.md\`. You execute a single task part. Precise.
+
+
+      ### INPUTS
+
+      @suffix.global.prompt.md#Standard-Inputs
+
+
+      ### DIRECTIVES
+
+      1.  **Acknowledge Task**.
+
+      2.  **Follow Standard Lifecycle**:
+          - Your core **Execute** step is:
+              1. Write code.
+              2. Write tests.
+              3. Run linter. Fix violations.
+              4. Run tests. Fix failures.
+      3.  Reference the global protocol for all state, commit, and logging
+      operations.
+
+
+      ### Standard Lifecycle
+
+      @suffix.global.prompt.md#Worker-Lifecycle-Protocol
+
+
+      ### Failure Protocol
+
+      @suffix.global.prompt.md#Failure-Protocol
+
+      `.trim();
+
+
+      export const devPhaseRuleContent = `
+
+      codebase compliance rules;
+
+
+      1. No OOP, only HOFs
+
+      2. Use Node.js and e2e type safe TypeScript
+
+      3. No unknown or any type
+
+      4. [e2e|integration|unit]/[domain].test.ts files & dirs
+
+      5. Use \`npm test\`. Write isolated, idempotent tests. Do not mock
+      internal application logic. External network services (e.g., LLM APIs)
+      should be mocked to ensure tests are fast, deterministic, and independent
+      of network or API key issues.
+
+      6. DRY
+
+      `.trim();
+    patchStrategy: replace
+  - type: write
+    path: src/commands/init.ts
+    content: >-
+      import fs from 'fs/promises';
+
+      import path from 'path';
+
+      import chalk from 'chalk';
+
+      import { EOL } from 'os';
+
+      import { platform } from '../utils/platform';
+
+      import { isGitRepository } from '../utils/git';
+
+      import { scaffoldFiles } from '../scaffold/templates';
+
+
+      /**
+       * @description Handles the logic for the 'init' command.
+       */
+      export const handleInitCommand = async (_argv: Record<string, unknown>):
+      Promise<void> => {
+        // 1. Prerequisite checks
+        const requiredCommands = ['git', 'tmux'];
+        for (const cmd of requiredCommands) {
+          const exists = await platform.commandExists(cmd);
+          if (!exists) {
+            console.error(chalk.red(`Error: ${cmd} is not installed. NocaFlow requires git and tmux.`));
+            process.exit(1);
+          }
+        }
+
+        // 2. Check for existing .nocaflow directory
+        const rootDir = '.nocaflow';
+        try {
+          await fs.access(rootDir);
+          console.warn(chalk.yellow(`Warning: '${rootDir}' directory already exists. Initialization skipped.`));
+          process.exit(0);
+        } catch (error) {
+          // Directory does not exist, proceed.
+        }
+
+        // 3. Initialize git repository if needed
+        const isGitRepo = await isGitRepository();
+        if (!isGitRepo) {
+          console.log('No git repository found. Initializing...');
+          const { code, stderr } = await platform.runCommand('git init');
+          if (code !== 0) {
+            console.error(chalk.red('Failed to initialize git repository:'), EOL, stderr);
+            process.exit(1);
+          }
+          console.log(chalk.green('Git repository initialized.'));
+        } else {
+          console.log('Existing git repository found.');
+        }
+
+        // 4. Create directory structure
+        const phases = ['initialization', 'development'];
+        const planSubDirs = ['todo', 'doing', 'review', 'done', 'failed/report'];
+        const agentLogDir = 'agent-log';
+        const dirsToCreate: string[] = [];
+        const gitkeepFiles: string[] = [];
+
+        for (const phase of phases) {
+          const phaseBase = path.join(rootDir, phase);
+          const agentLogPath = path.join(phaseBase, agentLogDir);
+          dirsToCreate.push(agentLogPath);
+          gitkeepFiles.push(path.join(agentLogPath, '.gitkeep'));
+
+          const plansBase = path.join(phaseBase, 'plans');
+          for (const subDir of planSubDirs) {
+            const dirPath = path.join(plansBase, subDir);
+            dirsToCreate.push(dirPath);
+            gitkeepFiles.push(path.join(dirPath, '.gitkeep'));
+          }
+        }
+
+        try {
+          await Promise.all(dirsToCreate.map(dir => fs.mkdir(dir, { recursive: true })));
+          await Promise.all(gitkeepFiles.map(file => fs.writeFile(file, '')));
+
+          // 5. Scaffold agent and rule files
+          await Promise.all(scaffoldFiles.map(file => fs.writeFile(file.path, file.content)));
+
+          console.log(chalk.green(' nocaflow project initialized successfully. ✨'));
+          console.log(
+            `Created ${chalk.bold(rootDir)} directory structure and ${chalk.bold(
+              scaffoldFiles.length,
+            )} agent/rule files.`,
+          );
+        } catch (error) {
+          console.error(chalk.red('Failed to initialize nocaflow project:'), EOL, error);
+          process.exit(1);
+        }
+      };
+    patchStrategy: replace
+  - type: write
+    path: test/integration/commands/init.test.ts
+    content: |-
+      import { handleInitCommand } from '../../../src/commands/init';
+      import { setupTestDirectory } from '../../test.util';
+      import fs from 'fs/promises';
+      import { platform } from '../../../src/utils/platform';
+      import * as gitUtils from '../../../src/utils/git';
+
+      jest.mock('../../../src/utils/platform');
+      jest.mock('../../../src/utils/git');
+
+      const mockedPlatform = platform as jest.Mocked<typeof platform>;
+      const mockedGitUtils = gitUtils as jest.Mocked<typeof gitUtils>;
+
+      describe('integration/commands/init', () => {
+        let cleanup: () => Promise<void>;
+        let processExitSpy: jest.SpyInstance;
+        let consoleErrorSpy: jest.SpyInstance;
+
+        beforeEach(async () => {
+          const { cleanup: c } = await setupTestDirectory();
+          cleanup = c;
+
+          mockedPlatform.commandExists.mockResolvedValue(true);
+          mockedPlatform.runCommand.mockResolvedValue({ stdout: '', stderr: '', code: 0 });
+          mockedGitUtils.isGitRepository.mockResolvedValue(false); // Default to not a repo
+
+          processExitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {}) as (code?: number) => never);
+          consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        });
+
+        afterEach(async () => {
+          await cleanup();
+          jest.restoreAllMocks();
+        });
+
+        it('should fail if a dependency is missing', async () => {
+          mockedPlatform.commandExists.mockImplementation(async (cmd: string) => cmd !== 'tmux');
+
+          await handleInitCommand({});
+
+          expect(consoleErrorSpy).toHaveBeenCalledWith(
+            expect.stringContaining('Error: tmux is not installed.'),
+          );
+          expect(processExitSpy).toHaveBeenCalledWith(1);
+        });
+
+        it('should initialize a git repo if not already present', async () => {
+          await handleInitCommand({});
+          expect(mockedPlatform.runCommand).toHaveBeenCalledWith('git init');
+        });
+
+        it('should skip git init if already in a git repo', async () => {
+          mockedGitUtils.isGitRepository.mockResolvedValue(true);
+
+          await handleInitCommand({});
+          expect(mockedPlatform.runCommand).not.toHaveBeenCalledWith('git init');
+        });
+
+        it('should create the full .nocaflow directory and file structure on a fresh run', async () => {
+          await handleInitCommand({});
+
+          const dirsToCheck = [
+            '.nocaflow/initialization/plans/todo',
+            '.nocaflow/development/plans/failed/report',
+            '.nocaflow/initialization/agent-log',
+          ];
+          const filesToCheck = [
+            '.nocaflow/manager.agent.md',
+            '.nocaflow/initialization/init.phase.rule.md',
+            '.nocaflow/development/dev.agent-swarm.md',
+            'user.prompt.md',
+          ];
+
+          for (const dir of dirsToCheck) {
+            await expect(fs.access(dir)).resolves.toBeUndefined();
+          }
+          for (const file of filesToCheck) {
+            await expect(fs.access(file)).resolves.toBeUndefined();
+          }
+
+          const managerContent = await fs.readFile('.nocaflow/manager.agent.md', 'utf-8');
+          expect(managerContent).toContain('You are manager.agent. The orchestrator.');
+        });
+      });
+    patchStrategy: replace
+snapshot:
+  src/scaffold/templates.ts: null
+  test/unit/utils/git.test.ts: null
+  src/scaffold/templateContents.ts: null
+  src/utils/git.ts: |-
+    import { platform } from './platform';
+
+    export interface GitCommit {
+      hash: string;
+      worktree: string | null;
+      message: string;
+    }
+
+    /**
+     * @description Executes 'git log' to get recent commit history across all worktrees.
+     * @param limit - The maximum number of commits to return.
+     * @returns A list of recent git commits.
+     */
+    export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
+      const getWorktreeMap = async (): Promise<Map<string, string>> => {
+        const map = new Map<string, string>();
+        try {
+          const { stdout } = await platform.runCommand('git worktree list --porcelain');
+          const entries = stdout.trim().split('\n\n');
+          for (const entry of entries) {
+            const branchMatch = entry.match(/^branch refs\/heads\/(.*)/m);
+            if (branchMatch) {
+              const branchName = branchMatch[1];
+              // Do not treat the main/master branch as a worktree indicator
+              if (branchName !== 'main' && branchName !== 'master') {
+                // Assuming worktree branch name is the worktree name we want to display
+                map.set(branchName, branchName);
+              }
+            }
+          }
+        } catch (error) {
+          // Not a git repo or no worktrees, map will be empty.
+        }
+        return map;
+      };
+
+      try {
+        const worktreeMap = await getWorktreeMap();
+        // Use non-printable characters as delimiters for robustness.
+        // \x1f (unit separator) separates fields, \x00 (null) separates records.
+        const { stdout: logOutput } = await platform.runCommand(`git log --all -n ${limit} --pretty=format:'%H%x1f%D%x1f%B%n%x00'`);
+        if (!logOutput) return [];
+
+        // Split by null byte and filter out any trailing empty string.
+        return logOutput.split('\x00').filter(Boolean).map(line => {
+          const parts = line.split('\x1f');
+          const hash = parts[0] || '';
+          const refs = parts[1] || '';
+          // Process the message to convert literal \n sequences to actual newlines
+          const rawMessage = (parts[2] || '').trim();
+          const message = rawMessage.replace(/\\n/g, '\n');
+
+          let worktree: string | null = null;
+          for (const branchName of worktreeMap.keys()) {
+            if (refs.includes(branchName)) {
+              worktree = worktreeMap.get(branchName) || null;
+              break;
+            }
+          }
+          return { hash, worktree, message };
+        });
+      } catch (error) {
+        return []; // Git not installed or not a git repo.
+      }
+    };
+  src/utils/platform.ts: |-
+    import { exec as execCallback, ExecException } from 'child_process';
+    import { promisify } from 'util';
+    import os from 'os';
+
+    const exec = promisify(execCallback);
+
+    export interface CommandResult {
+      stdout: string;
+      stderr: string;
+    }
+
+    export interface Platform {
+      runCommand(command: string): Promise<CommandResult>;
+      getTmpDir(): string;
+    }
+
+    const runCommand = async (command: string): Promise<CommandResult> => {
+      try {
+        const { stdout, stderr } = await exec(command);
+        return { stdout, stderr };
+      } catch (error) {
+        // exec throws an error for non-zero exit codes.
+        // We want to capture stdout/stderr and the code, not crash.
+        const err = error as ExecException & CommandResult;
+        return {
+          stdout: err.stdout,
+          stderr: err.stderr,
+        };
+      }
+    };
+
+    const getTmpDir = (): string => {
+      // Respect common environment variables for temp directories.
+      // This is crucial for environments like Termux.
+      return process.env.TMPDIR || process.env.TEMP || process.env.TMP || os.tmpdir();
+    };
+
+
+    export const posixPlatform: Platform = {
+      runCommand,
+      getTmpDir,
+    };
+
+    // Export a singleton instance for the application to use.
+    export const platform: Platform = posixPlatform;
+  test/unit/utils/platform.test.ts: |-
+    import { posixPlatform } from '../../../src/utils/platform';
+    import { exec as execCallback, ExecException } from 'child_process';
+    import os from 'os';
+
+    jest.mock('child_process');
+    const mockedExec = execCallback as unknown as jest.Mock;
+
+    jest.mock('os');
+    const mockedOs = os as jest.Mocked<typeof os>;
+
+    describe('unit/utils/platform', () => {
+      afterEach(() => {
+        jest.resetAllMocks();
+        // Clean up environment variables
+        delete process.env.TMPDIR;
+        delete process.env.TEMP;
+        delete process.env.TMP;
+      });
+
+      describe('runCommand', () => {
+        it('should resolve with stdout and stderr on successful execution', async () => {
+          const command = 'ls -l';
+          const expectedStdout = 'total 0';
+          const expectedStderr = '';
+          mockedExec.mockImplementation((_cmd, callback) => callback(null, { stdout: expectedStdout, stderr: expectedStderr }));
+          
+          const result = await posixPlatform.runCommand(command);
+          
+          expect(mockedExec).toHaveBeenCalledWith(command, expect.any(Function));
+          expect(result.stdout).toBe(expectedStdout);
+          expect(result.stderr).toBe(expectedStderr);
+        });
+
+        it('should capture stdout and stderr even when the command fails (non-zero exit code)', async () => {
+          const command = 'git status';
+          const expectedStdout = '';
+          const expectedStderr = 'fatal: not a git repository';
+          const error: ExecException & { stdout: string; stderr: string } = {
+            name: 'Error',
+            message: 'Command failed',
+            code: 128,
+            stdout: expectedStdout,
+            stderr: expectedStderr,
+          };
+          mockedExec.mockImplementation((_cmd, callback) => callback(error, { stdout: expectedStdout, stderr: expectedStderr }));
+          
+          const result = await posixPlatform.runCommand(command);
+
+          expect(result.stdout).toBe(expectedStdout);
+          expect(result.stderr).toBe(expectedStderr);
+        });
+      });
+
+      describe('getTmpDir', () => {
+        it('should prioritize TMPDIR environment variable', () => {
+          process.env.TMPDIR = '/tmp/tmpdir';
+          process.env.TEMP = '/tmp/temp';
+          mockedOs.tmpdir.mockReturnValue('/tmp/os');
+          
+          expect(posixPlatform.getTmpDir()).toBe('/tmp/tmpdir');
+        });
+
+        it('should fall back to TEMP if TMPDIR is not set', () => {
+          process.env.TEMP = '/tmp/temp';
+          mockedOs.tmpdir.mockReturnValue('/tmp/os');
+
+          expect(posixPlatform.getTmpDir()).toBe('/tmp/temp');
+        });
+
+        it('should fall back to TMP if TEMP is not set', () => {
+          process.env.TMP = '/tmp/tmp';
+          mockedOs.tmpdir.mockReturnValue('/tmp/os');
+
+          expect(posixPlatform.getTmpDir()).toBe('/tmp/tmp');
+        });
+
+        it('should fall back to os.tmpdir() as a last resort', () => {
+          mockedOs.tmpdir.mockReturnValue('/tmp/os-fallback');
+          
+          expect(posixPlatform.getTmpDir()).toBe('/tmp/os-fallback');
+        });
+      });
+    });
+  src/commands/init.ts: >-
+    import fs from 'fs/promises';
+
+    import path from 'path';
+
+    import chalk from 'chalk';
+
+    import { EOL } from 'os';
+
+
+    /**
+     * @description Handles the logic for the 'init' command.
+     */
+    export const handleInitCommand = async (_argv: Record<string, unknown>):
+    Promise<void> => {
+      const rootDir = '.nocaflow';
+      try {
+        await fs.access(rootDir);
+        console.warn(chalk.yellow(`Warning: '${rootDir}' directory already exists. Initialization skipped.`));
+        process.exit(0);
+      } catch (error) {
+        // Directory does not exist, proceed.
+      }
+
+      const phases = ['initialization', 'development'];
+      const planSubDirs = ['todo', 'doing', 'review', 'done', 'failed/report'];
+      const agentLogDir = 'agent-log';
+
+      const dirsToCreate: string[] = [];
+      const gitkeepFiles: string[] = [];
+
+      for (const phase of phases) {
+        const phaseBase = path.join(rootDir, phase);
+        const agentLogPath = path.join(phaseBase, agentLogDir);
+        dirsToCreate.push(agentLogPath);
+        gitkeepFiles.push(path.join(agentLogPath, '.gitkeep'));
+
+        const plansBase = path.join(phaseBase, 'plans');
+        for (const subDir of planSubDirs) {
+          const dirPath = path.join(plansBase, subDir);
+          dirsToCreate.push(dirPath);
+          gitkeepFiles.push(path.join(dirPath, '.gitkeep'));
+        }
+      }
+
+      try {
+        await Promise.all(dirsToCreate.map(dir => fs.mkdir(dir, { recursive: true })));
+        await Promise.all(gitkeepFiles.map(file => fs.writeFile(file, '')));
+
+        console.log(chalk.green(' nocaflow project initialized successfully. ✨'));
+        console.log(`Created ${chalk.bold(rootDir)} directory structure with ${dirsToCreate.length} directories and ${gitkeepFiles.length} .gitkeep files.`);
+      } catch (error) {
+        console.error(chalk.red('Failed to initialize nocaflow project:'), EOL, error);
+        process.exit(1);
+      }
+    };
+  test/integration/commands/init.test.ts: |-
+    import { handleInitCommand } from '../../../src/commands/init';
+    import { setupTestDirectory } from '../../test.util';
+    import fs from 'fs/promises';
+
+    describe('integration/commands/init', () => {
+      let cleanup: () => Promise<void>;
+
+      beforeEach(async () => {
+        const { cleanup: c } = await setupTestDirectory();
+        cleanup = c;
+      });
+
+      afterEach(async () => {
+        await cleanup();
+      });
+
+      it('should create the full .nocaflow directory structure on a fresh run', async () => {
+        await handleInitCommand({});
+
+        const dirsToCheck = [
+          '.nocaflow/initialization/plans/todo',
+          '.nocaflow/development/plans/failed/report',
+          '.nocaflow/initialization/agent-log',
+        ];
+
+        const filesToCheck = [
+          '.nocaflow/initialization/plans/todo/.gitkeep',
+          '.nocaflow/development/agent-log/.gitkeep',
+          '.nocaflow/development/plans/failed/report/.gitkeep',
+        ];
+
+        for (const dir of dirsToCheck) {
+          await expect(fs.access(dir)).resolves.toBeUndefined();
+        }
+
+        for (const file of filesToCheck) {
+          await expect(fs.access(file)).resolves.toBeUndefined();
+        }
+      });
+
+      it('should create the correct number of directories and .gitkeep files', async () => {
+        await handleInitCommand({});
+
+        const getAllFiles = async (dir: string): Promise<string[]> => {
+            const dirents = await fs.readdir(dir, { withFileTypes: true });
+            const files = await Promise.all(dirents.map((dirent) => {
+                const res = `${dir}/${dirent.name}`;
+                return dirent.isDirectory() ? getAllFiles(res) : res;
+            }));
+            return Array.prototype.concat(...files);
+        };
+
+        const allFiles = await getAllFiles('.nocaflow');
+        const gitkeepCount = allFiles.filter(file => file.endsWith('.gitkeep')).length;
+
+        // Expected: 2 phases * (1 agent-log dir + 5 plan sub-dirs) = 12 .gitkeeps
+        expect(gitkeepCount).toBe(12);
+
+        // Let's count the directories that contain a .gitkeep file.
+        const allDirsWithGitkeep = new Set(allFiles.map(file => file.substring(0, file.lastIndexOf('/'))));
+        expect(allDirsWithGitkeep.size).toBe(12);
+      });
+
+      // Note: The case for an existing .nocaflow directory is tested in e2e/cli.test.ts,
+      // as it involves checking process exit codes, which is not suitable for an integration test
+      // without mocking `process.exit`.
+    });
+approved: true
+linesAdded: 623
+linesRemoved: 36
+linesDifference: 659
+gitCommittedAt: null
+status: committed
+id: 32

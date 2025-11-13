@@ -63,3 +63,16 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
     return []; // Git not installed or not a git repo.
   }
 };
+
+/**
+ * @description Checks if the current directory is a git repository.
+ * @returns {Promise<boolean>}
+ */
+export const isGitRepository = async (): Promise<boolean> => {
+  try {
+    const { stdout, code } = await platform.runCommand('git rev-parse --is-inside-work-tree');
+    return code === 0 && stdout.trim() === 'true';
+  } catch (error) {
+    return false;
+  }
+};
