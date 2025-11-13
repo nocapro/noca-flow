@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import { exec as execCallback } from 'child_process';
 import path from 'path';
 import { promisify } from 'util';
+import { platform } from '../src/utils/platform';
 
 const promisedExec = promisify(execCallback);
 
@@ -66,20 +67,49 @@ describe('e2e/cli', () => {
       expect(code).toBe(0);
     });
 
-    it('should display a complex state with active agents and failed reports', async () => {
+    it('should display a complex, multi-faceted state correctly', async () => {
       await runCli('init');
       await initGitRepo();
+
+      // Setup: Create various artifacts
       await createDummyPlanFile('initialization', 'doing', 'p1.yml');
       await createDummyPlanFile('development', 'done', 'p2.yml');
       await createDummyFailedReport('initialization', 'f01', 'pA', 'Test failure');
 
-      const { stdout, code } = await runCli('state');
+      const logDir = '.nocaflow/development/agent-log';
+      await fs.mkdir(logDir, { recursive: true });
+      const logContent = `2023-10-27T10:00:00.000Z [DONE|DEV|agent-abc] plan:plan-e2e - Log message`;
+      await fs.writeFile(path.join(logDir, 'test.log'), logContent);
+
+      const tmuxSessionName = 'dev-e2e-part-xyz';
+      const canRunTmux = await platform.commandExists('tmux');
+      if (canRunTmux) {
+        await platform.runCommand(`tmux new-session -d -s ${tmuxSessionName} "sleep 15"`);
+      }
+
+      // Act: Run the state command
+      let stdout: string, code: number;
+      try {
+        const result = await runCli('state');
+        stdout = result.stdout;
+        code = result.code;
+      } finally {
+        // Teardown: ensure tmux session is killed
+        if (canRunTmux) {
+          await platform.runCommand(`tmux kill-session -t ${tmuxSessionName} || true`);
+        }
+      }
 
       expect(code).toBe(0);
-      expect(stdout).toContain('Active Agents (tmux)');
-      expect(stdout).toContain('Stalled / Failed');
+      // Assert on all sections
+      expect(stdout).toContain('Current Phase: development');
+      expect(stdout).toContain('[INITIALIZATION]'.padEnd(18) + '[----------] (0/1 plans done)');
+      expect(stdout).toContain('[DEVELOPMENT]'.padEnd(18) + '[▇▇▇▇▇▇▇▇▇▇] (1/1 plans done)');
+      if (canRunTmux) {
+        expect(stdout).toContain('id:e2e-part-xyz');
+      }
+      expect(stdout).toContain('plan:plan-e2e - Log message');
       expect(stdout).toContain('plan:f01 part:pA - "Test failure"');
-      expect(stdout).toContain('Recent Git Commits');
       expect(stdout).toContain('Initial commit');
     });
 

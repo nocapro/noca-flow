@@ -46,8 +46,7 @@ describe('unit/utils/shell (integration)', () => {
   describe('getActiveAgents', () => {
     const itif = (condition: boolean) => (condition ? it : it.skip);
 
-    // Force this test to run for debugging
-    it('should parse all types of agent sessions and ignore non-agent sessions', async () => {
+    itif(canRun)('should parse all types of agent sessions and ignore non-agent sessions', async () => {
       const agents = await getActiveAgents();
       // Filter for agents created in this specific test run to ensure isolation
       const testAgents = agents.filter(
@@ -70,7 +69,7 @@ describe('unit/utils/shell (integration)', () => {
       );
     });
 
-    it('should return an empty array if tmux has no sessions', async () => {
+    itif(canRun)('should return an empty array if tmux has no sessions', async () => {
       // Kill the sessions from beforeEach to create an empty state
       for (const name of sessionNames) {
         await platform.runCommand(`tmux kill-session -t ${name} || true`);
@@ -80,7 +79,7 @@ describe('unit/utils/shell (integration)', () => {
       expect(agents).toEqual([]);
     });
 
-    it('should correctly calculate agent runtime', async () => {
+    itif(canRun)('should correctly calculate agent runtime', async () => {
       const agents = await getActiveAgents();
       const devAgent = agents.find(a => a.partId === `part456-${testId}`);
       expect(devAgent).toBeDefined();

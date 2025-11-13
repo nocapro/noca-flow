@@ -116,6 +116,18 @@ describe('unit/utils/fs', () => {
         expect(reports[0].reportPath).toBe(reportPath);
       });
 
+      it('should handle report files with no summary section', async () => {
+        const reportDir = '.nocaflow/initialization/plans/failed/report';
+        await fs.mkdir(reportDir, { recursive: true });
+        const reportPath = path.join(reportDir, 'plan1.partA.report.md');
+        await fs.writeFile(reportPath, 'Some content without a summary header.');
+
+        const reports = await getFailedReports(1);
+
+        expect(reports).toHaveLength(1);
+        expect(reports[0].reason).toBe('Could not parse summary.');
+      });
+
       it('should return an empty array if the report directory does not exist', async () => {
         const reports = await getFailedReports(24);
         expect(reports).toEqual([]);
