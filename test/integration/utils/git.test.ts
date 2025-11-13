@@ -1,11 +1,12 @@
 import { getGitLog, isGitRepository } from '../../../src/utils/git';
 import { setupTestDirectory, initGitRepo } from '../../test.util';
-import { exec } from 'child_process';
+import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
+import { simpleGit } from 'simple-git';
 
-const promisedExec = promisify(exec);
+const promisedExec = promisify(execCallback);
 
 describe('isGitRepository', () => {
   let cleanup: () => Promise<void>;
@@ -45,13 +46,25 @@ describe('integration/utils/git', () => {
   it('should parse commits with worktree information', async () => {
     const worktreeName = 'my-feature-wt';
     const worktreePath = path.join(testDir, '..', worktreeName);
+    
+    // Clean up any existing worktree directory first
+    try {
+      await promisedExec(`git worktree remove ${worktreePath} 2>/dev/null || true`);
+      await fs.rm(worktreePath, { recursive: true, force: true });
+    } catch (error) {
+      // Ignore cleanup errors
+    }
+    
+    // Use exec for worktree commands as simple-git support can be complex across versions
     await promisedExec(`git worktree add ${worktreePath}`);
 
     const originalCwd = process.cwd();
     process.chdir(worktreePath);
+
+    const wtGit = simpleGit();
     await fs.writeFile('feature.txt', 'data');
-    await promisedExec('git add .');
-    await promisedExec('git commit -m "feat: commit from worktree"');
+    await wtGit.add('.');
+    await wtGit.commit('feat: commit from worktree');
     process.chdir(originalCwd);
 
     const log = await getGitLog(5);
@@ -65,9 +78,10 @@ describe('integration/utils/git', () => {
   });
 
   it('should handle commits not associated with a worktree', async () => {
+    const git = simpleGit();
     await fs.writeFile('main.txt', 'data');
-    await promisedExec('git add .');
-    await promisedExec('git commit -m "feat: commit from main"');
+    await git.add('.');
+    await git.commit('feat: commit from main');
 
     const log = await getGitLog(5);
     const mainCommit = log.find(c => c.message === 'feat: commit from main');
@@ -77,8 +91,9 @@ describe('integration/utils/git', () => {
   });
 
   it('should respect the commit limit', async () => {
+    const git = simpleGit();
     for (let i = 0; i < 5; i++) {
-      await promisedExec(`git commit --allow-empty -m "commit ${i + 1}"`);
+      await git.commit(`commit ${i + 1}`, { '--allow-empty': null });
     }
 
     const log = await getGitLog(3);
@@ -89,7 +104,7 @@ describe('integration/utils/git', () => {
     // Need a separate setup that doesn't create an initial commit.
     await cleanup();
     const { cleanup: c2 } = await setupTestDirectory();
-    await promisedExec('git init');
+    await simpleGit().init();
 
     const log = await getGitLog(5);
     expect(log).toEqual([]);
@@ -99,7 +114,7 @@ describe('integration/utils/git', () => {
 
   it('should handle commit messages with special characters', async () => {
     const complexMessage = `feat: handle '|' "quotes" and 'apostrophes'\n\nwith a body.`;
-    await promisedExec(`git commit --allow-empty -m ${JSON.stringify(complexMessage)}`);
+    await simpleGit().commit(complexMessage, { '--allow-empty': null });
 
     const log = await getGitLog(1);
 

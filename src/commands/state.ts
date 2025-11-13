@@ -6,7 +6,7 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import { getRecentLogs, LogEntry } from '../utils/logs';
 import { getGitLog, GitCommit } from '../utils/git';
 
-dayjs.extend(relativeTime);
+dayjs.extend(relativeTime as any);
 
 /**
  * @description Renders a progress bar.

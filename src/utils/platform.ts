@@ -1,6 +1,6 @@
 import { exec as execCallback, ExecException } from 'child_process';
 import { promisify } from 'util';
-import os from 'os';
+import * as os from 'os';
 
 const exec = promisify(execCallback);
 
