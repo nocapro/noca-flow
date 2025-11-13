@@ -21,10 +21,10 @@ describe('unit/utils/fs', () => {
         await fs.mkdir('.nocaflow/initialization/plans/doing', { recursive: true });
         await fs.mkdir('.nocaflow/development/plans/done', { recursive: true });
 
-        await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml', '');
-        await fs.writeFile('.nocaflow/initialization/plans/todo/b.yml', '');
-        await fs.writeFile('.nocaflow/initialization/plans/doing/c.yml', '');
-        await fs.writeFile('.nocaflow/development/plans/done/d.yml', '');
+        await fs.writeFile('.nocaflow/initialization/plans/todo/11aa22.plan.yml', '');
+        await fs.writeFile('.nocaflow/initialization/plans/todo/33bb44.plan.yml', '');
+        await fs.writeFile('.nocaflow/initialization/plans/doing/55cc66.plan.yml', '');
+        await fs.writeFile('.nocaflow/development/plans/done/77dd88.plan.yml', '');
 
         const stats = await getPhaseStats();
 
@@ -49,7 +49,7 @@ describe('unit/utils/fs', () => {
 
       it('should handle missing status subdirectories gracefully', async () => {
         await fs.mkdir('.nocaflow/initialization/plans/todo', { recursive: true });
-        await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml', '');
+        await fs.writeFile('.nocaflow/initialization/plans/todo/99ee00.plan.yml', '');
 
         const stats = await getPhaseStats();
 
@@ -61,7 +61,7 @@ describe('unit/utils/fs', () => {
 
       it('should handle a missing phase directory gracefully', async () => {
         await fs.mkdir('.nocaflow/initialization/plans/todo', { recursive: true });
-        await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml', '');
+        await fs.writeFile('.nocaflow/initialization/plans/todo/aabbcc.plan.yml', '');
 
         const stats = await getPhaseStats();
 
@@ -71,7 +71,7 @@ describe('unit/utils/fs', () => {
 
       it('should ignore non-YAML files', async () => {
         await fs.mkdir('.nocaflow/development/plans/todo', { recursive: true });
-        await fs.writeFile('.nocaflow/development/plans/todo/plan1.yml', '');
+        await fs.writeFile('.nocaflow/development/plans/todo/ddee00.plan.yml', '');
         await fs.writeFile('.nocaflow/development/plans/todo/notes.txt', '');
 
         const stats = await getPhaseStats();
@@ -86,8 +86,8 @@ describe('unit/utils/fs', () => {
         const reportDir = '.nocaflow/initialization/plans/failed/report';
         await fs.mkdir(reportDir, { recursive: true });
 
-        const recentReportPath = path.join(reportDir, 'plan1.partA.report.md');
-        const oldReportPath = path.join(reportDir, 'plan2.partB.report.md');
+        const recentReportPath = path.join(reportDir, 'a1b2c3.d4e5f6.report.md');
+        const oldReportPath = path.join(reportDir, 'g7h8i9.j0k1l2.report.md');
         await fs.writeFile(recentReportPath, '## Summary\n\nRecent failure.');
         await fs.writeFile(oldReportPath, '## Summary\n\nOld failure.');
 
@@ -98,20 +98,20 @@ describe('unit/utils/fs', () => {
         const reports = await getFailedReports(24);
 
         expect(reports).toHaveLength(1);
-        expect(reports[0].planId).toBe('plan1');
+        expect(reports[0].planId).toBe('a1b2c3');
       });
 
       it('should correctly parse report details from filename and content', async () => {
         const reportDir = '.nocaflow/development/plans/failed/report';
         await fs.mkdir(reportDir, { recursive: true });
-        const reportPath = path.join(reportDir, 'plan1.partA.report.md');
+        const reportPath = path.join(reportDir, 'b2c3d4.e5f6a7.report.md');
         await fs.writeFile(reportPath, '## Summary\n\nThis is the reason.');
 
         const reports = await getFailedReports(1);
 
         expect(reports).toHaveLength(1);
-        expect(reports[0].planId).toBe('plan1');
-        expect(reports[0].partId).toBe('partA');
+        expect(reports[0].planId).toBe('b2c3d4');
+        expect(reports[0].partId).toBe('e5f6a7');
         expect(reports[0].reason).toBe('This is the reason.');
         expect(reports[0].reportPath).toBe(reportPath);
       });
@@ -119,7 +119,7 @@ describe('unit/utils/fs', () => {
       it('should handle report files with no summary section', async () => {
         const reportDir = '.nocaflow/initialization/plans/failed/report';
         await fs.mkdir(reportDir, { recursive: true });
-        const reportPath = path.join(reportDir, 'plan1.partA.report.md');
+        const reportPath = path.join(reportDir, 'c3d4e5.f6a7b8.report.md');
         await fs.writeFile(reportPath, 'Some content without a summary header.');
 
         const reports = await getFailedReports(1);
@@ -149,12 +149,12 @@ describe('unit/utils/fs', () => {
       it('should ignore non-markdown report files', async () => {
         const reportDir = '.nocaflow/initialization/plans/failed/report';
         await fs.mkdir(reportDir, { recursive: true });
-        await fs.writeFile(path.join(reportDir, 'plan1.partA.report.md'), '## Summary\n\nReport');
+        await fs.writeFile(path.join(reportDir, 'd4e5f6.a7b8c9.report.md'), '## Summary\n\nReport');
         await fs.writeFile(path.join(reportDir, 'notes.txt'), 'some notes');
 
         const reports = await getFailedReports(1);
         expect(reports).toHaveLength(1);
-        expect(reports[0].planId).toBe('plan1');
+        expect(reports[0].planId).toBe('d4e5f6');
       });
     });
 

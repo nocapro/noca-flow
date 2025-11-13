@@ -1,0 +1,1008 @@
+uuid: b07bb862-3329-4d6d-8178-5a49b2f2cc30
+projectId: noca-flow
+createdAt: '2025-11-13T03:59:13.315Z'
+gitCommitMsg: >-
+  refactor: Standardize on 6-digit IDs and .plan.yml filenames
+
+  This commit enforces consistency across the entire system for identifiers and
+  plan file naming conventions.
+
+  - All agent prompts (`plan.agent.md`, `qa.agent.md`) now reflect the
+    6-digit hex ID standard and `{plan_id}` usage.
+  - The `getPhaseStats` utility in `fs.ts` now correctly counts
+    `.plan.yml` files instead of generic `.yml` files.
+  - Unit and E2E tests have been updated to use the standardized
+    6-digit IDs and `{id}.plan.yml` filenames, ensuring the test suite
+    accurately reflects and validates the system's conventions.
+promptSummary: >-
+  The user requested a refactor to standardize all IDs to 6-digit hex strings
+  and all plan filenames to the `{plan.id}.plan.yml` format.
+reasoning:
+  - >-
+    ok, time to get this house in order. uuids, random filenames... chaos. we're
+    standardizing on 6-digit hex ids and `{id}.plan.yml` filenames everywhere.
+    prompts, tests, the whole stack. this is about consistency and making sure
+    the agents don't get confused by our own mess.
+  - >-
+    first, fix the agent prompts. they're the source of truth. garbage in,
+    garbage out. `plan.agent.md` needs to show the correct id format in its
+    example.
+  - next, `qa.agent.md` is using `{plan_uuid}`. wrong. fix it to `{plan_id}`.
+  - >-
+    with the new `.plan.yml` extension, `getPhaseStats` is now broken. it's only
+    looking for `.yml`. easy fix.
+  - >-
+    now, crush the tests. they're using dummy names like `a.yml` and `plan1`.
+    unacceptable. they need to reflect the new reality.
+  - finally, the e2e tests need the same treatment. no more `p1.yml` nonsense.
+operations:
+  - type: write
+    path: src/scaffold/files/plan.agent.md
+    content: |
+      <<<<<<< SEARCH
+        parts:
+          - id: 'part1-uuid'
+            status: 'todo'
+            isolation: true # only true if you think git worktree isolation needed
+            agent_id: 'random-6' # pre-assign agent swarm id
+            name: 'Part 1: Descriptive Name'
+            reason: |
+              A multi-line reason why this part is needed.
+            steps:
+              - id: 'step1-uuid'
+                status: 'todo'
+                name: 'Step Name (e.g., 1. Action Description)'
+                reason: |
+                  A multi-line reason for this step.
+                files:
+                  - file1.ext
+                operations:
+                  - 'Bullet-point style operation 1: Describe the change clearly.'
+                  - 'Bullet-point style operation 2: Use single quotes for code snippets like `functionName()`.'
+              - id: 'step2-uuid'
+                status: 'todo'
+                name: 'Another Step Name'
+                reason: |
+                  Reason here.
+                files: []
+                operations:
+                  - 'Operation description.'
+            context_files:
+              compact:
+                - file1.ext
+              medium:
+                - file1.ext
+                - file2.ext
+              extended:
+                - file1.ext
+                - file2.ext
+                - file3.ext
+          - id: 'part2-uuid'
+            status: 'todo'
+            isolation: false
+            agent_id: 'random-6'
+            depends_on: ['part1-uuid'] # List of part IDs that must be `done` before this part can start.
+            name: 'Part 2: Another Descriptive Name'
+      =======
+        parts:
+          - id: 'a1b2c3'
+            status: 'todo'
+            isolation: true # only true if you think git worktree isolation needed
+            agent_id: 'd4e5f6' # pre-assign agent swarm id
+            name: 'Part 1: Descriptive Name'
+            reason: |
+              A multi-line reason why this part is needed.
+            steps:
+              - id: 's1t2e3'
+                status: 'todo'
+                name: 'Step Name (e.g., 1. Action Description)'
+                reason: |
+                  A multi-line reason for this step.
+                files:
+                  - file1.ext
+                operations:
+                  - 'Bullet-point style operation 1: Describe the change clearly.'
+                  - 'Bullet-point style operation 2: Use single quotes for code snippets like `functionName()`.'
+              - id: 's4t5e6'
+                status: 'todo'
+                name: 'Another Step Name'
+                reason: |
+                  Reason here.
+                files: []
+                operations:
+                  - 'Operation description.'
+            context_files:
+              compact:
+                - file1.ext
+              medium:
+                - file1.ext
+                - file2.ext
+              extended:
+                - file1.ext
+                - file2.ext
+                - file3.ext
+          - id: 'g7h8i9'
+            status: 'todo'
+            isolation: false
+            agent_id: 'd4e5f6'
+            depends_on: ['a1b2c3'] # List of part IDs that must be `done` before this part can start.
+            name: 'Part 2: Another Descriptive Name'
+      >>>>>>> REPLACE
+    patchStrategy: search-replace
+  - type: write
+    path: src/scaffold/files/qa.agent.md
+    content: |
+      <<<<<<< SEARCH
+          - For each **failed** part, create report: `.nocaflow/{PHASE}/plans/failed/report/{plan_uuid}.{part_uuid}.report.md`.
+      =======
+          - For each **failed** part, create report: `.nocaflow/{PHASE}/plans/failed/report/{plan_id}.{part_id}.report.md`.
+      >>>>>>> REPLACE
+    patchStrategy: search-replace
+  - type: write
+    path: src/utils/fs.ts
+    content: |
+      <<<<<<< SEARCH
+              // A plan is represented by its .yml file. This counts plans in each state directory.
+              const count = files.filter(f => f.endsWith('.yml')).length;
+      =======
+              // A plan is represented by its .plan.yml file. This counts plans in each state directory.
+              const count = files.filter(f => f.endsWith('.plan.yml')).length;
+      >>>>>>> REPLACE
+    patchStrategy: search-replace
+  - type: write
+    path: test/unit/utils/fs.test.ts
+    content: >+
+      --- test/unit/utils/fs.test.ts
+
+      +++ test/unit/utils/fs.test.ts
+
+      @@ -19,10 +19,10 @@
+               await fs.mkdir('.nocaflow/initialization/plans/doing', { recursive: true });
+               await fs.mkdir('.nocaflow/development/plans/done', { recursive: true });
+       
+      -        await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml',
+      '');
+
+      -        await fs.writeFile('.nocaflow/initialization/plans/todo/b.yml',
+      '');
+
+      -        await fs.writeFile('.nocaflow/initialization/plans/doing/c.yml',
+      '');
+
+      -        await fs.writeFile('.nocaflow/development/plans/done/d.yml', '');
+
+      +        await
+      fs.writeFile('.nocaflow/initialization/plans/todo/11aa22.plan.yml', '');
+
+      +        await
+      fs.writeFile('.nocaflow/initialization/plans/todo/33bb44.plan.yml', '');
+
+      +        await
+      fs.writeFile('.nocaflow/initialization/plans/doing/55cc66.plan.yml', '');
+
+      +        await
+      fs.writeFile('.nocaflow/development/plans/done/77dd88.plan.yml', '');
+       
+               const stats = await getPhaseStats();
+       
+      @@ -48,7 +48,7 @@
+       
+             it('should handle missing status subdirectories gracefully', async () => {
+               await fs.mkdir('.nocaflow/initialization/plans/todo', { recursive: true });
+      -        await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml',
+      '');
+
+      +        await
+      fs.writeFile('.nocaflow/initialization/plans/todo/99ee00.plan.yml', '');
+       
+               const stats = await getPhaseStats();
+       
+      @@ -60,7 +60,7 @@
+       
+             it('should handle a missing phase directory gracefully', async () => {
+               await fs.mkdir('.nocaflow/initialization/plans/todo', { recursive: true });
+      -        await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml',
+      '');
+
+      +        await
+      fs.writeFile('.nocaflow/initialization/plans/todo/aabbcc.plan.yml', '');
+       
+               const stats = await getPhaseStats();
+       
+      @@ -70,8 +70,8 @@
+       
+             it('should ignore non-YAML files', async () => {
+               await fs.mkdir('.nocaflow/development/plans/todo', { recursive: true });
+      -        await fs.writeFile('.nocaflow/development/plans/todo/plan1.yml',
+      '');
+
+      -        await fs.writeFile('.nocaflow/development/plans/todo/notes.txt',
+      '');
+
+      +        await
+      fs.writeFile('.nocaflow/development/plans/todo/ddee00.plan.yml', '');
+
+      +        await fs.writeFile('.nocaflow/development/plans/todo/notes.txt',
+      '');
+       
+               const stats = await getPhaseStats();
+       
+      @@ -85,9 +85,9 @@
+               const reportDir = '.nocaflow/initialization/plans/failed/report';
+               await fs.mkdir(reportDir, { recursive: true });
+       
+      -        const recentReportPath = path.join(reportDir,
+      'plan1.partA.report.md');
+
+      -        const oldReportPath = path.join(reportDir,
+      'plan2.partB.report.md');
+
+      +        const recentReportPath = path.join(reportDir,
+      'a1b2c3.d4e5f6.report.md');
+
+      +        const oldReportPath = path.join(reportDir,
+      'g7h8i9.j0k1l2.report.md');
+               await fs.writeFile(recentReportPath, '## Summary\n\nRecent failure.');
+               await fs.writeFile(oldReportPath, '## Summary\n\nOld failure.');
+       
+      @@ -98,23 +98,23 @@
+               const reports = await getFailedReports(24);
+       
+               expect(reports).toHaveLength(1);
+      -        expect(reports[0].planId).toBe('plan1');
+
+      +        expect(reports[0].planId).toBe('a1b2c3');
+             });
+       
+             it('should correctly parse report details from filename and content', async () => {
+               const reportDir = '.nocaflow/development/plans/failed/report';
+               await fs.mkdir(reportDir, { recursive: true });
+      -        const reportPath = path.join(reportDir, 'plan1.partA.report.md');
+
+      +        const reportPath = path.join(reportDir,
+      'b2c3d4.e5f6a7.report.md');
+               await fs.writeFile(reportPath, '## Summary\n\nThis is the reason.');
+       
+               const reports = await getFailedReports(1);
+       
+               expect(reports).toHaveLength(1);
+      -        expect(reports[0].planId).toBe('plan1');
+
+      -        expect(reports[0].partId).toBe('partA');
+
+      +        expect(reports[0].planId).toBe('b2c3d4');
+
+      +        expect(reports[0].partId).toBe('e5f6a7');
+               expect(reports[0].reason).toBe('This is the reason.');
+               expect(reports[0].reportPath).toBe(reportPath);
+             });
+       
+             it('should handle report files with no summary section', async () => {
+               const reportDir = '.nocaflow/initialization/plans/failed/report';
+               await fs.mkdir(reportDir, { recursive: true });
+      -        const reportPath = path.join(reportDir, 'plan1.partA.report.md');
+
+      +        const reportPath = path.join(reportDir,
+      'c3d4e5.f6a7b8.report.md');
+               await fs.writeFile(reportPath, 'Some content without a summary header.');
+       
+               const reports = await getFailedReports(1);
+      @@ -140,12 +140,12 @@
+             it('should ignore non-markdown report files', async () => {
+               const reportDir = '.nocaflow/initialization/plans/failed/report';
+               await fs.mkdir(reportDir, { recursive: true });
+      -        await fs.writeFile(path.join(reportDir, 'plan1.partA.report.md'),
+      '## Summary\n\nReport');
+
+      +        await fs.writeFile(path.join(reportDir,
+      'd4e5f6.a7b8c9.report.md'), '## Summary\n\nReport');
+               await fs.writeFile(path.join(reportDir, 'notes.txt'), 'some notes');
+       
+               const reports = await getFailedReports(1);
+               expect(reports).toHaveLength(1);
+      -        expect(reports[0].planId).toBe('plan1');
+
+      +        expect(reports[0].planId).toBe('d4e5f6');
+             });
+           });
+       
+
+    patchStrategy: standard-diff
+  - type: write
+    path: test/e2e/cli.test.ts
+    content: |
+      <<<<<<< SEARCH
+          it('should display the project state in an initialized directory', async () => {
+            await runCli('init');
+            await createDummyPlanFile('initialization', 'todo', 'plan1.yml');
+
+            const { stdout, code } = await runCli('state');
+      =======
+          it('should display the project state in an initialized directory', async () => {
+            await runCli('init');
+            await createDummyPlanFile('initialization', 'todo', 'e2e001.plan.yml');
+
+            const { stdout, code } = await runCli('state');
+      >>>>>>> REPLACE
+    patchStrategy: search-replace
+  - type: write
+    path: test/e2e/cli.test.ts
+    content: |
+      <<<<<<< SEARCH
+          it('should display a complex, multi-faceted state correctly', async () => {
+            await runCli('init');
+            await initGitRepo();
+
+            // Setup: Create various artifacts
+            await createDummyPlanFile('initialization', 'doing', 'p1.yml');
+            await createDummyPlanFile('development', 'done', 'p2.yml');
+            await createDummyFailedReport('initialization', 'f01', 'pA', 'Test failure');
+      =======
+          it('should display a complex, multi-faceted state correctly', async () => {
+            await runCli('init');
+            await initGitRepo();
+
+            // Setup: Create various artifacts
+            await createDummyPlanFile('initialization', 'doing', 'e2e002.plan.yml');
+            await createDummyPlanFile('development', 'done', 'e2e003.plan.yml');
+            await createDummyFailedReport('initialization', 'f01e01', 'abcdef', 'Test failure');
+      >>>>>>> REPLACE
+    patchStrategy: search-replace
+  - type: write
+    path: test/e2e/cli.test.ts
+    content: |
+      <<<<<<< SEARCH
+            expect(stdout).toContain('plan:f01 part:pA - "Test failure"');
+      =======
+            expect(stdout).toContain('plan:f01e01 part:abcdef - "Test failure"');
+      >>>>>>> REPLACE
+    patchStrategy: search-replace
+snapshot:
+  src/scaffold/files/plan.agent.md: >
+    you are master architect for complex refactor code. use hacker news language
+    style. your plan will be used by another intelligence for generating code
+    patches via parallel spawned agent swarms. 
+
+
+    ### INPUT PRIORITY
+
+    - `user.prompt.md`. The high-level objective. if any.
+
+    - **`SELF_PROMPT`**: `plan.prompt.md`. Your own decomposition methodology.
+
+    - **`SYSTEM_STATE_CMD`**: `nocaflow state`. The only source of truth for the
+    current phase.
+
+
+    ### DIRECTIVES
+
+    1.  Execute `nocaflow state` to see {current_phase} for target dir (e.g.,
+    `development/`).
+
+    2.  understand USER_PROMPT/SELF_PROMPT.
+
+    3.  you create the plan, reshape the plan in below yaml format.
+
+    4.  save to .nocaflow/{current_phase}/plans/todo/{plan.id}.plan.yml.
+
+    5.  Exit 0. The manager.agent will perceive the new plan file.
+
+
+    ### {plan.id}.plan.yml format
+
+
+    #  context_files: identify which files that has relevant context to be
+    included to another agent for the given scope(plan/parts) intention. to
+    prevent hallucination from llm
+
+     compact: # affected files on the scope of parts steps, or plan
+     medium: # affected files + additional context
+     extended: # affected files + additional context + more extended
+
+    ```yaml
+
+    plan:
+      id: 'generate 6 digit random id'
+      status: 'todo'  # Must be one of: todo, doing, done, cancel
+      title: 'A short, descriptive title for the master plan'
+      introduction: |
+        A multi-line introduction paragraph explaining the overall goal and high-level approach. Keep it 2-4 paragraphs.
+      parts:
+        - id: 'part1-uuid'
+          status: 'todo'
+          isolation: true # only true if you think git worktree isolation needed
+          agent_id: 'random-6' # pre-assign agent swarm id
+          name: 'Part 1: Descriptive Name'
+          reason: |
+            A multi-line reason why this part is needed.
+          steps:
+            - id: 'step1-uuid'
+              status: 'todo'
+              name: 'Step Name (e.g., 1. Action Description)'
+              reason: |
+                A multi-line reason for this step.
+              files:
+                - file1.ext
+              operations:
+                - 'Bullet-point style operation 1: Describe the change clearly.'
+                - 'Bullet-point style operation 2: Use single quotes for code snippets like `functionName()`.'
+            - id: 'step2-uuid'
+              status: 'todo'
+              name: 'Another Step Name'
+              reason: |
+                Reason here.
+              files: []
+              operations:
+                - 'Operation description.'
+          context_files:
+            compact:
+              - file1.ext
+            medium:
+              - file1.ext
+              - file2.ext
+            extended:
+              - file1.ext
+              - file2.ext
+              - file3.ext
+        - id: 'part2-uuid'
+          status: 'todo'
+          isolation: false
+          agent_id: 'random-6'
+          depends_on: ['part1-uuid'] # List of part IDs that must be `done` before this part can start.
+          name: 'Part 2: Another Descriptive Name'
+          reason: |
+            Reason for the part.
+          steps:
+            # Similar structure as above, with uuid and status for each step
+          context_files:
+            compact:
+              - file1.ext
+            medium:
+              - file1.ext
+            extended:
+              - file1.ext
+              - file2.ext
+      conclusion: |
+        A multi-line conclusion summarizing benefits and impact.
+      context_files:
+        compact: # affected files
+          - file1.ext
+        medium: # affected files + additional context
+          - file1.ext
+          - file2.ext
+        extended: # affected files + additional context + more extended context
+          - file1.ext
+          - file2.ext
+          - file3.ext
+    ```
+  src/scaffold/files/qa.agent.md: >
+    You are `qa.agent`. Gatekeeper. Stateless. Idempotent. Judgment is final.
+    Your output is binary: `done` or `failed`. You verify technical compliance
+    *and* spec alignment. You do not fix.
+
+
+    ### INPUTS
+
+    - **PLAN_YAML**: Path to `*.plan.yml` in `review/`.
+
+    - **RULES_FILE**: Path to `{phase}.phase.rule.md`.
+
+    - **PHASE**: Current phase name (e.g., `development`).
+
+    - **CONTEXT_FILES**: From `plan.context_files`. May include user specs,
+    docs.
+
+
+    ### Verification Protocol
+
+    1.  **Ingest**: Load `PLAN_YAML`, `RULES_FILE`. Read plan introduction, part
+    reasons, and all `context_files`. The user's goal is the primary objective.
+
+    2.  **Setup**: `git checkout main`, `git pull`. Ensure workspace is clean
+    and up-to-date. Verification runs on the integrated mainline, not isolated
+    worktrees.
+
+    3.  **Iterate & Verify**: For each `part` in `PLAN_YAML`:
+        a. **Identify Commit**: Find commit(s) associated with `part.id`.
+        b. **Phase-Specific Audit**: Execute checks based on `PHASE`.
+            - **If `PHASE` is `initialization`**:
+                - **Blueprint Audit**: For scaffold parts, `TODO` instructions must be comprehensive, unambiguous, and sufficient for production-ready implementation per user specs.
+                - **Completion Audit**: For worker parts, `git show {commit_hash}` must prove the `/** TODO: ... */` block for the `part.id` was removed. This is the primary success signal. Non-removal is an automatic failure.
+            - **If `PHASE` is `development`**:
+                - **Technical Debt Audit**: Reject code that introduces obvious tech debt (e.g., violations of DRY, "band-aid" fixes, commented-out code).
+        c. **Semantic Audit**:
+           - Analyze `git show {commit_hash}` diff against the plan's stated goals and `CONTEXT_FILES`.
+           - **Crux**: Does the code logically fulfill the spec? Misinterpretation is failure.
+        d. **Technical Audit**:
+           - **Spec Check**: Run `npm run lint`, `npm run format -- --check`. Must exit 0.
+           - **Execution Check**: Run `npm test`. Must exit 0. Parse coverage if required by rules.
+           - **VCS Audit**: `git log -1 {commit_hash}`. Commit message must follow Conventional Commits from `RULES_FILE`.
+        e. **Record Verdict**: Store pass/fail for this `part.id`, noting which audit failed (phase-specific, semantic, or technical).
+
+    ### Resolution Protocol
+
+    1.  **Synthesize**: Review all part verdicts.
+
+    2.  **Report Failures**:
+        - For each **failed** part, create report: `.nocaflow/{PHASE}/plans/failed/report/{plan_uuid}.{part_uuid}.report.md`.
+        - Report must contain specific rule violated (semantic or technical) and relevant context (e.g., stdout/stderr, diff snippet, reasoning for spec mismatch).
+    3.  **Update State (Atomic Write)**:
+        - Re-read `PLAN_YAML` to avoid stale writes.
+        - Atomically update status for *every* reviewed part to `done` or `failed`.
+    4.  **Log & Exit**: Write concise summary of verdicts for all parts to
+    `.nocaflow/{PHASE}/agent-log/{plan_id}.qa.log`. Exit 0.
+  src/utils/fs.ts: >-
+    import path from 'path';
+
+    import fs from 'fs/promises';
+
+    import yaml from 'js-yaml';
+
+    import dayjs from 'dayjs';
+
+    import { Plan } from '../models/plan';
+
+
+    export interface PhaseStats {
+      [phaseName: string]: {
+        todo: number;
+        doing: number;
+        review: number;
+        failed: number;
+        done: number;
+        total: number;
+      };
+    }
+
+
+    export interface FailedReport {
+      planId: string;
+      partId: string | undefined;
+      reason: string;
+      reportPath: string;
+    }
+
+
+    /**
+     * @description Reads all plan files from all phases and aggregates stats.
+     * @returns An object containing plan counts for each status in each phase.
+     */
+    export const getPhaseStats = async (): Promise<PhaseStats> => {
+      const phases = ['initialization', 'development'];
+      const statuses: (keyof PhaseStats[string])[] = [
+        'todo',
+        'doing',
+        'review',
+        'failed',
+        'done',
+      ];
+      const stats: PhaseStats = {};
+
+      for (const phase of phases) {
+        stats[phase] = { todo: 0, doing: 0, review: 0, failed: 0, done: 0, total: 0 };
+        for (const status of statuses) {
+          const dirPath = path.join('.nocaflow', phase, 'plans', status);
+          try {
+            const files = await fs.readdir(dirPath);
+            // A plan is represented by its .yml file. This counts plans in each state directory.
+            const count = files.filter(f => f.endsWith('.yml')).length;
+            stats[phase][status] = count;
+            stats[phase].total += count;
+          } catch (error) {
+            // Directory likely doesn't exist, count is 0.
+          }
+        }
+      }
+      return stats;
+    };
+
+
+    /**
+     * @description Scans the failed reports directory for recent failures.
+     * @param hours - The lookback period in hours.
+     * @returns A list of failed report details.
+     */
+    export const getFailedReports = async (hours: number):
+    Promise<FailedReport[]> => {
+      const phases = ['initialization', 'development'];
+      const reports: FailedReport[] = [];
+      const since = dayjs().subtract(hours, 'hour');
+
+      for (const phase of phases) {
+        const reportDir = path.join('.nocaflow', phase, 'plans', 'failed', 'report');
+        try {
+          const files = await fs.readdir(reportDir);
+          for (const file of files) {
+            if (!file.endsWith('.report.md')) continue;
+            const filePath = path.join(reportDir, file);
+            const stats = await fs.stat(filePath);
+            if (dayjs(stats.mtime).isAfter(since)) {
+              const content = await fs.readFile(filePath, 'utf-8');
+              const summaryMatch = content.match(/## Summary\s*\n\s*([\s\S]*?)(?=\n##|$)/);
+              const reason = summaryMatch ? summaryMatch[1].trim() : 'Could not parse summary.';
+              const parts = file.split('.');
+              const planId = parts[0] || '';
+              const partId =
+                parts.length >= 4 && parts[parts.length - 2] === 'report' ? parts[1] : undefined;
+              reports.push({ planId, partId, reason, reportPath: filePath });
+            }
+          }
+        } catch (error) {
+          // dir may not exist
+        }
+      }
+      return reports;
+    };
+
+
+    /**
+     * @description Reads and parses a YAML plan file.
+     * @param filePath - The path to the plan.yml file.
+     * @returns The parsed Plan object.
+     */
+    export const readPlan = async (filePath: string): Promise<Plan> => {
+      const fileContent = await fs.readFile(filePath, 'utf-8');
+      const plan = yaml.load(fileContent) as Plan;
+      return plan;
+    };
+  test/e2e/cli.test.ts: >-
+    import { runCli, setupTestDirectory, createDummyPlanFile,
+    createDummyFailedReport, initGitRepo } from '../test.util';
+
+    import fs from 'fs/promises';
+
+    import { exec as execCallback } from 'child_process';
+
+    import path from 'path';
+
+    import { promisify } from 'util';
+
+    import { platform } from '../../src/utils/platform';
+
+
+    const promisedExec = promisify(execCallback);
+
+
+
+    describe('e2e/cli', () => {
+      let cleanup: () => Promise<void>;
+      let testDir: string;
+
+      beforeAll(async () => {
+        try {
+          await promisedExec('npm run build');
+        } catch (e) {
+          console.error('Failed to build project for E2E tests:', e);
+          process.exit(1);
+        }
+      }, 60000);
+
+      beforeEach(async () => {
+        const { cleanup: c, testDir: td } = await setupTestDirectory();
+        cleanup = c;
+        testDir = td;
+      });
+
+      afterEach(async () => {
+        if (cleanup) {
+          await cleanup();
+        }
+      });
+
+      describe('init command', () => {
+        it('should initialize a new project structure', async () => {
+          const { stderr, code } = await runCli('init');
+
+          expect(stderr).toContain('nocaflow project initialized successfully');
+          expect(code).toBe(0);
+
+          const expectedFile = path.join(testDir, '.nocaflow/initialization/plans/todo/.gitkeep');
+          await expect(fs.access(expectedFile)).resolves.toBeUndefined();
+        });
+
+        it('should show a warning if the project is already initialized', async () => {
+          await runCli('init'); // Run once to initialize
+          const { stderr, code } = await runCli('init');
+
+          expect(stderr).toContain("'.nocaflow' directory already exists. Initialization skipped.");
+          expect(code).toBe(0); // Graceful exit on warning
+        });
+      });
+
+      describe('state command', () => {
+        it('should display the project state in an initialized directory', async () => {
+          await runCli('init');
+          await createDummyPlanFile('initialization', 'todo', 'plan1.yml');
+
+          const { stdout, code } = await runCli('state');
+
+          expect(stdout).toContain('== nocaflow State');
+          expect(stdout).toContain('Phase Progress');
+          expect(stdout).toContain('Current Phase: initialization');
+          expect(stdout).toContain('todo: 1');
+          expect(code).toBe(0);
+        });
+
+        it('should display a complex, multi-faceted state correctly', async () => {
+          await runCli('init');
+          await initGitRepo();
+
+          // Setup: Create various artifacts
+          await createDummyPlanFile('initialization', 'doing', 'p1.yml');
+          await createDummyPlanFile('development', 'done', 'p2.yml');
+          await createDummyFailedReport('initialization', 'f01', 'pA', 'Test failure');
+
+          const logDir = '.nocaflow/development/agent-log';
+          await fs.mkdir(logDir, { recursive: true });
+          const logContent = `2023-10-27T10:00:00.000Z [DONE|DEV|agent-abc] plan:plan-e2e - Log message`;
+          await fs.writeFile(path.join(logDir, 'test.log'), logContent);
+
+          const tmuxSessionName = 'dev-e2e-part-xyz';
+          const canRunTmux = await platform.commandExists('tmux');
+          if (canRunTmux) {
+            await platform.runCommand(`tmux new-session -d -s ${tmuxSessionName} "sleep 15"`);
+          }
+
+          // Act: Run the state command
+          let stdout: string, code: number;
+          try {
+            const result = await runCli('state');
+            stdout = result.stdout;
+            code = result.code;
+          } finally {
+            // Teardown: ensure tmux session is killed
+            if (canRunTmux) {
+              await platform.runCommand(`tmux kill-session -t ${tmuxSessionName} || true`);
+            }
+          }
+
+          expect(code).toBe(0);
+          // Assert on all sections
+          expect(stdout).toContain('Current Phase: development');
+          expect(stdout).toContain('[INITIALIZATION]'.padEnd(18) + '[--------------------] (0/1 plans done)');
+          expect(stdout).toContain('[DEVELOPMENT]'.padEnd(18) + '[▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇] (1/1 plans done)');
+          if (canRunTmux) {
+            expect(stdout).toContain('part:e2e-part-xyz');
+          }
+          expect(stdout).toContain('plan:plan-e2e - Log message');
+          expect(stdout).toContain('plan:f01 part:pA - "Test failure"');
+          expect(stdout).toContain('Initial commit');
+        });
+
+        it('should show a zero-state when run in a non-initialized directory', async () => {
+          const { stdout, stderr, code } = await runCli('state');
+          
+          expect(stderr).toBe('');
+          expect(code).toBe(0);
+          expect(stdout).toContain('Current Phase: initialization');
+          expect(stdout).toContain('(0/0 plans done)');
+          expect(stdout).toContain('No active agents.');
+          expect(stdout).toContain('No recent activity.');
+          expect(stdout).toContain('No failed reports in the last 24 hours.');
+        });
+      });
+
+      describe('no command', () => {
+        it('should display help when no command is provided', async () => {
+          const { stderr } = await runCli('');
+          expect(stderr).toContain('Commands:');
+          expect(stderr).toContain('init');
+          expect(stderr).toContain('state');
+          expect(stderr).toContain('You need at least one command before moving on');
+        });
+
+        it('should display help when --help flag is used', async () => {
+          const generalHelp = await runCli('--help');
+          expect(generalHelp.stdout).toContain('Show help');
+
+          const stateHelp = await runCli('state --help');
+          expect(stateHelp.stdout).toContain('Display the current state of the nocaflow project');
+        });
+
+        it('should show an error for an unknown command', async () => {
+          const { stderr } = await runCli('nonexistent-command');
+          expect(stderr).toContain('Unknown argument: nonexistent-command');
+        });
+      });
+    });
+  test/unit/utils/fs.test.ts: >-
+    import { getPhaseStats, getFailedReports, readPlan } from
+    '../../../src/utils/fs';
+
+    import { setupTestDirectory } from '../../test.util';
+
+    import fs from 'fs/promises';
+
+    import path from 'path';
+
+
+    describe('unit/utils/fs', () => {
+      let cleanup: () => Promise<void>;
+
+      beforeEach(async () => {
+        const { cleanup: c } = await setupTestDirectory();
+        cleanup = c;
+      });
+
+      afterEach(async () => {
+        await cleanup();
+      });
+
+      describe('getPhaseStats', () => {
+          it('should correctly count plans across different statuses and phases', async () => {
+            await fs.mkdir('.nocaflow/initialization/plans/todo', { recursive: true });
+            await fs.mkdir('.nocaflow/initialization/plans/doing', { recursive: true });
+            await fs.mkdir('.nocaflow/development/plans/done', { recursive: true });
+
+            await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml', '');
+            await fs.writeFile('.nocaflow/initialization/plans/todo/b.yml', '');
+            await fs.writeFile('.nocaflow/initialization/plans/doing/c.yml', '');
+            await fs.writeFile('.nocaflow/development/plans/done/d.yml', '');
+
+            const stats = await getPhaseStats();
+
+            expect(stats.initialization.todo).toBe(2);
+            expect(stats.initialization.doing).toBe(1);
+            expect(stats.initialization.done).toBe(0);
+            expect(stats.initialization.total).toBe(3);
+
+            expect(stats.development.done).toBe(1);
+            expect(stats.development.total).toBe(1);
+          });
+
+          it('should return all zeros for an empty directory structure', async () => {
+            await fs.mkdir('.nocaflow/initialization/plans', { recursive: true });
+            await fs.mkdir('.nocaflow/development/plans', { recursive: true });
+
+            const stats = await getPhaseStats();
+
+            expect(stats.initialization.total).toBe(0);
+            expect(stats.development.total).toBe(0);
+          });
+
+          it('should handle missing status subdirectories gracefully', async () => {
+            await fs.mkdir('.nocaflow/initialization/plans/todo', { recursive: true });
+            await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml', '');
+
+            const stats = await getPhaseStats();
+
+            expect(stats.initialization.todo).toBe(1);
+            expect(stats.initialization.doing).toBe(0);
+            expect(stats.initialization.done).toBe(0);
+            expect(stats.initialization.total).toBe(1);
+          });
+
+          it('should handle a missing phase directory gracefully', async () => {
+            await fs.mkdir('.nocaflow/initialization/plans/todo', { recursive: true });
+            await fs.writeFile('.nocaflow/initialization/plans/todo/a.yml', '');
+
+            const stats = await getPhaseStats();
+
+            expect(stats.initialization.total).toBe(1);
+            expect(stats.development.total).toBe(0);
+          });
+
+          it('should ignore non-YAML files', async () => {
+            await fs.mkdir('.nocaflow/development/plans/todo', { recursive: true });
+            await fs.writeFile('.nocaflow/development/plans/todo/plan1.yml', '');
+            await fs.writeFile('.nocaflow/development/plans/todo/notes.txt', '');
+
+            const stats = await getPhaseStats();
+
+            expect(stats.development.todo).toBe(1);
+            expect(stats.development.total).toBe(1);
+          });
+        });
+
+        describe('getFailedReports', () => {
+          it('should only return reports within the lookback period', async () => {
+            const reportDir = '.nocaflow/initialization/plans/failed/report';
+            await fs.mkdir(reportDir, { recursive: true });
+
+            const recentReportPath = path.join(reportDir, 'plan1.partA.report.md');
+            const oldReportPath = path.join(reportDir, 'plan2.partB.report.md');
+            await fs.writeFile(recentReportPath, '## Summary\n\nRecent failure.');
+            await fs.writeFile(oldReportPath, '## Summary\n\nOld failure.');
+
+            const twoDaysAgo = new Date();
+            twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+            await fs.utimes(oldReportPath, twoDaysAgo, twoDaysAgo);
+
+            const reports = await getFailedReports(24);
+
+            expect(reports).toHaveLength(1);
+            expect(reports[0].planId).toBe('plan1');
+          });
+
+          it('should correctly parse report details from filename and content', async () => {
+            const reportDir = '.nocaflow/development/plans/failed/report';
+            await fs.mkdir(reportDir, { recursive: true });
+            const reportPath = path.join(reportDir, 'plan1.partA.report.md');
+            await fs.writeFile(reportPath, '## Summary\n\nThis is the reason.');
+
+            const reports = await getFailedReports(1);
+
+            expect(reports).toHaveLength(1);
+            expect(reports[0].planId).toBe('plan1');
+            expect(reports[0].partId).toBe('partA');
+            expect(reports[0].reason).toBe('This is the reason.');
+            expect(reports[0].reportPath).toBe(reportPath);
+          });
+
+          it('should handle report files with no summary section', async () => {
+            const reportDir = '.nocaflow/initialization/plans/failed/report';
+            await fs.mkdir(reportDir, { recursive: true });
+            const reportPath = path.join(reportDir, 'plan1.partA.report.md');
+            await fs.writeFile(reportPath, 'Some content without a summary header.');
+
+            const reports = await getFailedReports(1);
+
+            expect(reports).toHaveLength(1);
+            expect(reports[0].reason).toBe('Could not parse summary.');
+          });
+
+          it('should return an empty array if the report directory does not exist', async () => {
+            const reports = await getFailedReports(24);
+            expect(reports).toEqual([]);
+          });
+
+          it('should gracefully handle malformed report filenames', async () => {
+            const reportDir = '.nocaflow/development/plans/failed/report';
+            await fs.mkdir(reportDir, { recursive: true });
+            const reportPath = path.join(reportDir, 'malformed.report.md');
+            await fs.writeFile(reportPath, '## Summary\n\nReason.');
+
+            const reports = await getFailedReports(1);
+
+            expect(reports).toHaveLength(1);
+            expect(reports[0].planId).toBe('malformed');
+            expect(reports[0].partId).toBeUndefined();
+          });
+
+          it('should ignore non-markdown report files', async () => {
+            const reportDir = '.nocaflow/initialization/plans/failed/report';
+            await fs.mkdir(reportDir, { recursive: true });
+            await fs.writeFile(path.join(reportDir, 'plan1.partA.report.md'), '## Summary\n\nReport');
+            await fs.writeFile(path.join(reportDir, 'notes.txt'), 'some notes');
+
+            const reports = await getFailedReports(1);
+            expect(reports).toHaveLength(1);
+            expect(reports[0].planId).toBe('plan1');
+          });
+        });
+
+        describe('readPlan', () => {
+          it('should parse a valid plan file', async () => {
+            const planContent = `
+      plan:
+        id: 'test-plan'
+        status: 'todo'
+        title: 'Test Plan'
+        introduction: 'Intro'
+        parts: []
+        conclusion: 'Conclusion'
+        context_files: { compact: [], medium: [], extended: [] }
+      `;
+            await fs.writeFile('plan.yml', planContent);
+            const plan = await readPlan('plan.yml');
+            expect(plan.plan.id).toBe('test-plan');
+            expect(plan.plan.title).toBe('Test Plan');
+          });
+
+          it('should throw an error for a non-existent file', async () => {
+            await expect(readPlan('non-existent-plan.yml')).rejects.toThrow();
+          });
+
+          it('should throw an error for invalid YAML', async () => {
+            await fs.writeFile('bad-plan.yml', 'key: [a, b,');
+            await expect(readPlan('bad-plan.yml')).rejects.toThrow();
+          });
+      });
+    });
+approved: false
+linesAdded: null
+linesRemoved: null
+linesDifference: null
+gitCommittedAt: null
+status: pending
+id: 48

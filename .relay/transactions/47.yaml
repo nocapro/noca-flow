@@ -1,0 +1,816 @@
+uuid: d8e5e77b-6c0e-4f1b-8e1c-a3f2b4c1d6b0
+projectId: noca-flow
+createdAt: '2025-11-13T03:50:06.679Z'
+gitCommitMsg: >-
+  feat: implement unified logger and error system
+
+  Introduces a centralized, multi-level logger that writes to stderr, separating
+  diagnostic output from program output (stdout). Also adds a custom
+  `NocaFlowError` for standardized error handling.
+
+  - Replaces all `console.log/warn/error` calls in the `init` command and
+    various utility functions with the new logger.
+  - Adds `logger.debug` calls in `catch` blocks of core utilities for
+    enhanced diagnostics when `NOCA_DEBUG` is set.
+  - Updates E2E tests to assert against `stderr` for log messages,
+    ensuring test suites remain robust after the change.
+promptSummary: >-
+  Implement a unified multi-level logger and error system and integrate it
+  across the codebase without failing tests.
+reasoning:
+  - >-
+    Right, time to rip out the `console.log` chaos and drop in a proper logger.
+    This makes our CLI output clean: `stdout` for stuff the user pipes, `stderr`
+    for our chatter. It also means our tests won't break when we add diagnostic
+    info.
+  - >-
+    First, create the new error and logger modules, with tests to keep them
+    honest.
+  - >-
+    Now, refactor `init.ts` to use the new logger. Every user-facing message now
+    goes through it.
+  - >-
+    Next, add non-intrusive `debug` logs to utils. These only fire when
+    `NOCA_DEBUG` is set, giving us deeper insight when needed.
+  - >-
+    Finally, update the E2E test to look for log output on `stderr` instead of
+    `stdout`.
+operations:
+  - type: write
+    path: src/utils/errors.ts
+    content: |-
+      /**
+       * Custom error class for application-specific errors.
+       */
+      export class NocaFlowError extends Error {
+        constructor(message: string) {
+          super(message);
+          this.name = 'NocaFlowError';
+        }
+      }
+    patchStrategy: replace
+  - type: write
+    path: src/utils/logger.ts
+    content: |-
+      import chalk from 'chalk';
+
+      const write = (message: string): void => {
+        // We write to stderr to separate diagnostic logs from program output (stdout).
+        process.stderr.write(message + '\n');
+      };
+
+      const info = (...args: unknown[]): void => {
+        const message = args.map(String).join(' ');
+        write(chalk.green('i ') + message);
+      };
+
+      const warn = (...args: unknown[]): void => {
+        const message = args.map(String).join(' ');
+        write(chalk.yellow('! ') + message);
+      };
+
+      const error = (...args: unknown[]): void => {
+        const message = args.map(String).join(' ');
+        write(chalk.red('✗ ') + message);
+      };
+
+      const debug = (...args: unknown[]): void => {
+        if (process.env.NOCA_DEBUG) {
+          const message = args.map(String).join(' ');
+          write(chalk.gray('d ') + message);
+        }
+      };
+
+      export const logger = {
+        info,
+        warn,
+        error,
+        debug,
+      };
+    patchStrategy: replace
+  - type: write
+    path: test/unit/utils/errors.test.ts
+    content: |-
+      import { NocaFlowError } from '../../../src/utils/errors';
+
+      describe('unit/utils/errors', () => {
+        it('should create an error with the correct name and message', () => {
+          const message = 'Something went wrong';
+          const err = new NocaFlowError(message);
+
+          expect(err).toBeInstanceOf(Error);
+          expect(err).toBeInstanceOf(NocaFlowError);
+          expect(err.name).toBe('NocaFlowError');
+          expect(err.message).toBe(message);
+        });
+      });
+    patchStrategy: replace
+  - type: write
+    path: test/unit/utils/logger.test.ts
+    content: |-
+      import { logger } from '../../../src/utils/logger';
+      import chalk from 'chalk';
+
+      describe('unit/utils/logger', () => {
+        let stderrSpy: jest.SpyInstance;
+
+        beforeEach(() => {
+          // Spy on process.stderr.write and mock its implementation
+          stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
+          // Disable chalk colors for consistent snapshot testing
+          chalk.level = 0;
+        });
+
+        afterEach(() => {
+          // Restore the original implementation
+          stderrSpy.mockRestore();
+          chalk.level = 1; // Or whatever default level you use
+          delete process.env.NOCA_DEBUG;
+        });
+
+        it('info() should write a formatted green message to stderr', () => {
+          logger.info('Test info message');
+          expect(stderrSpy).toHaveBeenCalledWith('i Test info message\n');
+        });
+
+        it('warn() should write a formatted yellow message to stderr', () => {
+          logger.warn('Test warn message');
+          expect(stderrSpy).toHaveBeenCalledWith('! Test warn message\n');
+        });
+
+        it('error() should write a formatted red message to stderr', () => {
+          logger.error('Test error message');
+          expect(stderrSpy).toHaveBeenCalledWith('✗ Test error message\n');
+        });
+
+        it('debug() should not write if NOCA_DEBUG is not set', () => {
+          logger.debug('Test debug message');
+          expect(stderrSpy).not.toHaveBeenCalled();
+        });
+
+        it('debug() should write a formatted gray message if NOCA_DEBUG is set', () => {
+          process.env.NOCA_DEBUG = '1';
+          logger.debug('Test debug message');
+          expect(stderrSpy).toHaveBeenCalledWith('d Test debug message\n');
+        });
+
+        it('should handle multiple arguments', () => {
+          logger.error('Error code:', 500, 'message:', 'Internal Server Error');
+          expect(stderrSpy).toHaveBeenCalledWith('✗ Error code: 500 message: Internal Server Error\n');
+        });
+      });
+    patchStrategy: replace
+  - type: write
+    path: src/commands/init.ts
+    content: >+
+      --- src/commands/init.ts
+
+      +++ src/commands/init.ts
+
+      @@ -1,10 +1,10 @@
+       import fs from 'fs/promises';
+       import path from 'path';
+      -import chalk from 'chalk';
+       import { EOL } from 'os';
+       import { simpleGit } from 'simple-git';
+       import { platform } from '../utils/platform';
+       import { isGitRepository } from '../utils/git';
+       import { copyScaffoldFiles, scaffoldFiles } from '../scaffold/templates';
+      +import { logger } from '../utils/logger';
+       
+       /**
+        * @description Handles the logic for the 'init' command.
+      @@ -15,7 +15,7 @@
+         for (const cmd of requiredCommands) {
+           const exists = await platform.commandExists(cmd);
+           if (!exists) {
+      -      console.error(chalk.red(`Error: ${cmd} is not installed. NocaFlow
+      requires git and tmux.`));
+
+      +      logger.error(`Error: ${cmd} is not installed. NocaFlow requires git
+      and tmux.`);
+             process.exit(1);
+           }
+         }
+      @@ -24,7 +24,7 @@
+         const rootDir = '.nocaflow';
+         try {
+           await fs.access(rootDir);
+      -    console.warn(chalk.yellow(`Warning: '${rootDir}' directory already
+      exists. Initialization skipped.`));
+
+      +    logger.warn(`'${rootDir}' directory already exists. Initialization
+      skipped.`);
+           process.exit(0);
+         } catch (error) {
+           // Directory does not exist, proceed.
+      @@ -34,14 +34,14 @@
+         try {
+           const isGitRepo = await isGitRepository();
+           if (!isGitRepo) {
+      -      console.log('No git repository found. Initializing...');
+
+      +      logger.info('No git repository found. Initializing...');
+             await simpleGit().init();
+      -      console.log(chalk.green('Git repository initialized.'));
+
+      +      logger.info('Git repository initialized.');
+           } else {
+      -      console.log('Existing git repository found.');
+
+      +      logger.info('Existing git repository found.');
+           }
+         } catch (error) {
+      -    console.error(chalk.red('Failed to initialize git repository:'), EOL,
+      error);
+
+      +    logger.error('Failed to initialize git repository:', EOL, error);
+           process.exit(1);
+         }
+       
+      @@ -74,14 +74,12 @@
+           // 5. Scaffold agent and rule files
+           await copyScaffoldFiles();
+       
+      -    console.log(chalk.green(' nocaflow project initialized successfully.
+      ✨'));
+
+      -    console.log(
+
+      -      `Created ${chalk.bold(rootDir)} directory structure and
+      ${chalk.bold(
+
+      -        scaffoldFiles.length,
+
+      -      )} agent/rule files.`,
+
+      +    logger.info('nocaflow project initialized successfully. ✨');
+
+      +    logger.info(
+
+      +      `Created '${rootDir}' directory structure and
+      ${scaffoldFiles.length} agent/rule files.`,
+           );
+         } catch (error) {
+      -    console.error(chalk.red('Failed to initialize nocaflow project:'),
+      EOL, error);
+
+      +    logger.error('Failed to initialize nocaflow project:', EOL, error);
+           process.exit(1);
+         }
+       };
+
+    patchStrategy: standard-diff
+  - type: write
+    path: src/utils/git.ts
+    content: |+
+      --- src/utils/git.ts
+      +++ src/utils/git.ts
+      @@ -2,6 +2,7 @@
+       import path from 'path';
+       import { platform } from './platform';
+       
+      +import { logger } from './logger';
+       export interface GitCommit {
+         hash: string;
+         worktree: string | null;
+      @@ -42,6 +43,7 @@
+       
+           return worktrees;
+         } catch (error) {
+      +    logger.debug('Failed to get git worktree list:', error);
+           return [];
+         }
+       };
+      @@ -95,6 +97,7 @@
+       
+           return commits;
+         } catch (error) {
+      +    logger.debug('Failed to get git log:', error);
+           return []; // Git not installed, not a git repo, or other error.
+         }
+       };
+      @@ -108,6 +111,7 @@
+           const git = simpleGit();
+           return await git.checkIsRepo();
+         } catch (error) {
+      +    logger.debug('Failed to check if is git repo:', error);
+           return false;
+         }
+       };
+
+    patchStrategy: standard-diff
+  - type: write
+    path: src/utils/platform.ts
+    content: >+
+      --- src/utils/platform.ts
+
+      +++ src/utils/platform.ts
+
+      @@ -2,6 +2,7 @@
+       import { promisify } from 'util';
+       import * as os from 'os';
+       
+      +import { logger } from './logger';
+       const exec = promisify(execCallback);
+       
+       export interface CommandResult {
+      @@ -22,6 +23,7 @@
+           // We want to capture stdout/stderr and the code, not crash.
+           const err = error as ExecException & { stdout: string; stderr: string };
+      +    logger.debug(`Command failed with code ${err.code}: ${command}`,
+      err);
+           return {
+             stdout: err.stdout,
+             stderr: err.stderr,
+
+    patchStrategy: standard-diff
+  - type: write
+    path: test/e2e/cli.test.ts
+    content: >+
+      --- test/e2e/cli.test.ts
+
+      +++ test/e2e/cli.test.ts
+
+      @@ -32,17 +32,17 @@
+       
+         describe('init command', () => {
+           it('should initialize a new project structure', async () => {
+      -      const { stdout, code } = await runCli('init');
+
+      +      const { stderr, code } = await runCli('init');
+       
+      -      expect(stdout).toContain('nocaflow project initialized
+      successfully');
+
+      +      expect(stderr).toContain('nocaflow project initialized
+      successfully');
+             expect(code).toBe(0);
+       
+             const expectedFile = path.join(testDir, '.nocaflow/initialization/plans/todo/.gitkeep');
+             await expect(fs.access(expectedFile)).resolves.toBeUndefined();
+           });
+       
+           it('should show a warning if the project is already initialized', async () => {
+      -      await fs.mkdir('.nocaflow'); // Manually create the directory
+
+      +      await runCli('init'); // Run once to initialize
+             const { stderr, code } = await runCli('init');
+       
+      -      expect(stderr).toContain("Warning: '.nocaflow' directory already
+      exists. Initialization skipped.");
+
+      +      expect(stderr).toContain("'.nocaflow' directory already exists.
+      Initialization skipped.");
+             expect(code).toBe(0); // Graceful exit on warning
+           });
+         });
+
+    patchStrategy: standard-diff
+snapshot:
+  src/utils/errors.ts: null
+  src/utils/logger.ts: null
+  test/unit/utils/errors.test.ts: null
+  test/unit/utils/logger.test.ts: null
+  src/commands/init.ts: >-
+    import fs from 'fs/promises';
+
+    import path from 'path';
+
+    import chalk from 'chalk';
+
+    import { EOL } from 'os';
+
+    import { simpleGit } from 'simple-git';
+
+    import { platform } from '../utils/platform';
+
+    import { isGitRepository } from '../utils/git';
+
+    import { copyScaffoldFiles, scaffoldFiles } from '../scaffold/templates';
+
+
+    /**
+     * @description Handles the logic for the 'init' command.
+     */
+    export const handleInitCommand = async (_argv: Record<string, unknown>):
+    Promise<void> => {
+      // 1. Prerequisite checks
+      const requiredCommands = ['git', 'tmux'];
+      for (const cmd of requiredCommands) {
+        const exists = await platform.commandExists(cmd);
+        if (!exists) {
+          console.error(chalk.red(`Error: ${cmd} is not installed. NocaFlow requires git and tmux.`));
+          process.exit(1);
+        }
+      }
+
+      // 2. Check for existing .nocaflow directory
+      const rootDir = '.nocaflow';
+      try {
+        await fs.access(rootDir);
+        console.warn(chalk.yellow(`Warning: '${rootDir}' directory already exists. Initialization skipped.`));
+        process.exit(0);
+      } catch (error) {
+        // Directory does not exist, proceed.
+      }
+
+      // 3. Initialize git repository if needed
+      try {
+        const isGitRepo = await isGitRepository();
+        if (!isGitRepo) {
+          console.log('No git repository found. Initializing...');
+          await simpleGit().init();
+          console.log(chalk.green('Git repository initialized.'));
+        } else {
+          console.log('Existing git repository found.');
+        }
+      } catch (error) {
+        console.error(chalk.red('Failed to initialize git repository:'), EOL, error);
+        process.exit(1);
+      }
+
+      // 4. Create directory structure
+      const phases = ['initialization', 'development'];
+      const planSubDirs = ['todo', 'doing', 'review', 'done', 'failed/report'];
+      const agentLogDir = 'agent-log';
+      const dirsToCreate: string[] = [];
+      const gitkeepFiles: string[] = [];
+
+      for (const phase of phases) {
+        const phaseBase = path.join(rootDir, phase);
+        const agentLogPath = path.join(phaseBase, agentLogDir);
+        dirsToCreate.push(agentLogPath);
+        gitkeepFiles.push(path.join(agentLogPath, '.gitkeep'));
+
+        const plansBase = path.join(phaseBase, 'plans');
+        for (const subDir of planSubDirs) {
+          const dirPath = path.join(plansBase, subDir);
+          dirsToCreate.push(dirPath);
+          gitkeepFiles.push(path.join(dirPath, '.gitkeep'));
+        }
+      }
+
+      try {
+        await Promise.all(dirsToCreate.map(dir => fs.mkdir(dir, { recursive: true })));
+        await Promise.all(gitkeepFiles.map(file => fs.writeFile(file, '')));
+
+        // 5. Scaffold agent and rule files
+        await copyScaffoldFiles();
+
+        console.log(chalk.green(' nocaflow project initialized successfully. ✨'));
+        console.log(
+          `Created ${chalk.bold(rootDir)} directory structure and ${chalk.bold(
+            scaffoldFiles.length,
+          )} agent/rule files.`,
+        );
+      } catch (error) {
+        console.error(chalk.red('Failed to initialize nocaflow project:'), EOL, error);
+        process.exit(1);
+      }
+    };
+  src/utils/git.ts: |-
+    import { simpleGit } from 'simple-git';
+    import path from 'path';
+    import { platform } from './platform';
+
+    export interface GitCommit {
+      hash: string;
+      worktree: string | null;
+      message: string;
+    }
+
+    interface WorktreeInfo {
+      path: string;
+      branch: string;
+      commit: string;
+    }
+
+    /**
+     * Get worktree information by parsing git worktree list output
+     */
+    const getWorktreeList = async (): Promise<WorktreeInfo[]> => {
+      try {
+        const result = await platform.runCommand('git worktree list --porcelain');
+        if (result.code !== 0) {
+          return [];
+        }
+
+        const lines = result.stdout.trim().split('\n');
+        const worktrees: WorktreeInfo[] = [];
+        let currentWorktree: Partial<WorktreeInfo> = {};
+
+        for (const line of lines) {
+          if (line.startsWith('worktree ')) {
+            if (currentWorktree.path) {
+              worktrees.push(currentWorktree as WorktreeInfo);
+            }
+            currentWorktree = { path: line.substring(9) };
+          } else if (line.startsWith('branch ')) {
+            currentWorktree.branch = line.substring(7);
+          } else if (line.startsWith('HEAD ')) {
+            currentWorktree.commit = line.substring(5);
+          }
+        }
+
+        if (currentWorktree.path) {
+          worktrees.push(currentWorktree as WorktreeInfo);
+        }
+
+        return worktrees;
+      } catch (error) {
+        return [];
+      }
+    };
+
+    /**
+     * @description Executes 'git log' to get recent commit history across all worktrees.
+     * @param limit - The maximum number of commits to return.
+     * @returns A list of recent git commits.
+     */
+    export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
+      try {
+        const git = simpleGit();
+        const isRepo = await git.checkIsRepo();
+        if (!isRepo) return [];
+
+        const worktrees = await getWorktreeList(); // for mapping branch to worktree name
+        const worktreeMap = new Map<string, string>();
+        for (const wt of worktrees) {
+          const branchNameMatch = wt.branch.match(/refs\/heads\/(.*)/);
+          if (branchNameMatch && branchNameMatch[1]) {
+            const branchName = branchNameMatch[1];
+            // The main worktree is not a named worktree, so we only map auxiliary ones
+            if (branchName !== 'main' && branchName !== 'master') {
+              worktreeMap.set(branchName, path.basename(wt.path));
+            }
+          }
+        }
+
+        const logResult = await git.log({
+          '--all': null,
+          maxCount: limit,
+          format: { hash: '%H', refs: '%d', message: '%B' }, // %B gets the full commit message body
+        });
+
+        if (!logResult.all || logResult.total === 0) return [];
+
+        const commits = logResult.all.map(commit => {
+          let worktree: string | null = null;
+          // commit.refs is like ' (HEAD -> my-feature, origin/my-feature)'
+          for (const branchName of worktreeMap.keys()) {
+            if (commit.refs.includes(branchName)) {
+              worktree = worktreeMap.get(branchName) || null;
+              break;
+            }
+          }
+
+          return {
+            hash: commit.hash,
+            worktree,
+            message: commit.message.trim(),
+          };
+        });
+
+        return commits;
+      } catch (error) {
+        return []; // Git not installed, not a git repo, or other error.
+      }
+    };
+
+    /**
+     * @description Checks if the current directory is a git repository.
+     * @returns {Promise<boolean>}
+     */
+    export const isGitRepository = async (): Promise<boolean> => {
+      try {
+        const git = simpleGit();
+        return await git.checkIsRepo();
+      } catch (error) {
+        return false;
+      }
+    };
+  src/utils/platform.ts: |-
+    import { exec as execCallback, ExecException } from 'child_process';
+    import { promisify } from 'util';
+    import * as os from 'os';
+
+    const exec = promisify(execCallback);
+
+    export interface CommandResult {
+      stdout: string;
+      stderr: string;
+      code: number;
+    }
+
+    export interface Platform {
+      runCommand(command: string): Promise<CommandResult>;
+      getTmpDir(): string;
+      commandExists(command: string): Promise<boolean>;
+    }
+
+    const runCommand = async (command: string): Promise<CommandResult> => {
+      try {
+        const { stdout, stderr } = await exec(command);
+        return { stdout, stderr, code: 0 };
+      } catch (error) {
+        // exec throws an error for non-zero exit codes.
+        // We want to capture stdout/stderr and the code, not crash.
+        const err = error as ExecException & { stdout: string; stderr: string };
+        return {
+          stdout: err.stdout,
+          stderr: err.stderr,
+          code: err.code ?? 1,
+        };
+      }
+    };
+
+    const getTmpDir = (): string => {
+      // Respect common environment variables for temp directories.
+      // This is crucial for environments like Termux.
+      return process.env.TMPDIR || process.env.TEMP || process.env.TMP || os.tmpdir();
+    };
+
+    const commandExists = async (command: string): Promise<boolean> => {
+      // `command -v` is a POSIX standard way to check for command existence.
+      // It has a non-zero exit code if the command is not found.
+      const result = await runCommand(`command -v ${command}`);
+      return result.code === 0;
+    };
+
+
+    export const posixPlatform: Platform = {
+      runCommand,
+      getTmpDir,
+      commandExists,
+    };
+
+    // Export a singleton instance for the application to use.
+    export const platform: Platform = posixPlatform;
+  test/e2e/cli.test.ts: >-
+    import { runCli, setupTestDirectory, createDummyPlanFile,
+    createDummyFailedReport, initGitRepo } from '../test.util';
+
+    import fs from 'fs/promises';
+
+    import { exec as execCallback } from 'child_process';
+
+    import path from 'path';
+
+    import { promisify } from 'util';
+
+    import { platform } from '../../src/utils/platform';
+
+
+    const promisedExec = promisify(execCallback);
+
+
+
+    describe('e2e/cli', () => {
+      let cleanup: () => Promise<void>;
+      let testDir: string;
+
+      beforeAll(async () => {
+        try {
+          await promisedExec('npm run build');
+        } catch (e) {
+          console.error('Failed to build project for E2E tests:', e);
+          process.exit(1);
+        }
+      }, 60000);
+
+      beforeEach(async () => {
+        const { cleanup: c, testDir: td } = await setupTestDirectory();
+        cleanup = c;
+        testDir = td;
+      });
+
+      afterEach(async () => {
+        if (cleanup) {
+          await cleanup();
+        }
+      });
+
+      describe('init command', () => {
+        it('should initialize a new project structure', async () => {
+          const { stdout, code } = await runCli('init');
+
+          expect(stdout).toContain('nocaflow project initialized successfully');
+          expect(code).toBe(0);
+
+          const expectedFile = path.join(testDir, '.nocaflow/initialization/plans/todo/.gitkeep');
+          await expect(fs.access(expectedFile)).resolves.toBeUndefined();
+        });
+
+        it('should show a warning if the project is already initialized', async () => {
+          await fs.mkdir('.nocaflow'); // Manually create the directory
+          const { stderr, code } = await runCli('init');
+
+          expect(stderr).toContain("Warning: '.nocaflow' directory already exists. Initialization skipped.");
+          expect(code).toBe(0); // Graceful exit on warning
+        });
+      });
+
+      describe('state command', () => {
+        it('should display the project state in an initialized directory', async () => {
+          await runCli('init');
+          await createDummyPlanFile('initialization', 'todo', 'plan1.yml');
+
+          const { stdout, code } = await runCli('state');
+
+          expect(stdout).toContain('== nocaflow State');
+          expect(stdout).toContain('Phase Progress');
+          expect(stdout).toContain('Current Phase: initialization');
+          expect(stdout).toContain('todo: 1');
+          expect(code).toBe(0);
+        });
+
+        it('should display a complex, multi-faceted state correctly', async () => {
+          await runCli('init');
+          await initGitRepo();
+
+          // Setup: Create various artifacts
+          await createDummyPlanFile('initialization', 'doing', 'p1.yml');
+          await createDummyPlanFile('development', 'done', 'p2.yml');
+          await createDummyFailedReport('initialization', 'f01', 'pA', 'Test failure');
+
+          const logDir = '.nocaflow/development/agent-log';
+          await fs.mkdir(logDir, { recursive: true });
+          const logContent = `2023-10-27T10:00:00.000Z [DONE|DEV|agent-abc] plan:plan-e2e - Log message`;
+          await fs.writeFile(path.join(logDir, 'test.log'), logContent);
+
+          const tmuxSessionName = 'dev-e2e-part-xyz';
+          const canRunTmux = await platform.commandExists('tmux');
+          if (canRunTmux) {
+            await platform.runCommand(`tmux new-session -d -s ${tmuxSessionName} "sleep 15"`);
+          }
+
+          // Act: Run the state command
+          let stdout: string, code: number;
+          try {
+            const result = await runCli('state');
+            stdout = result.stdout;
+            code = result.code;
+          } finally {
+            // Teardown: ensure tmux session is killed
+            if (canRunTmux) {
+              await platform.runCommand(`tmux kill-session -t ${tmuxSessionName} || true`);
+            }
+          }
+
+          expect(code).toBe(0);
+          // Assert on all sections
+          expect(stdout).toContain('Current Phase: development');
+          expect(stdout).toContain('[INITIALIZATION]'.padEnd(18) + '[--------------------] (0/1 plans done)');
+          expect(stdout).toContain('[DEVELOPMENT]'.padEnd(18) + '[▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇] (1/1 plans done)');
+          if (canRunTmux) {
+            expect(stdout).toContain('part:e2e-part-xyz');
+          }
+          expect(stdout).toContain('plan:plan-e2e - Log message');
+          expect(stdout).toContain('plan:f01 part:pA - "Test failure"');
+          expect(stdout).toContain('Initial commit');
+        });
+
+        it('should show a zero-state when run in a non-initialized directory', async () => {
+          const { stdout, stderr, code } = await runCli('state');
+          
+          expect(stderr).toBe('');
+          expect(code).toBe(0);
+          expect(stdout).toContain('Current Phase: initialization');
+          expect(stdout).toContain('(0/0 plans done)');
+          expect(stdout).toContain('No active agents.');
+          expect(stdout).toContain('No recent activity.');
+          expect(stdout).toContain('No failed reports in the last 24 hours.');
+        });
+      });
+
+      describe('no command', () => {
+        it('should display help when no command is provided', async () => {
+          const { stderr } = await runCli('');
+          expect(stderr).toContain('Commands:');
+          expect(stderr).toContain('init');
+          expect(stderr).toContain('state');
+          expect(stderr).toContain('You need at least one command before moving on');
+        });
+
+        it('should display help when --help flag is used', async () => {
+          const generalHelp = await runCli('--help');
+          expect(generalHelp.stdout).toContain('Show help');
+
+          const stateHelp = await runCli('state --help');
+          expect(stateHelp.stdout).toContain('Display the current state of the nocaflow project');
+        });
+
+        it('should show an error for an unknown command', async () => {
+          const { stderr } = await runCli('nonexistent-command');
+          expect(stderr).toContain('Unknown argument: nonexistent-command');
+        });
+      });
+    });
+approved: true
+linesAdded: 129
+linesRemoved: 17
+linesDifference: 146
+gitCommittedAt: null
+status: committed
+id: 47

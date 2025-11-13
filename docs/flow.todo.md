@@ -1,6 +1,14 @@
-=== DOING
+===
 
-implement multi-level logger and error implement accross codebase. all without causing fail tests
+prepare for npm publication
+
+=== DONE
+
+yaml file naming should comply with conventions
+
+=== DONE
+
+implement unified multi-level logger and error system then implement accross codebase. all without causing fail tests
 
 === DONE
 

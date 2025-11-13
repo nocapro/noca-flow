@@ -35,9 +35,9 @@ describe('e2e/cli', () => {
 
   describe('init command', () => {
     it('should initialize a new project structure', async () => {
-      const { stdout, code } = await runCli('init');
+      const { stderr, code } = await runCli('init');
 
-      expect(stdout).toContain('nocaflow project initialized successfully');
+      expect(stderr).toContain('nocaflow project initialized successfully');
       expect(code).toBe(0);
 
       const expectedFile = path.join(testDir, '.nocaflow/initialization/plans/todo/.gitkeep');
@@ -45,10 +45,10 @@ describe('e2e/cli', () => {
     });
 
     it('should show a warning if the project is already initialized', async () => {
-      await fs.mkdir('.nocaflow'); // Manually create the directory
+      await runCli('init'); // Run once to initialize
       const { stderr, code } = await runCli('init');
 
-      expect(stderr).toContain("Warning: '.nocaflow' directory already exists. Initialization skipped.");
+      expect(stderr).toContain("'.nocaflow' directory already exists. Initialization skipped.");
       expect(code).toBe(0); // Graceful exit on warning
     });
   });
@@ -56,7 +56,7 @@ describe('e2e/cli', () => {
   describe('state command', () => {
     it('should display the project state in an initialized directory', async () => {
       await runCli('init');
-      await createDummyPlanFile('initialization', 'todo', 'plan1.yml');
+      await createDummyPlanFile('initialization', 'todo', 'e2e001.plan.yml');
 
       const { stdout, code } = await runCli('state');
 
@@ -72,9 +72,9 @@ describe('e2e/cli', () => {
       await initGitRepo();
 
       // Setup: Create various artifacts
-      await createDummyPlanFile('initialization', 'doing', 'p1.yml');
-      await createDummyPlanFile('development', 'done', 'p2.yml');
-      await createDummyFailedReport('initialization', 'f01', 'pA', 'Test failure');
+      await createDummyPlanFile('initialization', 'doing', 'e2e002.plan.yml');
+      await createDummyPlanFile('development', 'done', 'e2e003.plan.yml');
+      await createDummyFailedReport('initialization', 'f01e01', 'abcdef', 'Test failure');
 
       const logDir = '.nocaflow/development/agent-log';
       await fs.mkdir(logDir, { recursive: true });
@@ -109,7 +109,7 @@ describe('e2e/cli', () => {
         expect(stdout).toContain('part:e2e-part-xyz');
       }
       expect(stdout).toContain('plan:plan-e2e - Log message');
-      expect(stdout).toContain('plan:f01 part:pA - "Test failure"');
+      expect(stdout).toContain('plan:f01e01 part:abcdef - "Test failure"');
       expect(stdout).toContain('Initial commit');
     });
 

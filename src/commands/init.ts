@@ -1,11 +1,11 @@
 import fs from 'fs/promises';
 import path from 'path';
-import chalk from 'chalk';
 import { EOL } from 'os';
 import { simpleGit } from 'simple-git';
 import { platform } from '../utils/platform';
 import { isGitRepository } from '../utils/git';
 import { copyScaffoldFiles, scaffoldFiles } from '../scaffold/templates';
+import { logger } from '../utils/logger';
 
 /**
  * @description Handles the logic for the 'init' command.
@@ -16,7 +16,7 @@ export const handleInitCommand = async (_argv: Record<string, unknown>): Promise
   for (const cmd of requiredCommands) {
     const exists = await platform.commandExists(cmd);
     if (!exists) {
-      console.error(chalk.red(`Error: ${cmd} is not installed. NocaFlow requires git and tmux.`));
+      logger.error(`Error: ${cmd} is not installed. NocaFlow requires git and tmux.`);
       process.exit(1);
     }
   }
@@ -25,7 +25,7 @@ export const handleInitCommand = async (_argv: Record<string, unknown>): Promise
   const rootDir = '.nocaflow';
   try {
     await fs.access(rootDir);
-    console.warn(chalk.yellow(`Warning: '${rootDir}' directory already exists. Initialization skipped.`));
+    logger.warn(`'${rootDir}' directory already exists. Initialization skipped.`);
     process.exit(0);
   } catch (error) {
     // Directory does not exist, proceed.
@@ -35,14 +35,14 @@ export const handleInitCommand = async (_argv: Record<string, unknown>): Promise
   try {
     const isGitRepo = await isGitRepository();
     if (!isGitRepo) {
-      console.log('No git repository found. Initializing...');
+      logger.info('No git repository found. Initializing...');
       await simpleGit().init();
-      console.log(chalk.green('Git repository initialized.'));
+      logger.info('Git repository initialized.');
     } else {
-      console.log('Existing git repository found.');
+      logger.info('Existing git repository found.');
     }
   } catch (error) {
-    console.error(chalk.red('Failed to initialize git repository:'), EOL, error);
+    logger.error('Failed to initialize git repository:', EOL, error);
     process.exit(1);
   }
 
@@ -74,14 +74,12 @@ export const handleInitCommand = async (_argv: Record<string, unknown>): Promise
     // 5. Scaffold agent and rule files
     await copyScaffoldFiles();
 
-    console.log(chalk.green(' nocaflow project initialized successfully. ✨'));
-    console.log(
-      `Created ${chalk.bold(rootDir)} directory structure and ${chalk.bold(
-        scaffoldFiles.length,
-      )} agent/rule files.`,
+    logger.info('nocaflow project initialized successfully. ✨');
+    logger.info(
+      `Created '${rootDir}' directory structure and ${scaffoldFiles.length} agent/rule files.`,
     );
   } catch (error) {
-    console.error(chalk.red('Failed to initialize nocaflow project:'), EOL, error);
+    logger.error('Failed to initialize nocaflow project:', EOL, error);
     process.exit(1);
   }
 };

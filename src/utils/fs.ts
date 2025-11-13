@@ -43,8 +43,8 @@ export const getPhaseStats = async (): Promise<PhaseStats> => {
       const dirPath = path.join('.nocaflow', phase, 'plans', status);
       try {
         const files = await fs.readdir(dirPath);
-        // A plan is represented by its .yml file. This counts plans in each state directory.
-        const count = files.filter(f => f.endsWith('.yml')).length;
+        // A plan is represented by its .plan.yml file. This counts plans in each state directory.
+        const count = files.filter(f => f.endsWith('.plan.yml')).length;
         stats[phase][status] = count;
         stats[phase].total += count;
       } catch (error) {

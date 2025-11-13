@@ -2,6 +2,7 @@ import { simpleGit } from 'simple-git';
 import path from 'path';
 import { platform } from './platform';
 
+import { logger } from './logger';
 export interface GitCommit {
   hash: string;
   worktree: string | null;
@@ -47,6 +48,7 @@ const getWorktreeList = async (): Promise<WorktreeInfo[]> => {
 
     return worktrees;
   } catch (error) {
+    logger.debug('Failed to get git worktree list:', error);
     return [];
   }
 };
@@ -102,6 +104,7 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
 
     return commits;
   } catch (error) {
+    logger.debug('Failed to get git log:', error);
     return []; // Git not installed, not a git repo, or other error.
   }
 };
@@ -115,6 +118,7 @@ export const isGitRepository = async (): Promise<boolean> => {
     const git = simpleGit();
     return await git.checkIsRepo();
   } catch (error) {
+    logger.debug('Failed to check if is git repo:', error);
     return false;
   }
 };
