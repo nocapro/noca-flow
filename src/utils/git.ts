@@ -1,3 +1,5 @@
+import { simpleGit, SimpleGit, LogResult } from 'simple-git';
+import path from 'path';
 import { platform } from './platform';
 
 export interface GitCommit {
@@ -6,61 +8,108 @@ export interface GitCommit {
   message: string;
 }
 
+
+
+interface WorktreeInfo {
+  path: string;
+  branch: string;
+  commit: string;
+}
+
+/**
+ * Get worktree information by parsing git worktree list output
+ */
+const getWorktreeList = async (): Promise<WorktreeInfo[]> => {
+  try {
+    const result = await platform.runCommand('git worktree list --porcelain');
+    if (result.code !== 0) {
+      return [];
+    }
+
+    const lines = result.stdout.trim().split('\n');
+    const worktrees: WorktreeInfo[] = [];
+    let currentWorktree: Partial<WorktreeInfo> = {};
+
+    for (const line of lines) {
+      if (line.startsWith('worktree ')) {
+        // Save previous worktree if complete
+        if (currentWorktree.path && currentWorktree.branch) {
+          worktrees.push(currentWorktree as WorktreeInfo);
+        }
+        // Start new worktree
+        currentWorktree = { path: line.substring(9) };
+      } else if (line.startsWith('branch ')) {
+        currentWorktree.branch = line.substring(7);
+      } else if (line.startsWith('HEAD ')) {
+        currentWorktree.commit = line.substring(5);
+      }
+    }
+
+    // Add the last worktree if there is one
+    if (currentWorktree.path) {
+      worktrees.push(currentWorktree as WorktreeInfo);
+    }
+
+    return worktrees;
+  } catch (error) {
+    return [];
+  }
+};
+
 /**
  * @description Executes 'git log' to get recent commit history across all worktrees.
  * @param limit - The maximum number of commits to return.
  * @returns A list of recent git commits.
  */
 export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
-  const getWorktreeMap = async (): Promise<Map<string, string>> => {
-    const map = new Map<string, string>();
-    try {
-      const { stdout } = await platform.runCommand('git worktree list --porcelain');
-      const entries = stdout.trim().split('\n\n');
-      for (const entry of entries) {
-        const branchMatch = entry.match(/^branch refs\/heads\/(.*)/m);
-        if (branchMatch) {
-          const branchName = branchMatch[1];
-          // Do not treat the main/master branch as a worktree indicator
-          if (branchName !== 'main' && branchName !== 'master') {
-            // Assuming worktree branch name is the worktree name we want to display
-            map.set(branchName, branchName);
-          }
+  try {
+    const git = simpleGit();
+    const isRepo = await git.checkIsRepo();
+    if (!isRepo) return [];
+
+    const worktrees = await getWorktreeList();
+    const worktreeMap = new Map<string, string>();
+    for (const wt of worktrees) {
+      // Branch is like 'refs/heads/feature-branch', we want 'feature-branch'
+      const branchNameMatch = wt.branch.match(/refs\/heads\/(.*)/);
+      if (branchNameMatch && branchNameMatch[1]) {
+        const branchName = branchNameMatch[1];
+        if (branchName !== 'main' && branchName !== 'master') {
+          worktreeMap.set(branchName, path.basename(wt.path));
         }
       }
-    } catch (error) {
-      // Not a git repo or no worktrees, map will be empty.
     }
-    return map;
-  };
 
-  try {
-    const worktreeMap = await getWorktreeMap();
-    // Use non-printable characters as delimiters for robustness.
-    // \x1f (unit separator) separates fields, \x00 (null) separates records.
-    const { stdout: logOutput } = await platform.runCommand(`git log --all -n ${limit} --pretty=format:'%H%x1f%D%x1f%B%n%x00'`);
-    if (!logOutput) return [];
+    // Get commit hashes first with basic format
+    const basicLogResult = await git.log({ '--all': null, maxCount: limit });
+    
+    if (!basicLogResult.all || basicLogResult.total === 0) return [];
 
-    // Split by null byte and filter out any trailing empty string.
-    return logOutput.split('\x00').filter(Boolean).map(line => {
-      const parts = line.split('\x1f');
-      const hash = parts[0] || '';
-      const refs = parts[1] || '';
-      // Process the message to convert literal \n sequences to actual newlines
-      const rawMessage = (parts[2] || '').trim();
-      const message = rawMessage.replace(/\\n/g, '\n');
-
+    const commits: GitCommit[] = [];
+    
+    for (const commit of basicLogResult.all) {
+      // Get the full commit message using raw git command for each commit
+      const fullMessageResult = await git.raw(['show', '--format=%B', '--no-patch', commit.hash]);
+      const fullMessage = fullMessageResult.trim();
+      
       let worktree: string | null = null;
       for (const branchName of worktreeMap.keys()) {
-        if (refs.includes(branchName)) {
+        if (commit.refs.includes(branchName)) {
           worktree = worktreeMap.get(branchName) || null;
           break;
         }
       }
-      return { hash, worktree, message };
-    });
+
+      commits.push({
+        hash: commit.hash,
+        worktree,
+        message: fullMessage,
+      });
+    }
+
+    return commits;
   } catch (error) {
-    return []; // Git not installed or not a git repo.
+    return []; // Git not installed, not a git repo, or other error.
   }
 };
 
@@ -70,8 +119,8 @@ export const getGitLog = async (limit: number): Promise<GitCommit[]> => {
  */
 export const isGitRepository = async (): Promise<boolean> => {
   try {
-    const { stdout, code } = await platform.runCommand('git rev-parse --is-inside-work-tree');
-    return code === 0 && stdout.trim() === 'true';
+    const git = simpleGit();
+    return await git.checkIsRepo();
   } catch (error) {
     return false;
   }

@@ -2,9 +2,9 @@ import { getActiveAgents } from '../../../src/utils/shell';
 import { platform } from '../../../src/utils/platform';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
-dayjs.extend(relativeTime);
+dayjs.extend(relativeTime as any);
 
 describe('unit/utils/shell (integration)', () => {
   const testId = crypto.randomBytes(4).toString('hex');
@@ -46,7 +46,8 @@ describe('unit/utils/shell (integration)', () => {
   describe('getActiveAgents', () => {
     const itif = (condition: boolean) => (condition ? it : it.skip);
 
-    itif(canRun)('should parse all types of agent sessions and ignore non-agent sessions', async () => {
+    // Force this test to run for debugging
+    it('should parse all types of agent sessions and ignore non-agent sessions', async () => {
       const agents = await getActiveAgents();
       // Filter for agents created in this specific test run to ensure isolation
       const testAgents = agents.filter(
@@ -69,7 +70,7 @@ describe('unit/utils/shell (integration)', () => {
       );
     });
 
-    itif(canRun)('should return an empty array if tmux has no sessions', async () => {
+    it('should return an empty array if tmux has no sessions', async () => {
       // Kill the sessions from beforeEach to create an empty state
       for (const name of sessionNames) {
         await platform.runCommand(`tmux kill-session -t ${name} || true`);
@@ -79,7 +80,7 @@ describe('unit/utils/shell (integration)', () => {
       expect(agents).toEqual([]);
     });
 
-    itif(canRun)('should correctly calculate agent runtime', async () => {
+    it('should correctly calculate agent runtime', async () => {
       const agents = await getActiveAgents();
       const devAgent = agents.find(a => a.partId === `part456-${testId}`);
       expect(devAgent).toBeDefined();
